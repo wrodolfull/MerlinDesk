@@ -1,0 +1,106 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "add": "Add",
+    "remove": "Remove",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results found",
+    "required": "Required"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember Me",
+    "dontHaveAccount": "Don't have an account?",
+    "alreadyHaveAccount": "Already have an account?"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "appointments": "Appointments",
+    "calendars": "Calendars",
+    "professionals": "Professionals",
+    "clients": "Clients",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  },
+  "appointments": {
+    "title": "Appointments",
+    "new": "New Appointment",
+    "status": {
+      "confirmed": "Confirmed",
+      "pending": "Pending",
+      "completed": "Completed",
+      "canceled": "Canceled"
+    },
+    "timeframe": {
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "all": "All Time"
+    }
+  },
+  "calendars": {
+    "title": "Calendars",
+    "new": "New Calendar",
+    "name": "Calendar Name",
+    "location": "Location"
+  },
+  "specialties": {
+    "title": "Specialties",
+    "new": "New Specialty",
+    "name": "Specialty Name",
+    "duration": "Duration",
+    "price": "Price",
+    "description": "Description"
+  },
+  "professionals": {
+    "title": "Professionals",
+    "new": "New Professional",
+    "name": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "bio": "Bio",
+    "avatar": "Avatar URL"
+  },
+  "clients": {
+    "title": "Clients",
+    "new": "New Client",
+    "name": "Full Name",
+    "email": "Email",
+    "phone": "Phone"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "pt": "Portuguese (Brazil)",
+      "es": "Spanish"
+    },
+    "timezone": "Timezone",
+    "notifications": {
+      "title": "Notifications",
+      "email": "Email Notifications",
+      "sms": "SMS Notifications",
+      "reminderTime": "Reminder Time"
+    },
+    "business": {
+      "title": "Business Information",
+      "name": "Business Name",
+      "email": "Business Email",
+      "phone": "Business Phone",
+      "address": "Business Address"
+    }
+  }
+}

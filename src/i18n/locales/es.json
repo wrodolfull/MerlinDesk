@@ -1,0 +1,106 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Ocurrió un error",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "add": "Agregar",
+    "remove": "Eliminar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "noResults": "No se encontraron resultados",
+    "required": "Requerido"
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "signOut": "Cerrar Sesión",
+    "email": "Correo",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "rememberMe": "Recordarme",
+    "dontHaveAccount": "¿No tienes una cuenta?",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?"
+  },
+  "navigation": {
+    "dashboard": "Panel",
+    "appointments": "Citas",
+    "calendars": "Calendarios",
+    "professionals": "Profesionales",
+    "clients": "Clientes",
+    "analytics": "Análisis",
+    "settings": "Configuración"
+  },
+  "appointments": {
+    "title": "Citas",
+    "new": "Nueva Cita",
+    "status": {
+      "confirmed": "Confirmada",
+      "pending": "Pendiente",
+      "completed": "Completada",
+      "canceled": "Cancelada"
+    },
+    "timeframe": {
+      "today": "Hoy",
+      "upcoming": "Próximas",
+      "past": "Anteriores",
+      "all": "Todas"
+    }
+  },
+  "calendars": {
+    "title": "Calendarios",
+    "new": "Nuevo Calendario",
+    "name": "Nombre del Calendario",
+    "location": "Ubicación"
+  },
+  "specialties": {
+    "title": "Especialidades",
+    "new": "Nueva Especialidad",
+    "name": "Nombre de la Especialidad",
+    "duration": "Duración",
+    "price": "Precio",
+    "description": "Descripción"
+  },
+  "professionals": {
+    "title": "Profesionales",
+    "new": "Nuevo Profesional",
+    "name": "Nombre Completo",
+    "email": "Correo",
+    "phone": "Teléfono",
+    "bio": "Biografía",
+    "avatar": "URL del Avatar"
+  },
+  "clients": {
+    "title": "Clientes",
+    "new": "Nuevo Cliente",
+    "name": "Nombre Completo",
+    "email": "Correo",
+    "phone": "Teléfono"
+  },
+  "settings": {
+    "title": "Configuración",
+    "language": "Idioma",
+    "languages": {
+      "en": "Inglés",
+      "pt": "Portugués (Brasil)",
+      "es": "Español"
+    },
+    "timezone": "Zona Horaria",
+    "notifications": {
+      "title": "Notificaciones",
+      "email": "Notificaciones por Correo",
+      "sms": "Notificaciones por SMS",
+      "reminderTime": "Tiempo de Recordatorio"
+    },
+    "business": {
+      "title": "Información del Negocio",
+      "name": "Nombre del Negocio",
+      "email": "Correo del Negocio",
+      "phone": "Teléfono del Negocio",
+      "address": "Dirección del Negocio"
+    }
+  }
+}
