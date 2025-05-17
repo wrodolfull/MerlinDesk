@@ -2,17 +2,18 @@ import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
-import Select from '../ui/Select';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Specialty } from '../../types';
+import toast, { Toaster } from 'react-hot-toast';
+import ReactSelect from 'react-select';
 
 interface CreateProfessionalFormData {
   name: string;
   email: string;
   phone?: string;
-  specialtyId: string;
+  specialtyIds: string[];
   bio?: string;
 }
 
@@ -23,12 +24,12 @@ interface CreateProfessionalModalProps {
   onSuccess: () => void;
 }
 
-const CreateProfessionalModal = ({
+const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
   calendarId,
   specialties,
   onClose,
   onSuccess,
-}: CreateProfessionalModalProps) => {
+}) => {
   const { user } = useAuth();
 
   const {
@@ -36,31 +37,48 @@ const CreateProfessionalModal = ({
     handleSubmit,
     control,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<CreateProfessionalFormData>();
 
   const onSubmit = async (data: CreateProfessionalFormData) => {
     try {
       if (!user) throw new Error('User not authenticated');
       if (!calendarId) throw new Error('Calendar ID is required');
-      if (!data.specialtyId) throw new Error('Specialty is required');
+      if (!data.specialtyIds?.length) throw new Error('At least one specialty is required');
 
-      const { error } = await supabase.from('professionals').insert({
-        name: data.name,
-        email: data.email,
-        phone: data.phone || null,
-        specialty_id: data.specialtyId,
-        calendar_id: calendarId,
-        bio: data.bio || null,
-        user_id: user.id,
-      });
+      const { data: professional, error: insertError } = await supabase
+        .from('professionals')
+        .insert({
+          name: data.name,
+          email: data.email,
+          phone: data.phone || null,
+          calendar_id: calendarId,
+          bio: data.bio || null,
+          user_id: user.id,
+        })
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
+      const specialtyRows = data.specialtyIds.map((specialtyId) => ({
+        professional_id: professional.id,
+        specialty_id: specialtyId,
+      }));
+
+      const { error: relationError } = await supabase
+        .from('professional_specialties')
+        .insert(specialtyRows);
+
+      if (relationError) throw relationError;
+
+      toast.success('Professional added successfully');
+      reset();
       onSuccess();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create professional');
       console.error('Error creating professional:', error);
-      alert('Failed to create professional');
     }
   };
 
@@ -71,6 +89,7 @@ const CreateProfessionalModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Add New Professional</CardTitle>
@@ -81,6 +100,7 @@ const CreateProfessionalModal = ({
               label="Full Name"
               error={errors.name?.message}
               {...register('name', { required: 'Name is required' })}
+              disabled={isSubmitting}
             />
 
             <Input
@@ -94,32 +114,72 @@ const CreateProfessionalModal = ({
                   message: 'Invalid email address',
                 },
               })}
+              disabled={isSubmitting}
             />
 
-            <Input label="Phone" {...register('phone')} />
+            <Input
+              label="Phone"
+              {...register('phone', {
+                pattern: {
+                  value: /^[0-9\-\+\(\)\s]+$/,
+                  message: 'Invalid phone number',
+                },
+              })}
+              error={errors.phone?.message}
+              disabled={isSubmitting}
+            />
 
             <Controller
-              name="specialtyId"
+              name="specialtyIds"
               control={control}
-              rules={{ required: 'Specialty is required' }}
+              rules={{ required: 'At least one specialty is required' }}
               render={({ field }) => (
-                <Select
-                  label="Specialty"
-                  options={specialtyOptions}
-                  value={field.value}
-                  onChange={(value) => field.onChange(value)}
-                  error={errors.specialtyId?.message}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Specialties
+                  </label>
+                  <ReactSelect
+                    isMulti
+                    options={specialtyOptions}
+                    value={specialtyOptions.filter((opt) =>
+                      field.value?.includes(opt.value)
+                    )}
+                    onChange={(selected) => {
+                      const values = Array.isArray(selected)
+                        ? selected.map((opt) => opt.value)
+                        : [];
+                      field.onChange(values);
+                    }}
+                    isDisabled={isSubmitting}
+                    classNamePrefix="react-select"
+                  />
+                  {errors.specialtyIds && (
+                    <p className="text-sm text-red-600 mt-1">{errors.specialtyIds.message}</p>
+                  )}
+                </div>
               )}
             />
 
-            <Input label="Bio" {...register('bio')} />
+            <Input
+              label="Bio"
+              {...register('bio')}
+              disabled={isSubmitting}
+            />
 
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button
+                type="submit"
+                isLoading={isSubmitting}
+                disabled={isSubmitting}
+              >
                 Add Professional
               </Button>
             </div>

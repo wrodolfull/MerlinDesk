@@ -7,6 +7,7 @@ import Button from '../ui/Button';
 import Select from '../ui/Select';
 import { useAuth } from '../../contexts/AuthContext';
 import { addMinutes } from 'date-fns';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface Client {
   id: string;
@@ -42,55 +43,101 @@ interface CreateAppointmentFormData {
 interface CreateAppointmentModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  initialDate?: Date;
 }
 
-const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalProps) => {
+const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose, onSuccess, initialDate }) => {
   const { user } = useAuth();
   const [clientsData, setClientsData] = useState<Client[]>([]);
   const [specialtiesData, setSpecialtiesData] = useState<Specialty[]>([]);
   const [professionalsData, setProfessionalsData] = useState<Professional[]>([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<CreateAppointmentFormData>();
+    reset,
+  } = useForm<CreateAppointmentFormData>({
+    defaultValues: {
+      status: 'pending',
+    },
+  });
+
+  const watchClientId = watch('clientId');
+
+  useEffect(() => {
+    if (watchClientId) {
+      const selectedClient = clientsData.find((c) => c.id === watchClientId);
+      if (selectedClient) {
+        setValue('clientPhone', selectedClient.phone || '');
+      }
+    }
+  }, [watchClientId, clientsData, setValue]);
 
   const watchSpecialtyId = watch('specialtyId');
 
   useEffect(() => {
+    if (initialDate) {
+      const iso = initialDate.toISOString().slice(0, 16); // formato yyyy-MM-ddTHH:mm
+      setValue('startTime', iso);
+    }
+  }, [initialDate, setValue]);
+  
+  useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
 
-      const { data: calendars } = await supabase
-        .from('calendars')
-        .select('id')
-        .eq('owner_id', user.id);
+      setLoading(true);
+      try {
+        // Buscar calendários do usuário
+        const { data: calendars, error: calendarsError } = await supabase
+          .from('calendars')
+          .select('id')
+          .eq('owner_id', user.id);
 
-      if (!calendars || calendars.length === 0) return;
+        if (calendarsError) throw calendarsError;
+        if (!calendars || calendars.length === 0) {
+          toast.error('No calendar found. Please create a calendar first.');
+          setLoading(false);
+          return;
+        }
 
-      const calendarIds = calendars.map((c) => c.id);
+        const calendarIds = calendars.map((c) => c.id);
 
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('user_id', user.id);
-      setClientsData(clients || []);
+        // Buscar clientes
+        const { data: clients, error: clientsError } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('owner_id', user.id);
+        if (clientsError) throw clientsError;
+        setClientsData(clients || []);
 
-      const { data: specialties } = await supabase
-        .from('specialties')
-        .select('*')
-        .in('calendar_id', calendarIds);
-      setSpecialtiesData(specialties || []);
+        // Buscar especialidades
+        const { data: specialties, error: specialtiesError } = await supabase
+          .from('specialties')
+          .select('*')
+          .in('calendar_id', calendarIds);
+        if (specialtiesError) throw specialtiesError;
+        setSpecialtiesData(specialties || []);
 
-      const { data: professionals } = await supabase
-        .from('professionals')
-        .select('*')
-        .in('calendar_id', calendarIds);
-      setProfessionalsData(professionals || []);
+        // Buscar profissionais
+        const { data: professionals, error: professionalsError } = await supabase
+          .from('professionals')
+          .select('*')
+          .in('calendar_id', calendarIds);
+        if (professionalsError) throw professionalsError;
+        setProfessionalsData(professionals || []);
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to load data');
+        console.error('Error loading data:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -106,10 +153,11 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
 
       // Atualiza telefone do cliente, se preenchido
       if (data.clientPhone) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('clients')
           .update({ phone: data.clientPhone })
           .eq('id', data.clientId);
+        if (updateError) throw updateError;
       }
 
       const specialty = specialtiesData.find((s) => s.id === data.specialtyId);
@@ -135,11 +183,13 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
 
       if (error) throw error;
 
+      toast.success('Appointment created successfully');
+      reset();
       onSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create appointment');
       console.error('Error creating appointment:', err);
-      alert('Failed to create appointment');
     }
   };
 
@@ -149,6 +199,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>New Appointment</CardTitle>
@@ -169,6 +220,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.clientId?.message}
+                  disabled={loading}
                 />
               )}
             />
@@ -178,6 +230,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
               label="WhatsApp Number"
               {...register('clientPhone')}
               placeholder="e.g. +5511999999999"
+              disabled={loading}
             />
 
             <Controller
@@ -194,6 +247,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.specialtyId?.message}
+                  disabled={loading}
                 />
               )}
             />
@@ -212,6 +266,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.professionalId?.message}
+                  disabled={loading}
                 />
               )}
             />
@@ -221,6 +276,7 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
               label="Start Time"
               {...register('startTime', { required: 'Start time is required' })}
               error={errors.startTime?.message}
+              disabled={loading}
             />
 
             <Controller
@@ -238,17 +294,23 @@ const CreateAppointmentModal = ({ onClose, onSuccess }: CreateAppointmentModalPr
                   ]}
                   value={field.value}
                   onChange={field.onChange}
+                  disabled={loading}
                 />
               )}
             />
 
-            <Input label="Notes" {...register('notes')} error={errors.notes?.message} />
+            <Input
+              label="Notes"
+              {...register('notes')}
+              error={errors.notes?.message}
+              disabled={loading}
+            />
 
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting || loading}>
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button type="submit" isLoading={isSubmitting || loading} disabled={loading}>
                 Create
               </Button>
             </div>

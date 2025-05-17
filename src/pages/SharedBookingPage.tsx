@@ -15,7 +15,7 @@ const SharedBookingPage = () => {
     const fetchCalendar = async () => {
       try {
         const cleanCalendarId = calendarId?.replace(':', '');
-        
+
         if (!cleanCalendarId) {
           setError('Calendar ID is required');
           return;
@@ -39,7 +39,12 @@ const SharedBookingPage = () => {
               phone,
               avatar,
               bio,
-              specialty_id
+              specialties:professional_specialties (
+                specialties (
+                  id,
+                  name
+                )
+              )
             )
           `)
           .eq('id', cleanCalendarId)
@@ -48,7 +53,15 @@ const SharedBookingPage = () => {
         if (fetchError) throw fetchError;
         if (!data) throw new Error('Calendar not found');
 
-        setCalendar(data);
+        const parsedProfessionals = (data.professionals || []).map((p: any) => ({
+          ...p,
+          specialties: (p.specialties || []).map((ps: any) => ps.specialties).filter(Boolean),
+        }));
+
+        setCalendar({
+          ...data,
+          professionals: parsedProfessionals,
+        });
       } catch (err) {
         console.error('Error fetching calendar:', err);
         setError('Failed to load calendar information');
@@ -98,12 +111,62 @@ const SharedBookingPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <BookingSteps 
-              calendarId={calendarId?.replace(':', '') || ''} 
+            <BookingSteps
+              calendarId={calendarId?.replace(':', '') || ''}
               specialties={calendar.specialties}
               professionals={calendar.professionals}
               onComplete={async (bookingData) => {
                 try {
+                  console.log('📋 bookingData recebido:', bookingData);
+
+                  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                  let clientId = bookingData.clientId;
+
+                  if (!uuidRegex.test(clientId)) {
+                    // Tentar encontrar o cliente pelo e-mail
+                    const { data: existingClient, error: findError } = await supabase
+                      .from('clients')
+                      .select('id')
+                      .eq('email', bookingData.client?.email)
+                      .eq('calendar_id', calendar.id)
+                      .maybeSingle();
+                  
+                    if (findError) throw new Error('Erro ao verificar cliente: ' + findError.message);
+                  
+                    if (existingClient?.id) {
+                      clientId = existingClient.id; // Já existe, usa o ID
+                    } else {
+                      // Cria novo cliente
+                      const { data: createdClient, error: createError } = await supabase
+                        .from('clients')
+                        .insert({
+                          name: bookingData.client?.name ?? 'Cliente',
+                          email: bookingData.client?.email ?? '',
+                          phone: bookingData.client?.phone ?? '',
+                          calendar_id: calendar.id,
+                          owner_id: calendar.owner_id,
+                        })
+                        .select()
+                        .single();
+                  
+                      if (createError) throw new Error('Erro ao criar cliente: ' + createError.message);
+                      clientId = createdClient.id;
+                    }
+                  }
+
+                  const payload = {
+                    clientId,
+                    professionalId: bookingData.professionalId,
+                    specialtyId: bookingData.specialtyId,
+                    startTime: bookingData.startTime,
+                    endTime: bookingData.endTime,
+                    notes: bookingData.notes || '',
+                    calendarId: calendar.id,
+                    userId: calendar.owner_id || 'anon',
+                  };
+
+                  console.log('📦 Dados sendo enviados ao Supabase:', payload);
+
                   const response = await fetch(
                     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/appointments/book`,
                     {
@@ -112,13 +175,16 @@ const SharedBookingPage = () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
                       },
-                      body: JSON.stringify(bookingData),
+                      body: JSON.stringify(payload),
                     }
                   );
 
-                  if (!response.ok) throw new Error('Failed to book appointment');
+                  if (!response.ok) {
+                    const err = await response.json();
+                    console.error('🛑 Erro ao agendar:', err);
+                    throw new Error('Failed to book appointment');
+                  }
 
-                  // Show success message or redirect
                   alert('Appointment booked successfully!');
                 } catch (error) {
                   console.error('Error booking appointment:', error);

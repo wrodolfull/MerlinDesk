@@ -1,21 +1,51 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+
+export interface Professional {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  bio?: string;
+  calendarId: string;
+  specialties: {
+    id: string;
+    name: string;
+  }[];
+  userId: string;
+}
 
 export const useProfessionals = (calendarId?: string) => {
-  const [professionals, setProfessionals] = useState<any[]>([]);
+  const { user } = useAuth();
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchProfessionals = async () => {
+  const fetchProfessionals = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
+      if (!user?.id) {
+        setProfessionals([]);
+        return;
+      }
 
-      let query = supabase.from('professionals').select(`
-        *,
-        specialty:specialties(id, name)
-      `);
+      let query = supabase
+  .from('professionals')
+  .select(`
+    id,
+    name,
+    email,
+    phone,
+    bio,
+    calendar_id,
+    user_id,
+    professional_specialties:specialties(id, name)
+  `)
+  .eq('user_id', user.id);
 
-      // Só filtra por calendar_id se foi informado
       if (calendarId) {
         query = query.eq('calendar_id', calendarId);
       }
@@ -23,17 +53,34 @@ export const useProfessionals = (calendarId?: string) => {
       const { data, error } = await query;
       if (error) throw error;
 
-      setProfessionals(data || []);
-    } catch (err) {
-      setError(err);
+      const mappedData: Professional[] = (data || []).map((pro) => ({
+        id: pro.id,
+        name: pro.name,
+        email: pro.email,
+        phone: pro.phone || undefined,
+        bio: pro.bio || undefined,
+        calendarId: pro.calendar_id,
+        specialties: pro.professional_specialties || [],
+        userId: pro.user_id
+      }));
+
+      setProfessionals(mappedData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch professionals');
+      console.error('Professionals fetch error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, calendarId]);
 
   useEffect(() => {
     fetchProfessionals();
-  }, [calendarId]);
+  }, [fetchProfessionals]);
 
-  return { professionals, loading, error, refetch: fetchProfessionals };
+  return {
+    professionals,
+    loading,
+    error,
+    refetch: fetchProfessionals
+  };
 };

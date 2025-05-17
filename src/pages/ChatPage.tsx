@@ -29,10 +29,10 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       fetchClients();
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -49,8 +49,9 @@ const ChatPage = () => {
 
       if (error) throw error;
       setClients(data || []);
-    } catch (error) {
-      console.error('Error fetching clients:', error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch clients';
+      console.error(message);
     } finally {
       setLoading(false);
     }
@@ -72,11 +73,11 @@ const ChatPage = () => {
       isOutgoing: true,
     };
 
-    setMessages([...messages, message]);
+    setMessages((prev) => [...prev, message]);
     setNewMessage('');
   };
 
-  const filteredClients = clients.filter(client =>
+  const filteredClients = clients.filter((client) =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -116,10 +117,7 @@ const ChatPage = () => {
                   }`}
                   onClick={() => setSelectedClient(client)}
                 >
-                  <Avatar
-                    size="md"
-                    alt={client.name}
-                  />
+                  <Avatar size="md" alt={client.name} />
                   <div className="flex-1 text-left">
                     <div className="font-medium">{client.name}</div>
                     <div className="text-sm text-gray-500">{client.email}</div>
@@ -141,10 +139,7 @@ const ChatPage = () => {
               {/* Chat Header */}
               <div className="p-4 bg-white border-b flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <Avatar
-                    size="md"
-                    alt={selectedClient.name}
-                  />
+                  <Avatar size="md" alt={selectedClient.name} />
                   <div>
                     <div className="font-medium">{selectedClient.name}</div>
                     <div className="text-sm text-gray-500">{selectedClient.email}</div>
@@ -179,7 +174,11 @@ const ChatPage = () => {
                         }`}
                       >
                         <div className="text-sm">{message.content}</div>
-                        <div className={`text-xs mt-1 ${message.isOutgoing ? 'text-primary-100' : 'text-gray-500'}`}>
+                        <div
+                          className={`text-xs mt-1 ${
+                            message.isOutgoing ? 'text-primary-100' : 'text-gray-500'
+                          }`}
+                        >
                           {new Date(message.timestamp).toLocaleTimeString()}
                         </div>
                       </div>

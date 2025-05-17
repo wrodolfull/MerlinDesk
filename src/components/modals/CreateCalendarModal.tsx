@@ -5,6 +5,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface CreateCalendarFormData {
   name: string;
@@ -16,19 +17,18 @@ interface CreateCalendarModalProps {
   onSuccess: () => void;
 }
 
-const CreateCalendarModal = ({ onClose, onSuccess }: CreateCalendarModalProps) => {
+const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSuccess }) => {
   const { user } = useAuth();
-  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<CreateCalendarFormData>();
 
   const onSubmit = async (data: CreateCalendarFormData) => {
     try {
-      setError(null);
       if (!user) throw new Error('User not authenticated');
 
       const { error: calendarError } = await supabase
@@ -36,50 +36,49 @@ const CreateCalendarModal = ({ onClose, onSuccess }: CreateCalendarModalProps) =
         .insert({
           name: data.name,
           location_id: data.location,
-          owner_id: user.id, // ✅ salva direto o user_id no calendário
+          owner_id: user.id,
         });
 
       if (calendarError) throw calendarError;
 
+      toast.success('Calendar created successfully');
+      reset();
       onSuccess();
       onClose();
     } catch (error: any) {
+      toast.error(error.message || 'Failed to create calendar. Please try again.');
       console.error('Error creating calendar:', error);
-      setError(error.message || 'Failed to create calendar. Please try again.');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create New Calendar</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
-                {error}
-              </div>
-            )}
-
             <Input
               label="Calendar Name"
               error={errors.name?.message}
               {...register('name', { required: 'Calendar name is required' })}
+              disabled={isSubmitting}
             />
 
             <Input
               label="Location"
               error={errors.location?.message}
-              {...register('location')}
+              {...register('location', { required: 'Location is required' })}
+              disabled={isSubmitting}
             />
 
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting}>
                 Create Calendar
               </Button>
             </div>

@@ -107,3 +107,24 @@ html {
 .fc .fc-toolbar {
   @apply flex-wrap gap-4 !important;
 }
+
+.fc-event.fc-status-confirmed {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #fff !important;
+}
+.fc-event.fc-status-pending {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #fff !important;
+}
+.fc-event.fc-status-completed {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #fff !important;
+}
+.fc-event.fc-status-canceled {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}

@@ -2,16 +2,17 @@ import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
-import Select from '../ui/Select';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { Professional, Specialty } from '../../types';
+import toast, { Toaster } from 'react-hot-toast';
+import ReactSelect from 'react-select';
 
 interface EditProfessionalFormData {
   name: string;
   email: string;
   phone?: string;
-  specialtyId: string;
+  specialtyIds: string[];
   bio?: string;
   avatar?: string;
 }
@@ -21,16 +22,16 @@ interface EditProfessionalModalProps {
   specialties: Specialty[];
   onClose: () => void;
   onSuccess: () => void;
-  refetch?: () => void;
+  refetch?: () => Promise<void>;
 }
 
-const EditProfessionalModal = ({
+const EditProfessionalModal: React.FC<EditProfessionalModalProps> = ({
   professional,
   specialties = [],
   onClose,
   onSuccess,
   refetch,
-}: EditProfessionalModalProps) => {
+}) => {
   const {
     register,
     handleSubmit,
@@ -41,61 +42,75 @@ const EditProfessionalModal = ({
     defaultValues: {
       name: professional.name,
       email: professional.email,
-      phone: professional.phone,
-      specialtyId: professional.specialtyId ? String(professional.specialtyId) : '',
-      bio: professional.bio,
-      avatar: professional.avatar,
-    },
+      phone: professional.phone || '',
+      specialtyIds: (professional.specialties ?? []).map((s) => s.id),
+      bio: professional.bio || '',
+      avatar: professional.avatar || '',
+    }
   });
 
-  // ✅ Sempre que mudar o professional, resetar os campos
   useEffect(() => {
     reset({
       name: professional.name,
       email: professional.email,
-      phone: professional.phone,
-      specialtyId: professional.specialty_id ? String(professional.specialty_id) : '',
-      bio: professional.bio,
-      avatar: professional.avatar,
+      phone: professional.phone || '',
+      specialtyIds: (professional.specialties ?? []).map((s) => s.id),
+      bio: professional.bio || '',
+      avatar: professional.avatar || '',
     });
   }, [professional, reset]);
 
   const onSubmit = async (data: EditProfessionalFormData) => {
     try {
-      const { error } = await supabase
+      // Atualizar profissional
+      const { error: updateError } = await supabase
         .from('professionals')
         .update({
           name: data.name,
           email: data.email,
-          phone: data.phone,
-          specialty_id: data.specialtyId && data.specialtyId !== '' ? data.specialtyId : null,
-          bio: data.bio,
-          avatar: data.avatar,
+          phone: data.phone || null,
+          bio: data.bio || null,
+          avatar: data.avatar || null,
         })
         .eq('id', professional.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
+      // Atualizar especialidades: remove todas e recria
+      await supabase
+        .from('professional_specialties')
+        .delete()
+        .eq('professional_id', professional.id);
+
+      const newRows = data.specialtyIds.map((sid) => ({
+        professional_id: professional.id,
+        specialty_id: sid,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('professional_specialties')
+        .insert(newRows);
+
+      if (insertError) throw insertError;
+
+      toast.success('Professional updated successfully');
       onSuccess();
-      if (typeof refetch === 'function') {
-        await refetch();
-      }
+      if (refetch) await refetch();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update professional');
       console.error('Error updating professional:', error);
-      alert('Failed to update professional');
     }
   };
 
-  const specialtyOptions = specialties.length > 0
-    ? specialties.map(specialty => ({
-        value: String(specialty.id),
-        label: specialty.name || 'Unnamed Specialty',
-      }))
-    : [{ value: '', label: 'No specialties available' }];
+  const specialtyOptions = specialties.map((s) => ({
+    value: s.id,
+    label: s.name || 'Unnamed Specialty',
+  }));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Edit Professional</CardTitle>
@@ -106,7 +121,9 @@ const EditProfessionalModal = ({
               label="Full Name"
               error={errors.name?.message}
               {...register('name', { required: 'Name is required' })}
+              disabled={isSubmitting}
             />
+
             <Input
               type="email"
               label="Email"
@@ -118,34 +135,55 @@ const EditProfessionalModal = ({
                   message: 'Invalid email address',
                 },
               })}
+              disabled={isSubmitting}
             />
+
             <Input
               label="Phone"
-              {...register('phone')}
+              {...register('phone', {
+                pattern: {
+                  value: /^[0-9\-\+\(\)\s]+$/,
+                  message: 'Invalid phone number',
+                },
+              })}
+              error={errors.phone?.message}
+              disabled={isSubmitting}
             />
 
             <Controller
-              name="specialtyId"
+              name="specialtyIds"
               control={control}
-              rules={{ required: specialties.length > 0 ? 'Specialty is required' : false }}
+              rules={{ required: 'At least one specialty is required' }}
               render={({ field }) => (
-                <Select
-                  label="Specialty"
-                  options={specialtyOptions}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.specialtyId?.message}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Specialties</label>
+                  <ReactSelect
+                    isMulti
+                    options={specialtyOptions}
+                    value={specialtyOptions.filter(option => field.value.includes(option.value))}
+                    onChange={(selected) =>
+                      field.onChange(Array.isArray(selected) ? selected.map(opt => opt.value) : [])
+                    }
+                    isDisabled={isSubmitting}
+                  />
+                  {errors.specialtyIds && (
+                    <p className="mt-1 text-sm text-red-600">{errors.specialtyIds.message}</p>
+                  )}
+                </div>
               )}
             />
 
             <Input
               label="Avatar URL"
               {...register('avatar')}
+              placeholder="https://example.com/avatar.jpg"
+              disabled={isSubmitting}
             />
+
             <Input
               label="Bio"
               {...register('bio')}
+              disabled={isSubmitting}
             />
 
             <div className="flex justify-end space-x-2">
@@ -153,12 +191,14 @@ const EditProfessionalModal = ({
                 type="button"
                 variant="outline"
                 onClick={onClose}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
+                disabled={isSubmitting}
               >
                 Save Changes
               </Button>

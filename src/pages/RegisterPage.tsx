@@ -22,7 +22,7 @@ const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  
+
   const {
     register,
     handleSubmit,
@@ -36,24 +36,7 @@ const RegisterPage = () => {
     try {
       setIsLoading(true);
 
-      // Check if client already exists in 'clients' table
-      const { data: existingClient, error: fetchError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('email', data.email)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      if (existingClient) {
-        toast.error('Email already registered as client. Please sign in.');
-        navigate('/login');
-        return;
-      }
-
-      // Create Supabase Auth user
+      // ✅ Cria apenas o usuário dono no Supabase Auth
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -68,22 +51,9 @@ const RegisterPage = () => {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Insert into 'clients' table
-      const { error: clientError } = await supabase.from('clients').insert({
-        id: authData.user.id,
-        name: data.name,
-        email: data.email,
-      });
-
-      if (clientError) {
-        // Cleanup auth user if client insert fails
-        await supabase.auth.signOut();
-        throw clientError;
-      }
-
       toast.success(t('auth.registrationSuccess'));
       navigate('/dashboard');
-      
+
     } catch (error: any) {
       console.error('Registration error:', error);
 

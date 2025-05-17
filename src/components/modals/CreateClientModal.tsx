@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface CreateClientFormData {
   name: string;
@@ -18,71 +19,61 @@ interface CreateClientModalProps {
   onSuccess: () => void;
 }
 
-const CreateClientModal = ({ calendarId, onClose, onSuccess }: CreateClientModalProps) => {
+const CreateClientModal: React.FC<CreateClientModalProps> = ({ calendarId, onClose, onSuccess }) => {
   const { user } = useAuth();
-  const [emailError, setEmailError] = useState<string>('');
-
+  
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    setError,
+    reset,
   } = useForm<CreateClientFormData>();
 
   const onSubmit = async (data: CreateClientFormData) => {
     try {
-      setEmailError('');
-
       if (!user) {
-        setEmailError('User not authenticated');
+        toast.error('User not authenticated');
         return;
       }
 
-      console.log('Authenticated user:', user);
-
-      // Check if email already exists for this user
+      // Verifica se o email já existe
       const { data: existingClients, error: checkError } = await supabase
         .from('clients')
         .select('id')
         .eq('email', data.email)
-        .eq('user_id', user.id)
-        .limit(1);
+        .eq('owner_id', user.id);
 
       if (checkError) throw checkError;
 
-      if (existingClients && existingClients.length > 0) {
-        setEmailError('A client with this email already exists');
+      if (existingClients?.length) {
+        setError('email', { message: 'A client with this email already exists' });
         return;
       }
 
-      const insertPayload = {
-        name: data.name,
-        email: data.email,
+      // Cria o cliente
+      const { error } = await supabase.from('clients').insert({
+        ...data,
         phone: data.phone || null,
         calendar_id: calendarId,
-        user_id: user.id, // ✅ includes user_id
-      };
+        owner_id: user.id,
+      });
 
-      console.log('Insert payload:', insertPayload);
+      if (error) throw error;
 
-      const { error: insertError } = await supabase.from('clients').insert(insertPayload);
-
-      if (insertError) throw insertError;
-
-      console.log('Client created successfully');
+      toast.success('Client created successfully');
+      reset();
       onSuccess();
       onClose();
-    } catch (err) {
-      console.error('Error creating client:', err);
-      if (err instanceof Error) {
-        setEmailError(err.message);
-      } else {
-        setEmailError('Failed to create client');
-      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create client');
+      console.error('Error creating client:', error);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>New Client</CardTitle>
@@ -93,7 +84,9 @@ const CreateClientModal = ({ calendarId, onClose, onSuccess }: CreateClientModal
               label="Full Name"
               {...register('name', { required: 'Name is required' })}
               error={errors.name?.message}
+              disabled={isSubmitting}
             />
+
             <Input
               type="email"
               label="Email"
@@ -104,8 +97,10 @@ const CreateClientModal = ({ calendarId, onClose, onSuccess }: CreateClientModal
                   message: 'Invalid email address',
                 },
               })}
-              error={errors.email?.message || emailError}
+              error={errors.email?.message}
+              disabled={isSubmitting}
             />
+
             <Input
               label="Phone"
               {...register('phone', {
@@ -115,12 +110,23 @@ const CreateClientModal = ({ calendarId, onClose, onSuccess }: CreateClientModal
                 },
               })}
               error={errors.phone?.message}
+              disabled={isSubmitting}
             />
+
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button
+                type="submit"
+                isLoading={isSubmitting}
+                disabled={isSubmitting}
+              >
                 Create
               </Button>
             </div>

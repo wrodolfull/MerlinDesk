@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface WorkingHour {
-  id: string;
+  id?: string;
   day_of_week: number;
   start_time: string | null;
   end_time: string | null;
@@ -24,28 +23,28 @@ interface WorkingHoursModalProps {
 
 const DAYS = [
   'Domingo',
-  'Segunda',
-  'Terça',
-  'Quarta',
-  'Quinta',
-  'Sexta',
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
   'Sábado',
 ];
 
-const WorkingHoursModal = ({
+const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
   professionalId,
   professionalName,
   onClose,
   onSuccess,
-}: WorkingHoursModalProps) => {
+}) => {
   const [loading, setLoading] = useState(true);
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const initializeWorkingHours = async () => {
+    const fetchWorkingHours = async () => {
       try {
-        // Buscar horários existentes
-        const { data: existingHours, error } = await supabase
+        const { data, error } = await supabase
           .from('working_hours')
           .select('*')
           .eq('professional_id', professionalId)
@@ -53,107 +52,104 @@ const WorkingHoursModal = ({
 
         if (error) throw error;
 
-        // Criar estrutura padrão para todos os dias
-        const defaultHours = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        const defaultHours = Array(7).fill(null).map((_, dayOfWeek) => ({
           day_of_week: dayOfWeek,
-          start_time: null,
-          end_time: null,
+          start_time: '09:00',
+          end_time: '17:00',
           is_working_day: false,
           professional_id: professionalId,
+          ...data?.find(d => d.day_of_week === dayOfWeek)
         }));
 
-        // Mesclar dados existentes com padrão
-        const mergedHours = defaultHours.map(defaultDay => {
-          const existingDay = existingHours?.find(
-            h => h.day_of_week === defaultDay.day_of_week
-          );
-          return existingDay || defaultDay;
-        });
-
-        setWorkingHours(mergedHours);
-      } catch (err) {
-        console.error('Error initializing working hours:', err);
-        toast.error('Falha ao carregar horários');
+        setWorkingHours(defaultHours);
+      } catch (error) {
+        console.error('Error loading working hours:', error);
+        toast.error('Failed to load working hours');
       } finally {
         setLoading(false);
       }
     };
 
-    initializeWorkingHours();
+    fetchWorkingHours();
   }, [professionalId]);
 
   const handleToggleDay = async (dayOfWeek: number) => {
-  try {
-    const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
-    if (!currentDay) return;
-
-    const newValue = !currentDay.is_working_day;
-    const isNewRecord = !currentDay.id; // Verifica se é novo registro
-
-    // Dados para upsert
-    const dataToUpsert = {
-      ...currentDay,
-      is_working_day: newValue,
-      start_time: newValue ? '09:00' : null,
-      end_time: newValue ? '17:00' : null,
-    };
-
-    // Remove ID se for novo registro
-    if (isNewRecord) {
-      delete dataToUpsert.id;
-    }
-
-    const { data, error } = await supabase
-      .from('working_hours')
-      .upsert([dataToUpsert], { 
-        onConflict: 'professional_id,day_of_week',
-        returning: 'representation' // Garante retorno dos dados atualizados
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Atualiza estado com dados do servidor
-    setWorkingHours(prev =>
-      prev.map(wh =>
-        wh.day_of_week === dayOfWeek ? { ...wh, ...data } : wh
-      )
-    );
-
-    toast.success(`${DAYS[dayOfWeek]} ${newValue ? 'ativado' : 'desativado'}`);
-  } catch (err) {
-    console.error('Error updating working day:', err);
-    toast.error('Falha ao atualizar dia');
-  }
-};
-
-  const handleTimeChange = async (
-    dayOfWeek: number,
-    field: 'start_time' | 'end_time',
-    value: string
-  ) => {
     try {
-      const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
-      if (!currentDay || !currentDay.is_working_day) return;
-
+      setSaving(true);
+  
+      const updatedHours = workingHours.map(wh =>
+        wh.day_of_week === dayOfWeek
+          ? {
+              ...wh,
+              is_working_day: !wh.is_working_day,
+              start_time: wh.start_time ?? '08:00',
+              end_time: wh.end_time ?? '17:00',
+            }
+          : wh
+      );
+  
+      const day = updatedHours.find(wh => wh.day_of_week === dayOfWeek);
+      if (!day) return;
+  
       const { data, error } = await supabase
+        .from('working_hours')
+        .upsert(
+          {
+            ...day,
+            start_time: day.is_working_day ? day.start_time : null,
+            end_time: day.is_working_day ? day.end_time : null,
+          },
+          { onConflict: 'professional_id,day_of_week' }
+        )
+        .select()
+        .single();
+  
+      if (error) throw error;
+  
+      setWorkingHours(prev =>
+        prev.map(wh => (wh.day_of_week === dayOfWeek ? data : wh))
+      );
+      toast.success(`${DAYS[dayOfWeek]} ${day.is_working_day ? 'enabled' : 'disabled'}`);
+    } catch (error: any) {
+      console.error('Error updating day:', error);
+      toast.error(error.message || 'Failed to update working day');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+
+  const handleTimeChange = async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
+    try {
+      setSaving(true);
+      const updatedHours = workingHours.map(wh => 
+        wh.day_of_week === dayOfWeek ? { ...wh, [field]: value } : wh
+      );
+      setWorkingHours(updatedHours);
+
+      const day = updatedHours.find(wh => wh.day_of_week === dayOfWeek);
+      if (!day?.is_working_day) return;
+
+      const { error } = await supabase
         .from('working_hours')
         .update({ [field]: value })
         .eq('professional_id', professionalId)
-        .eq('day_of_week', dayOfWeek)
-        .select()
-        .single();
+        .eq('day_of_week', dayOfWeek);
 
       if (error) throw error;
-
-      setWorkingHours(prev =>
-        prev.map(wh => (wh.day_of_week === dayOfWeek ? { ...wh, ...data } : wh))
-      );
-    } catch (err) {
-      console.error('Error updating time:', err);
-      toast.error('Falha ao atualizar horário');
+      toast.success(`${DAYS[dayOfWeek]} hours updated`);
+    } catch (error) {
+      console.error('Error updating time:', error);
+      toast.error('Failed to update working hours');
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const validateTimeRange = (start: string, end: string) => {
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    return endHour > startHour || (endHour === startHour && endMinute > startMinute);
   };
 
   if (loading) {
@@ -161,7 +157,7 @@ const WorkingHoursModal = ({
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <Card className="w-full max-w-2xl">
           <CardHeader>
-            <CardTitle>Carregando horários...</CardTitle>
+            <CardTitle>Loading working hours...</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -170,18 +166,20 @@ const WorkingHoursModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>
-            Horário de Trabalho - {professionalName}
+            Working Hours - {professionalName}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {DAYS.map((day, index) => {
-              const dayHours = workingHours.find(
-                wh => wh.day_of_week === index
-              )!;
+              const dayData = workingHours[index];
+              const isValid = dayData.is_working_day 
+                ? validateTimeRange(dayData.start_time || '', dayData.end_time || '')
+                : true;
 
               return (
                 <div
@@ -191,39 +189,33 @@ const WorkingHoursModal = ({
                   <div className="flex items-center w-32">
                     <input
                       type="checkbox"
-                      checked={dayHours.is_working_day}
+                      checked={dayData.is_working_day}
                       onChange={() => handleToggleDay(index)}
                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-2"
+                      disabled={saving}
                     />
-                    <span
-                      className={`${
-                        dayHours.is_working_day
-                          ? 'text-gray-900'
-                          : 'text-gray-400'
-                      }`}
-                    >
+                    <span className={dayData.is_working_day ? 'font-medium' : 'text-gray-400'}>
                       {day}
                     </span>
                   </div>
 
-                  {dayHours.is_working_day && (
+                  {dayData.is_working_day && (
                     <div className="flex flex-1 items-center gap-2">
                       <Input
                         type="time"
-                        value={dayHours.start_time || ''}
-                        onChange={e =>
-                          handleTimeChange(index, 'start_time', e.target.value)
-                        }
+                        value={dayData.start_time || ''}
+                        onChange={(e) => handleTimeChange(index, 'start_time', e.target.value)}
                         className="w-32"
+                        disabled={saving}
                       />
-                      <span className="text-gray-500">às</span>
+                      <span className="text-gray-500">to</span>
                       <Input
                         type="time"
-                        value={dayHours.end_time || ''}
-                        onChange={e =>
-                          handleTimeChange(index, 'end_time', e.target.value)
-                        }
+                        value={dayData.end_time || ''}
+                        onChange={(e) => handleTimeChange(index, 'end_time', e.target.value)}
                         className="w-32"
+                        disabled={saving}
+                        error={!isValid ? 'End time must be after start time' : undefined}
                       />
                     </div>
                   )}
@@ -232,10 +224,12 @@ const WorkingHoursModal = ({
             })}
 
             <div className="flex justify-end mt-6 gap-2">
-              <Button variant="outline" onClick={onClose}>
-                Fechar
+              <Button variant="outline" onClick={onClose} disabled={saving}>
+                Close
               </Button>
-              <Button onClick={onSuccess}>Salvar Alterações</Button>
+              <Button onClick={onSuccess} disabled={saving}>
+                {saving ? 'Saving...' : 'Done'}
+              </Button>
             </div>
           </div>
         </CardContent>

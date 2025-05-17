@@ -97,6 +97,11 @@ function App() {
                 }
               />
               <Route
+                path="/booking/:calendarId"
+                element={<SharedBookingPage />}
+              />
+
+              <Route
                 path="/c/:calendarId"
                 element={<SharedBookingPage />}
               />

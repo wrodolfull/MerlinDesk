@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { BarChart, Calendar, Clock, Users, ArrowUp, ArrowDown } from 'lucide-react';
@@ -33,6 +34,7 @@ ChartJS.register(
 );
 
 const AnalyticsPage = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalAppointments: 0,
@@ -56,25 +58,29 @@ const AnalyticsPage = () => {
   });
 
   const fetchAnalytics = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+  
     try {
       setLoading(true);
-
-      // Get current month's date range
+  
       const now = new Date();
       const monthStart = startOfMonth(now);
       const monthEnd = endOfMonth(now);
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-      // Fetch appointments with related data
+  
       const { data: appointments, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
           *,
           specialty:specialties(name, duration, price)
         `)
+        .eq('user_id', user.id)
         .gte('start_time', monthStart.toISOString())
         .lte('start_time', monthEnd.toISOString());
-
+  
       if (appointmentsError) throw appointmentsError;
 
       // Calculate statistics
@@ -107,15 +113,16 @@ const AnalyticsPage = () => {
       });
 
       // Prepare service statistics
-      const serviceStats = validAppointments.reduce((acc, apt) => {
-        const serviceName = apt.specialty?.name || 'Unknown';
-        if (!acc[serviceName]) {
-          acc[serviceName] = { count: 0, revenue: 0 };
-        }
-        acc[serviceName].count++;
-        acc[serviceName].revenue += apt.specialty?.price || 0;
-        return acc;
-      }, {} as Record<string, { count: number; revenue: number }>);
+      const serviceStats: Record<string, { count: number; revenue: number }> =
+  validAppointments.reduce((acc, apt) => {
+    const serviceName = apt.specialty?.name || 'Unknown';
+    if (!acc[serviceName]) {
+      acc[serviceName] = { count: 0, revenue: 0 };
+    }
+    acc[serviceName].count++;
+    acc[serviceName].revenue += apt.specialty?.price || 0;
+    return acc;
+  }, {} as Record<string, { count: number; revenue: number }>);
 
       // Update chart data
       setMonthlyData({

@@ -10,6 +10,7 @@ import { useSpecialties } from '../../hooks/useSpecialties';
 import { useClients } from '../../hooks/useClients';
 import { addMinutes, format, parseISO } from 'date-fns';
 import { Appointment } from '../../types';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface EditAppointmentFormData {
   clientId: string;
@@ -26,19 +27,22 @@ interface EditAppointmentModalProps {
   onSuccess: () => void;
 }
 
-const EditAppointmentModal = ({
+const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
   appointment,
   onClose,
   onSuccess,
-}: EditAppointmentModalProps) => {
+}) => {
   const { professionals } = useProfessionals();
   const { specialties } = useSpecialties();
   const { clients } = useClients();
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(appointment.specialtyId);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
+    appointment.specialtyId || appointment.specialtyId
+  );
+  const [loading, setLoading] = useState(false);
 
-  const formatStartTime = (dateString: string) => {
+  const formatStartTime = (dateInput: string | Date) => {
     try {
-      const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
+      const date = typeof dateInput === 'string' ? parseISO(dateInput) : dateInput;
       return format(date, "yyyy-MM-dd'T'HH:mm");
     } catch {
       return format(new Date(), "yyyy-MM-dd'T'HH:mm");
@@ -53,30 +57,26 @@ const EditAppointmentModal = ({
     setValue,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<EditAppointmentFormData>({
-    defaultValues: {
-      clientId: appointment.clientId,
-      professionalId: appointment.professionalId,
-      specialtyId: appointment.specialtyId,
-      startTime: formatStartTime(appointment.start_time),
-      notes: appointment.notes || '',
-      status: appointment.status,
-    },
-  });
-
-  // Atualiza os campos quando o modal abre com novo appointment
+  } = useForm<EditAppointmentFormData>(); // ❌ Removido defaultValues
+  
   useEffect(() => {
-    reset({
-      clientId: appointment.clientId || appointment.client_id,
-      professionalId: appointment.professionalId || appointment.professional_id,
-      specialtyId: appointment.specialtyId || appointment.specialty_id,
-      startTime: formatStartTime(appointment.start_time),
-      notes: appointment.notes || '',
-      status: appointment.status,
-    });
-    setSelectedSpecialty(appointment.specialtyId || appointment.specialty_id);
-  }, [appointment, reset]);
-
+    const clientsLoaded = clients.length > 0;
+    const specialtiesLoaded = specialties.length > 0;
+    const professionalsLoaded = professionals.length > 0;
+  
+    if (clientsLoaded && specialtiesLoaded && professionalsLoaded && appointment) {
+      reset({
+        clientId: appointment.clientId,
+        professionalId: appointment.professionalId,
+        specialtyId: appointment.specialtyId,
+        startTime: formatStartTime(appointment.startTime),
+        notes: appointment.notes || '',
+        status: appointment.status,
+      });
+      setSelectedSpecialty(appointment.specialtyId);
+    }
+  }, [clients, specialties, professionals, appointment, reset]);
+  
   const watchSpecialtyId = watch('specialtyId');
 
   useEffect(() => {
@@ -86,11 +86,13 @@ const EditAppointmentModal = ({
   }, [watchSpecialtyId]);
 
   const filteredProfessionals = selectedSpecialty
-    ? professionals.filter((p) => p.specialty_id === selectedSpecialty)
-    : professionals;
+  ? professionals.filter((p) => p.specialty?.id === selectedSpecialty)
+  : professionals;
 
   const onSubmit = async (data: EditAppointmentFormData) => {
     try {
+      setLoading(true);
+
       const specialty = specialties.find((s) => s.id === data.specialtyId);
       if (!specialty) throw new Error('Specialty not found');
 
@@ -106,7 +108,7 @@ const EditAppointmentModal = ({
           client_id: data.clientId,
           professional_id: data.professionalId,
           specialty_id: data.specialtyId,
-          calendar_id: professional.calendar_id,
+          calendar_id: professional.calendarId,
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
           status: data.status,
@@ -116,114 +118,146 @@ const EditAppointmentModal = ({
 
       if (error) throw error;
 
+      toast.success('Appointment updated successfully');
       onSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update appointment');
       console.error('Error updating appointment:', err);
-      alert('Failed to update appointment');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Edit Appointment</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <Controller
-              name="clientId"
-              control={control}
-              rules={{ required: 'Client is required' }}
-              render={({ field }) => (
-                <Select
-                  label="Client"
-                  options={clients.map((c) => ({
-                    value: c.id,
-                    label: `${c.name} (${c.email})`,
-                  }))}
-                  value={field.value}
-                  onChange={(val) => {
-                    const value = typeof val === 'string' ? val : val.target.value;
-                    setValue('clientId', value);
-                  }}
-                  error={errors.clientId?.message}
-                />
-              )}
-            />
-            <Controller
-              name="specialtyId"
-              control={control}
-              rules={{ required: 'Specialty is required' }}
-              render={({ field }) => (
-                <Select
-                  label="Service"
-                  options={specialties.map((s) => ({
-                    value: s.id,
-                    label: `${s.name} (${s.duration}min${s.price ? ` - $${s.price}` : ''})`,
-                  }))}
-                  value={field.value}
-                  onChange={(val) => {
-                    const value = typeof val === 'string' ? val : val.target.value;
-                    setValue('specialtyId', value);
-                  }}
-                  error={errors.specialtyId?.message}
-                />
-              )}
-            />
-            <Controller
-              name="professionalId"
-              control={control}
-              rules={{ required: 'Professional is required' }}
-              render={({ field }) => (
-                <Select
-                  label="Professional"
-                  options={filteredProfessionals.map((p) => ({
-                    value: p.id,
-                    label: `${p.name} (${p.specialty?.name || 'No specialty'})`,
-                  }))}
-                  value={field.value}
-                  onChange={(val) => {
-                    const value = typeof val === 'string' ? val : val.target.value;
-                    setValue('professionalId', value);
-                  }}
-                  error={errors.professionalId?.message}
-                />
-              )}
-            />
+              <Controller
+                name="clientId"
+                control={control}
+                defaultValue={appointment.clientId}
+                rules={{ required: 'Client is required' }}
+                render={({ field }) => (
+                  <Select
+                    label="Client"
+                    defaultValue={field.value}
+                    options={clients.map((c) => ({
+                      value: c.id,
+                      label: `${c.name} (${c.email}${c.phone ? `, 📱 ${c.phone}` : ''})`,
+                    }))}
+                    value={field.value}
+                    onChange={(e) => {
+                      const selected = typeof e === 'string' ? e : e.target.value;
+                      field.onChange(selected);
+                    }}
+                    name={field.name}
+                    ref={field.ref}
+                    error={errors.clientId?.message}
+                    disabled={loading}
+                  />
+                )}
+              />
+
+              <Controller
+                name="specialtyId"
+                control={control}
+                defaultValue={appointment.specialtyId}
+                rules={{ required: 'Specialty is required' }}
+                render={({ field }) => (
+                  <Select
+                    label="Service"
+                    options={specialties.map((s) => ({
+                      value: s.id,
+                      label: `${s.name} (${s.duration}min${s.price ? ` - $${s.price}` : ''})`,
+                    }))}
+                    value={field.value}
+                    onChange={(e) => {
+                      const selected = typeof e === 'string' ? e : e.target.value;
+                      field.onChange(selected);
+                    }}
+                    name={field.name}
+                    ref={field.ref}
+                    error={errors.specialtyId?.message}
+                    disabled={loading}
+                  />
+                )}
+              />
+
+              <Controller
+                name="professionalId"
+                control={control}
+                defaultValue={appointment.professionalId}
+                rules={{ required: 'Professional is required' }}
+                render={({ field }) => (
+                  <Select
+                    label="Professional"
+                    options={filteredProfessionals.map((p) => ({
+                      value: p.id,
+                      label: `${p.name} (${p.specialty?.name || 'No specialty'})`,
+                    }))}
+                    value={field.value}
+                    onChange={(e) => {
+                      const selected = typeof e === 'string' ? e : e.target.value;
+                      field.onChange(selected);
+                    }}
+                    name={field.name}
+                    ref={field.ref}
+                    error={errors.professionalId?.message}
+                    disabled={loading}
+                  />
+                )}
+              />
+
             <Input
               type="datetime-local"
               label="Start Time"
               {...register('startTime', { required: 'Start time is required' })}
               error={errors.startTime?.message}
+              disabled={loading}
             />
-            <Controller
-              name="status"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  label="Status"
-                  options={[
-                    { value: 'pending', label: 'Pending' },
-                    { value: 'confirmed', label: 'Confirmed' },
-                    { value: 'completed', label: 'Completed' },
-                    { value: 'canceled', label: 'Canceled' },
-                  ]}
-                  value={field.value}
-                  onChange={(val) => {
-                    const value = typeof val === 'string' ? val : val.target.value;
-                    setValue('status', value as EditAppointmentFormData['status']);
-                  }}
-                />
-              )}
+              <Controller
+                name="status"
+                control={control}
+                defaultValue={appointment.status}
+                render={({ field }) => (
+                  <Select
+                    label="Status"
+                    options={[
+                      { value: 'pending', label: 'Pending' },
+                      { value: 'confirmed', label: 'Confirmed' },
+                      { value: 'completed', label: 'Completed' },
+                      { value: 'canceled', label: 'Canceled' },
+                    ]}
+                    value={field.value}
+                    onChange={(e) => {
+                      const selected = typeof e === 'string' ? e : e.target.value;
+                      field.onChange(selected);
+                    }}
+                    name={field.name}
+                    ref={field.ref}
+                    error={errors.status?.message}
+                    disabled={loading}
+                  />
+                )}
+              />
+
+            <Input
+              label="Notes"
+              {...register('notes')}
+              error={errors.notes?.message}
+              disabled={loading}
             />
-            <Input label="Notes" {...register('notes')} error={errors.notes?.message} />
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting || loading}>
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button type="submit" isLoading={isSubmitting || loading} disabled={loading}>
                 Save Changes
               </Button>
             </div>

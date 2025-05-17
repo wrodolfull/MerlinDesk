@@ -1,43 +1,61 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-
-export interface Client {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  user_id: string; // adicione isso no tipo se ainda não estiver
-}
+import { Client } from '../types';
 
 export const useClients = () => {
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!user?.id) {
+        setClients([]);
+        return;
+      }
+
+      // 1. Adicionar os campos faltantes na query
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, email, phone, created_at, calendar_id, owner_id')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // 2. Mapear corretamente todos os campos necessários
+      const mappedData: Client[] = (data || []).map((client) => ({
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        phone: client.phone || undefined,
+        calendarId: client.calendar_id, 
+        ownerId: client.owner_id,
+        createdAt: new Date(client.created_at),
+      }));
+
+      setClients(mappedData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch clients');
+      console.error('Client fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    const fetchClients = async () => {
-      if (!user) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('clients')
-          .select('*')
-          .eq('user_id', user.id)  // ✅ filtrar pelo usuário logado
-          .order('name');
-
-        if (error) throw error;
-        setClients(data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch clients'));
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchClients();
-  }, [user]);
+  }, [fetchClients]);
 
-  return { clients, loading, error };
+  return {
+    clients,
+    loading,
+    error,
+    refetch: fetchClients,
+  };
 };

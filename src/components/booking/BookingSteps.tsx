@@ -5,6 +5,7 @@ import { DateTimeSelection } from './DateTimeSelection';
 import { ClientInfoForm } from './ClientInfoForm';
 import { BookingConfirmation } from './BookingConfirmation';
 import { Client, Professional, Specialty } from '../../types';
+import { supabase } from '../../lib/supabase';
 
 interface BookingStepsProps {
   calendarId: string;
@@ -48,6 +49,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     if (onComplete && bookingData.client && bookingData.professional && bookingData.specialty && bookingData.timeSlot) {
       onComplete({
         clientId: bookingData.client.id,
+        client: bookingData.client,
         professionalId: bookingData.professional.id,
         specialtyId: bookingData.specialty.id,
         startTime: bookingData.timeSlot.start,
@@ -65,39 +67,38 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
 
   // Filter professionals based on selected specialty
   const availableProfessionals = bookingData.specialty
-    ? professionals.filter(p => p.specialty_id === bookingData.specialty?.id)
+    ? professionals.filter((p) => {
+        return Array.isArray(p.specialties) &&
+          p.specialties.some((s: any) => s?.id === bookingData.specialty?.id);
+      })
     : [];
 
   // Get available time slots based on selected professional and specialty
-  const getTimeSlots = async () => {
-    if (!bookingData.professional || !bookingData.date || !bookingData.specialty) {
-      return [];
-    }
-
+  const getTimeSlots = async (date: Date) => {
+    if (!bookingData.professional || !bookingData.specialty) return [];
+  
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/appointments/available-slots?` + 
-        new URLSearchParams({
-          professionalId: bookingData.professional.id,
-          date: bookingData.date.toISOString().split('T')[0],
-          specialtyId: bookingData.specialty.id,
-        }),
-        {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch time slots');
-      
-      const data = await response.json();
-      return data.slots || [];
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        input_professional_id: bookingData.professional.id,
+        input_specialty_id: bookingData.specialty.id,
+        input_date: date.toISOString().split('T')[0],
+      });
+  
+      if (error) throw error;
+  
+      return Array.isArray(data)
+        ? data.map((slot) => ({
+            start: new Date(slot.start_time).toISOString(),
+            end: new Date(slot.end_time).toISOString(),
+          }))
+        : [];
     } catch (error) {
-      console.error('Error fetching time slots:', error);
+      console.error('Erro ao buscar horários disponíveis:', error);
       return [];
     }
   };
+  
+  
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -107,13 +108,13 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
           {[1, 2, 3, 4, 5].map((step) => (
             <React.Fragment key={step}>
               <div className="flex flex-col items-center">
-                <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                    currentStep >= step
-                      ? 'bg-primary-600 border-primary-600 text-white'
-                      : 'border-gray-300 text-gray-400'
-                  }`}
-                >
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                  currentStep >= step
+                    ? 'bg-primary-600 border-primary-600 text-white'
+                    : 'border-gray-300 text-gray-400'
+                }`}
+              >
                   {currentStep > step ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -133,10 +134,10 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
               
               {step < 5 && (
                 <div
-                  className={`flex-1 h-0.5 mx-2 ${
-                    currentStep > step ? 'bg-primary-600' : 'bg-gray-300'
-                  }`}
-                />
+                className={`flex-1 h-0.5 mx-2 ${
+                  currentStep > step ? 'bg-primary-600' : 'bg-gray-300'
+                }`}
+              />
               )}
             </React.Fragment>
           ))}

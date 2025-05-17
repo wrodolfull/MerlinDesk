@@ -8,17 +8,18 @@ import { useAuth } from '../contexts/AuthContext';
 import CreateSpecialtyModal from '../components/modals/CreateSpecialtyModal';
 import EditSpecialtyModal from '../components/modals/EditSpecialtyModal';
 import { Specialty } from '../types';
+import toast, { Toaster } from 'react-hot-toast';
 
-const SpecialtiesPage = () => {
+const SpecialtiesPage: React.FC = () => {
   const { user } = useAuth();
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSpecialty, setEditingSpecialty] = useState<Specialty | null>(null);
   const [calendarIds, setCalendarIds] = useState<string[]>([]);
 
-  const fetchCalendarIds = async () => {
+  const fetchCalendarIds = async (): Promise<string[]> => {
     try {
       if (!user) return [];
 
@@ -28,13 +29,12 @@ const SpecialtiesPage = () => {
         .eq('owner_id', user.id);
 
       if (error) throw error;
-
-      if (!data || data.length === 0) {
-        throw new Error('No calendar found. Please create a calendar first.');
-      }
+      if (!data || data.length === 0) throw new Error('No calendar found. Please create a calendar first.');
 
       return data.map((c) => c.id);
-    } catch (err) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch calendar IDs';
+      toast.error(message);
       console.error('Error fetching calendar IDs:', err);
       return [];
     }
@@ -43,6 +43,7 @@ const SpecialtiesPage = () => {
   const fetchSpecialties = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       if (!user) {
         setSpecialties([]);
@@ -53,8 +54,7 @@ const SpecialtiesPage = () => {
       setCalendarIds(ids);
 
       if (ids.length === 0) {
-        setError(new Error('No calendar found. Please create a calendar first.'));
-        return;
+        throw new Error('No calendar found. Please create a calendar first.');
       }
 
       const { data, error } = await supabase
@@ -64,8 +64,11 @@ const SpecialtiesPage = () => {
 
       if (error) throw error;
       setSpecialties(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch specialties'));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch specialties';
+      setError(message);
+      toast.error(message);
+      console.error('Fetch specialties error:', err);
     } finally {
       setLoading(false);
     }
@@ -76,19 +79,22 @@ const SpecialtiesPage = () => {
   }, [user]);
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this specialty?')) return;
     try {
       const { error } = await supabase.from('specialties').delete().eq('id', id);
       if (error) throw error;
-      fetchSpecialties();
-    } catch (error) {
-      console.error('Error deleting specialty:', error);
-      alert('Failed to delete specialty');
+      toast.success('Specialty deleted successfully');
+      await fetchSpecialties();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete specialty';
+      toast.error(message);
+      console.error('Delete specialty error:', err);
     }
   };
 
-  const handleCreateClick = async () => {
+  const handleCreateClick = () => {
     if (calendarIds.length === 0) {
-      alert('Please create a calendar first before adding specialties.');
+      toast.error('Please create a calendar first before adding specialties.');
       return;
     }
     setShowCreateModal(true);
@@ -107,13 +113,14 @@ const SpecialtiesPage = () => {
   if (error) {
     return (
       <DashboardLayout>
-        <div className="text-center text-error-500">{error.message}</div>
+        <div className="text-center text-error-500">{error}</div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
+      <Toaster />
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Specialties</h1>
@@ -125,46 +132,7 @@ const SpecialtiesPage = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {specialties.map((specialty) => (
-          <Card key={specialty.id}>
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-semibold">{specialty.name}</h3>
-                  <div className="flex items-center mt-2 text-gray-600">
-                    <Clock size={16} className="mr-1" />
-                    <span>{specialty.duration} minutes</span>
-                  </div>
-                  {specialty.price && (
-                    <div className="flex items-center mt-1 text-gray-600">
-                      <DollarSign size={16} className="mr-1" />
-                      <span>${specialty.price}</span>
-                    </div>
-                  )}
-                  {specialty.description && (
-                    <p className="mt-2 text-sm text-gray-600">{specialty.description}</p>
-                  )}
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    className="p-1 text-gray-500 hover:text-gray-700"
-                    onClick={() => setEditingSpecialty(specialty)}
-                  >
-                    <Edit size={16} />
-                  </button>
-                  <button
-                    className="p-1 text-gray-500 hover:text-error-500"
-                    onClick={() => handleDelete(specialty.id)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-
-        {specialties.length === 0 && (
+        {specialties.length === 0 ? (
           <div className="col-span-3">
             <Card>
               <CardContent className="p-12 flex flex-col items-center justify-center text-center">
@@ -174,12 +142,51 @@ const SpecialtiesPage = () => {
               </CardContent>
             </Card>
           </div>
+        ) : (
+          specialties.map((specialty) => (
+            <Card key={specialty.id}>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-semibold">{specialty.name}</h3>
+                    <div className="flex items-center mt-2 text-gray-600">
+                      <Clock size={16} className="mr-1" />
+                      <span>{specialty.duration} minutes</span>
+                    </div>
+                    {specialty.price && (
+                      <div className="flex items-center mt-1 text-gray-600">
+                        <DollarSign size={16} className="mr-1" />
+                        <span>${specialty.price}</span>
+                      </div>
+                    )}
+                    {specialty.description && (
+                      <p className="mt-2 text-sm text-gray-600">{specialty.description}</p>
+                    )}
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      className="p-1 text-gray-500 hover:text-gray-700"
+                      onClick={() => setEditingSpecialty(specialty)}
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      className="p-1 text-gray-500 hover:text-error-500"
+                      onClick={() => handleDelete(specialty.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
 
       {showCreateModal && calendarIds.length > 0 && (
         <CreateSpecialtyModal
-          calendarId={calendarIds[0]} // usa o primeiro calendarId para criação
+          calendarId={calendarIds[0]}
           onClose={() => setShowCreateModal(false)}
           onSuccess={fetchSpecialties}
         />

@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react';
-import { Specialty } from '../types';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Specialty } from '../types';
 
 export function useSpecialties(calendarId?: string) {
+  const { user } = useAuth();
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // ✅ hook SEMPRE chamado no topo (sem condicional)
-  const { user } = useAuth();
-
-  const fetchSpecialties = async () => {
+  const fetchSpecialties = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
-      if (!user) {
+      if (!user?.id) {
         setSpecialties([]);
         return;
       }
@@ -22,34 +22,45 @@ export function useSpecialties(calendarId?: string) {
       let query = supabase
         .from('specialties')
         .select('*')
-        .eq('user_id', user.id) // ✅ filtra por usuário logado
-        .order('name');
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (calendarId) {
         query = query.eq('calendar_id', calendarId);
       }
 
-      const { data, error: fetchError } = await query;
+      const { data, error } = await query;
 
-      if (fetchError) throw fetchError;
-      setSpecialties(data || []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch specialties'));
+      if (error) throw error;
+
+      const mappedData: Specialty[] = (data || []).map(spec => ({
+        id: spec.id,
+        name: spec.name,
+        duration: spec.duration,
+        price: spec.price || undefined,
+        description: spec.description || undefined,
+        calendarId: spec.calendar_id,
+        userId: spec.user_id,
+        createdAt: new Date(spec.created_at),
+      }));
+
+      setSpecialties(mappedData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch specialties');
+      console.error('Specialties fetch error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, calendarId]);
 
-  // ✅ sempre chama o efeito, mas o efeito decide o que fazer
   useEffect(() => {
     fetchSpecialties();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calendarId, user?.id]); // depende só de user.id, não do objeto inteiro
+  }, [fetchSpecialties]);
 
-  const refetch = async () => {
-    await fetchSpecialties();
+  return {
+    specialties,
+    loading,
+    error,
+    refetch: fetchSpecialties,
   };
-
-  return { specialties, loading, error, refetch };
 }

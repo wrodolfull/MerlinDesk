@@ -96,12 +96,17 @@ const AITrainingPage = () => {
   }, [provider, setValue]);
 
   useEffect(() => {
-    fetchSavedConfigs();
-    fetchUserSettings();
-  }, [user]);
+    if (user?.id) {
+      fetchSavedConfigs();
+      fetchUserSettings();
+    }
+  }, [user?.id]);
 
   const fetchUserSettings = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setUserSettings(undefined);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -118,7 +123,10 @@ const AITrainingPage = () => {
   };
 
   const fetchSavedConfigs = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setSavedConfigs([]);
+      return;
+    }
 
     try {
       const { data, error } = await supabase

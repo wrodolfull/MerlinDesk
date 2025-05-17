@@ -12,8 +12,10 @@ import EditAppointmentModal from '../components/modals/EditAppointmentModal';
 import { Appointment } from '../types';
 import toast, { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const AppointmentsPage = () => {
+  const { user } = useAuth();
   const { appointments, loading, error, refetch } = useAppointments();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
@@ -35,26 +37,36 @@ const AppointmentsPage = () => {
 
   const handleCancelAppointment = async (id: string) => {
     try {
+      if (!user?.id) {
+        toast.error('User not authenticated');
+        return;
+      }
+
       if (!confirm('Are you sure you want to cancel this appointment?')) return;
 
       const { error } = await supabase
         .from('appointments')
         .update({ status: 'canceled' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user.id); // ✅ fix: added user_id filter correctly chained
 
       if (error) throw error;
 
       toast.success('Appointment canceled successfully');
       refetch();
     } catch (err) {
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as Error).message
+          : 'Failed to cancel appointment';
       console.error('Error canceling appointment:', err);
-      toast.error('Failed to cancel appointment');
+      toast.error(errorMessage);
     }
   };
 
   const filteredAppointments = appointments.filter((appointment) => {
     const now = new Date();
-    const appointmentDate = new Date(appointment.start_time);
+    const appointmentDate = new Date(appointment.startTime);
 
     const matchSearch =
       appointment.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -71,7 +83,10 @@ const AppointmentsPage = () => {
   });
 
   const totalPages = Math.ceil(filteredAppointments.length / perPage);
-  const paginatedAppointments = filteredAppointments.slice((page - 1) * perPage, page * perPage);
+  const paginatedAppointments = filteredAppointments.slice(
+    (page - 1) * perPage,
+    page * perPage
+  );
 
   if (loading) {
     return (
@@ -130,7 +145,11 @@ const AppointmentsPage = () => {
                   { value: 'canceled', label: 'Canceled' },
                 ]}
                 value={filter.status}
-                onChange={(value) => setFilter({ ...filter, status: value })}
+                onChange={(event) => {
+                  const value = typeof event === 'string' ? event : event.target.value;
+                  setFilter({ ...filter, status: value });
+                }}
+
               />
               <Select
                 options={[
@@ -140,7 +159,11 @@ const AppointmentsPage = () => {
                   { value: 'past', label: 'Past' },
                 ]}
                 value={filter.timeframe}
-                onChange={(value) => setFilter({ ...filter, timeframe: value })}
+                onChange={(event) => {
+                  const value = typeof event === 'string' ? event : event.target.value;
+                  setFilter({ ...filter, timeframe: value });
+                }}
+
               />
             </div>
           </div>
@@ -162,13 +185,23 @@ const AppointmentsPage = () => {
           </div>
 
           <div className="flex justify-center items-center mt-6 space-x-2">
-            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
             <span className="text-sm text-gray-700">
               Page {page} of {totalPages}
             </span>
-            <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === totalPages}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
@@ -178,8 +211,12 @@ const AppointmentsPage = () => {
           <CardContent className="p-12 flex flex-col items-center justify-center text-center">
             <Calendar className="h-12 w-12 text-gray-400 mb-2" />
             <h3 className="text-lg font-medium text-gray-900 mb-1">No appointments found</h3>
-            <p className="text-gray-500 mb-4">No appointments match your current filters.</p>
-            <Button onClick={() => setFilter({ status: 'all', timeframe: 'all' })}>Clear Filters</Button>
+            <p className="text-gray-500 mb-4">
+              No appointments match your current filters.
+            </p>
+            <Button onClick={() => setFilter({ status: 'all', timeframe: 'all' })}>
+              Clear Filters
+            </Button>
           </CardContent>
         </Card>
       )}

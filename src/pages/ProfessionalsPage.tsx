@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Plus, Loader, Edit, Trash2, Clock } from 'lucide-react';
+import { Loader, Plus, Edit, Trash2, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import EditProfessionalModal from '../components/modals/EditProfessionalModal';
@@ -11,56 +11,68 @@ import WorkingHoursModal from '../components/modals/WorkingHoursModal';
 import { useSpecialties } from '../hooks/useSpecialties';
 import { useCalendars } from '../hooks/useCalendars';
 import Avatar from '../components/ui/Avatar';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
+import { Professional } from '../types'; // Certifique-se de criar este tipo ou importar
 
-const ProfessionalsPage = () => {
+const ProfessionalsPage: React.FC = () => {
   const { specialties } = useSpecialties();
   const { calendars } = useCalendars();
   const defaultCalendarId = calendars?.[0]?.id;
   const { user } = useAuth();
 
-  const [professionals, setProfessionals] = useState([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [editingProfessional, setEditingProfessional] = useState(null);
-  const [showCreateProfessional, setShowCreateProfessional] = useState(false);
-  const [managingHours, setManagingHours] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editingProfessional, setEditingProfessional] = useState<Professional | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [managingHours, setManagingHours] = useState<Professional | null>(null);
 
   const fetchProfessionals = async () => {
     try {
-      if (!user) return;
+      setLoading(true);
+      if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-        .from('professionals')
-        .select(`
-          *,
-          specialty:specialties(id, name)
-        `)
-        .eq('user_id', user.id);
+      .from('professionals')
+      .select(`
+        *,
+        specialties:professional_specialties(
+          specialties(id, name)
+        )
+      `)
+      .eq('user_id', user.id);
 
       if (error) throw error;
-      setProfessionals(data || []);
-    } catch (err) {
-      console.error('Error fetching professionals:', err);
-      setError(err);
+      const mappedData: Professional[] = (data || []).map((pro: any) => ({
+        ...pro,
+        specialties: (pro.specialties || []).map((rel: any) => rel.specialties),
+      }));
+      setProfessionals(mappedData);
+      setError(null);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch professionals';
+      setError(message);
+      console.error('Fetch professionals error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchProfessionals();
   }, [user]);
 
-  const handleDeleteProfessional = async (id) => {
+  const handleDeleteProfessional = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this professional?')) return;
     try {
       const { error } = await supabase.from('professionals').delete().eq('id', id);
       if (error) throw error;
-      await fetchProfessionals();
       toast.success('Professional deleted successfully');
-    } catch (err) {
-      console.error('Error deleting professional:', err);
-      toast.error('Failed to delete professional');
+      await fetchProfessionals();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete professional';
+      toast.error(message);
+      console.error('Delete professional error:', err);
     }
   };
 
@@ -78,7 +90,7 @@ const ProfessionalsPage = () => {
     return (
       <DashboardLayout>
         <div className="text-center text-error-500">
-          Error loading professionals. Please try again later.
+          Error loading professionals: {error}
         </div>
       </DashboardLayout>
     );
@@ -99,83 +111,92 @@ const ProfessionalsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="flex justify-between items-center mb-6">
+      <Toaster />
+      <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Professionals</h1>
           <p className="text-gray-600">Manage your team of professionals</p>
         </div>
         <Button
           leftIcon={<Plus size={16} />}
-          onClick={() => setShowCreateProfessional(true)}
+          onClick={() => setShowCreateModal(true)}
         >
           Add Professional
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {professionals.map((professional) => (
-          <Card key={professional.id}>
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-4">
-                <Avatar
-                  src={professional.avatar}
-                  alt={professional.name}
-                  size="lg"
-                />
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold">{professional.name}</h3>
-                  <p className="text-sm text-gray-500">{professional.email}</p>
-                  {professional.phone && (
-                    <p className="text-sm text-gray-500">{professional.phone}</p>
-                  )}
-                  {professional.bio && (
-                    <p className="text-sm text-gray-600 mt-2">{professional.bio}</p>
-                  )}
-                  <p className="text-sm text-gray-500 mt-1">
-                    {professional.specialty?.name || 'No specialty assigned'}
-                  </p>
-                  <div className="flex space-x-2 mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Clock size={14} />}
-                      onClick={() => setManagingHours(professional)}
-                    >
-                      Hours
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Edit size={14} />}
-                      onClick={() => setEditingProfessional(professional)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-error-500 border-error-500 hover:bg-error-50"
-                      leftIcon={<Trash2 size={14} />}
-                      onClick={() => handleDeleteProfessional(professional.id)}
-                    >
-                      Delete
-                    </Button>
+      {professionals.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-gray-500">No professionals found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {professionals.map((professional) => (
+            <Card key={professional.id}>
+              <CardContent className="p-6">
+                <div className="flex items-start space-x-4">
+                  <Avatar
+                    src={professional.avatar}
+                    alt={professional.name}
+                    size="lg"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold">{professional.name}</h3>
+                    <p className="text-sm text-gray-500">{professional.email}</p>
+                    {professional.phone && (
+                      <p className="text-sm text-gray-500">{professional.phone}</p>
+                    )}
+                    {professional.bio && (
+                      <p className="text-sm text-gray-600 mt-2">{professional.bio}</p>
+                    )}
+                    <p className="text-sm text-gray-500 mt-1">
+                      {professional.specialties?.length
+                        ? professional.specialties.map((s) => s.name).join(', ')
+                        : 'No specialty assigned'}
+                    </p>
+                    <div className="flex space-x-2 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Clock size={14} />}
+                        onClick={() => setManagingHours(professional)}
+                      >
+                        Hours
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Edit size={14} />}
+                        onClick={() => setEditingProfessional(professional)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-error-500 border-error-500 hover:bg-error-50"
+                        leftIcon={<Trash2 size={14} />}
+                        onClick={() => handleDeleteProfessional(professional.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {showCreateProfessional && (
+      {showCreateModal && (
         <CreateProfessionalModal
           calendarId={defaultCalendarId}
           specialties={specialties}
-          onClose={() => setShowCreateProfessional(false)}
-          onSuccess={async () => {
-            await fetchProfessionals();
-            setShowCreateProfessional(false);
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            fetchProfessionals();
+            setShowCreateModal(false);
           }}
         />
       )}
@@ -185,8 +206,8 @@ const ProfessionalsPage = () => {
           professional={editingProfessional}
           specialties={specialties}
           onClose={() => setEditingProfessional(null)}
-          onSuccess={async () => {
-            await fetchProfessionals();
+          onSuccess={() => {
+            fetchProfessionals();
             setEditingProfessional(null);
           }}
         />

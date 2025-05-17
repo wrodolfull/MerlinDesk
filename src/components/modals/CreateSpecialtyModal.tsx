@@ -5,6 +5,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface CreateSpecialtyFormData {
   name: string;
@@ -19,13 +20,18 @@ interface CreateSpecialtyModalProps {
   onSuccess: () => void;
 }
 
-const CreateSpecialtyModal = ({ calendarId, onClose, onSuccess }: CreateSpecialtyModalProps) => {
+const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
+  calendarId,
+  onClose,
+  onSuccess,
+}) => {
   const { user } = useAuth();
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<CreateSpecialtyFormData>();
 
   const onSubmit = async (data: CreateSpecialtyFormData) => {
@@ -38,21 +44,24 @@ const CreateSpecialtyModal = ({ calendarId, onClose, onSuccess }: CreateSpecialt
         duration: data.duration,
         price: data.price,
         description: data.description,
-        user_id: user.id, // ✅ grava o user_id
+        user_id: user.id,
       });
 
       if (error) throw error;
 
+      toast.success('Specialty added successfully');
+      reset();
       onSuccess();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create specialty');
       console.error('Error creating specialty:', error);
-      alert('Failed to create specialty');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Add New Specialty</CardTitle>
@@ -63,6 +72,7 @@ const CreateSpecialtyModal = ({ calendarId, onClose, onSuccess }: CreateSpecialt
               label="Specialty Name"
               error={errors.name?.message}
               {...register('name', { required: 'Specialty name is required' })}
+              disabled={isSubmitting}
             />
             
             <Input
@@ -73,20 +83,24 @@ const CreateSpecialtyModal = ({ calendarId, onClose, onSuccess }: CreateSpecialt
                 required: 'Duration is required',
                 min: { value: 5, message: 'Duration must be at least 5 minutes' },
               })}
+              disabled={isSubmitting}
             />
             
             <Input
               type="number"
               label="Price"
               step="0.01"
+              error={errors.price?.message}
               {...register('price', {
                 min: { value: 0, message: 'Price cannot be negative' },
               })}
+              disabled={isSubmitting}
             />
             
             <Input
               label="Description"
               {...register('description')}
+              disabled={isSubmitting}
             />
 
             <div className="flex justify-end space-x-2">
@@ -94,12 +108,14 @@ const CreateSpecialtyModal = ({ calendarId, onClose, onSuccess }: CreateSpecialt
                 type="button"
                 variant="outline"
                 onClick={onClose}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
+                disabled={isSubmitting}
               >
                 Add Specialty
               </Button>

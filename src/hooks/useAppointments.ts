@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Appointment } from '../types';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Appointment, Client, Professional, Specialty } from '../types';
 
 interface UseAppointmentsOptions {
   clientId?: string;
@@ -12,118 +12,108 @@ interface UseAppointmentsOptions {
   status?: string[];
 }
 
+interface AppointmentJoin extends Appointment {
+  client: Client;
+  professional: Professional;
+  specialty: Specialty;
+}
+
 export function useAppointments(options?: UseAppointmentsOptions) {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
+  const [appointments, setAppointments] = useState<AppointmentJoin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchAppointments() {
-      try {
-        setLoading(true);
-
-        let query = supabase
-          .from('appointments')
-          .select(`
-            *,
-            client:clients(*),
-            professional:professionals(*),
-            specialty:specialties(*)
-          `);
-
-        if (user?.id) {
-          query = query.eq('user_id', user.id);
-        }
-
-        if (options?.professionalId) {
-          query = query.eq('professional_id', options.professionalId);
-        }
-
-        if (options?.calendarId) {
-          query = query.eq('calendar_id', options.calendarId);
-        }
-
-        if (options?.startDate) {
-          query = query.gte('start_time', options.startDate.toISOString());
-        }
-
-        if (options?.endDate) {
-          query = query.lte('end_time', options.endDate.toISOString());
-        }
-
-        if (options?.status && options.status.length > 0) {
-          query = query.in('status', options.status);
-        }
-
-        query = query.order('start_time', { ascending: true });
-
-        const { data, error: fetchError } = await query;
-
-        if (fetchError) throw fetchError;
-
-        // Map snake_case → camelCase
-        const mappedData = (data || []).map((apt) => ({
-          ...apt,
-          startTime: apt.start_time,
-          endTime: apt.end_time,
-        }));
-
-        setAppointments(mappedData);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch appointments'));
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAppointments();
-  }, [user?.id, options]);
-
-  const refetch = async () => {
+  const fetchAppointments = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
+      if (!user?.id) return;
+
+      // Buscar todos os calendários onde o usuário logado é o dono
+      const { data: calendars, error: calendarError } = await supabase
+        .from('calendars')
+        .select('id')
+        .eq('owner_id', user.id);
+
+      if (calendarError) throw calendarError;
+      if (!calendars || calendars.length === 0) {
+        setAppointments([]);
+        return;
+      }
+
+      const calendarIds = calendars.map((c) => c.id);
+
+      // Buscar os agendamentos vinculados a esses calendários
       let query = supabase
         .from('appointments')
         .select(`
-          *,
+          id,
+          client_id,
+          professional_id,
+          specialty_id,
+          calendar_id,
+          start_time,
+          end_time,
+          status,
+          notes,
+          created_at,
           client:clients(*),
           professional:professionals(*),
           specialty:specialties(*)
         `)
-        .eq('user_id', user?.id)
+        .in('calendar_id', calendarIds)
         .order('start_time', { ascending: true });
 
-      const { data, error: fetchError } = await query;
+      // Aplicar filtros opcionais
+      if (options?.clientId) query = query.eq('client_id', options.clientId);
+      if (options?.professionalId) query = query.eq('professional_id', options.professionalId);
+      if (options?.calendarId) query = query.eq('calendar_id', options.calendarId);
+      if (options?.startDate) query = query.gte('start_time', options.startDate.toISOString());
+      if (options?.endDate) query = query.lte('end_time', options.endDate.toISOString());
+      if (options?.status?.length) query = query.in('status', options.status);
 
-      if (fetchError) throw fetchError;
+      const { data, error } = await query;
 
-      // Map snake_case → camelCase
-      const mappedData = (data || []).map((apt) => ({
-        id: apt.id,
-        clientId: apt.client_id,
-        professionalId: apt.professional_id,
-        specialtyId: apt.specialty_id,
-        calendarId: apt.calendar_id,
-        start_time: apt.start_time,
-        end_time: apt.end_time,
-        status: apt.status,
-        notes: apt.notes,
-        client: apt.client,
-        professional: apt.professional,
-        specialty: apt.specialty,
-        createdAt: apt.created_at || '',
-      }));
+      if (error) throw error;
+      if (!data) {
+        setAppointments([]);
+        return;
+      }
 
-      setAppointments(mappedData);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch appointments'));
+      setAppointments(
+        data.map((apt) => ({
+          ...apt,
+          clientId: apt.client_id,
+          professionalId: apt.professional_id,
+          specialtyId: apt.specialty_id,
+          calendarId: apt.calendar_id,
+          startTime: new Date(apt.start_time),
+          endTime: new Date(apt.end_time),
+          createdAt: new Date(apt.created_at),
+          status: apt.status,
+          notes: apt.notes,
+          client: apt.client,
+          professional: apt.professional,
+          specialty: apt.specialty,
+        }))
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch appointments');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, JSON.stringify(options)]);
 
-  return { appointments, loading, error, refetch };
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
+
+  return {
+    appointments,
+    loading,
+    error,
+    refetch: fetchAppointments,
+  };
 }

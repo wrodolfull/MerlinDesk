@@ -5,6 +5,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { Calendar } from '../../types';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface EditCalendarFormData {
   name: string;
@@ -17,17 +18,25 @@ interface EditCalendarModalProps {
   onSuccess: () => void;
 }
 
-const EditCalendarModal = ({ calendar, onClose, onSuccess }: EditCalendarModalProps) => {
+const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose, onSuccess }) => {
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<EditCalendarFormData>({
     defaultValues: {
       name: calendar.name,
-      location: calendar.location_id || '',
+      location: calendar.locationId || '',
     },
   });
+
+  React.useEffect(() => {
+    reset({
+      name: calendar.name,
+      location: calendar.locationId || '',
+    });
+  }, [calendar, reset]);
 
   const onSubmit = async (data: EditCalendarFormData) => {
     try {
@@ -41,16 +50,19 @@ const EditCalendarModal = ({ calendar, onClose, onSuccess }: EditCalendarModalPr
 
       if (error) throw error;
 
+      toast.success('Calendar updated successfully');
       onSuccess();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
+      const message = error.message || 'Failed to update calendar';
+      toast.error(message);
       console.error('Error updating calendar:', error);
-      alert('Failed to update calendar');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Edit Calendar</CardTitle>
@@ -61,12 +73,14 @@ const EditCalendarModal = ({ calendar, onClose, onSuccess }: EditCalendarModalPr
               label="Calendar Name"
               error={errors.name?.message}
               {...register('name', { required: 'Calendar name is required' })}
+              disabled={isSubmitting}
             />
             
             <Input
               label="Location"
               error={errors.location?.message}
               {...register('location', { required: 'Location is required' })}
+              disabled={isSubmitting}
             />
 
             <div className="flex justify-end space-x-2">
@@ -74,12 +88,14 @@ const EditCalendarModal = ({ calendar, onClose, onSuccess }: EditCalendarModalPr
                 type="button"
                 variant="outline"
                 onClick={onClose}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
+                disabled={isSubmitting}
               >
                 Save Changes
               </Button>

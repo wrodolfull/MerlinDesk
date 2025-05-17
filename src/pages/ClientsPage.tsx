@@ -9,40 +9,46 @@ import CreateClientModal from '../components/modals/CreateClientModal';
 import EditClientModal from '../components/modals/EditClientModal';
 import toast, { Toaster } from 'react-hot-toast';
 
-const ClientsPage = () => {
+const ClientsPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const { data: calendarsData } = await supabase
+
+      // Buscar o primeiro calendário vinculado
+      const { data: calendarsData, error: calendarsError } = await supabase
         .from('calendars')
         .select('id')
         .limit(1);
 
-      const foundCalendarId = calendarsData?.[0]?.id;
+      if (calendarsError) throw calendarsError;
 
-      if (!foundCalendarId) {
-        throw new Error('No calendar found');
-      }
+      const foundCalendarId = calendarsData?.[0]?.id;
+      if (!foundCalendarId) throw new Error('No calendar found');
 
       setCalendarId(foundCalendarId);
 
-      const { data, error } = await supabase
+      // Buscar os clientes vinculados ao calendário
+      const { data, error: clientsError } = await supabase
         .from('clients')
         .select('*')
         .eq('calendar_id', foundCalendarId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (clientsError) throw clientsError;
+
       setClients(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch clients'));
+      setError(null);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch clients';
+      setError(message);
+      console.error('Fetch clients error:', err);
     } finally {
       setLoading(false);
     }
@@ -51,13 +57,15 @@ const ClientsPage = () => {
   const handleDeleteClient = async (id: string) => {
     if (!confirm('Are you sure you want to delete this client?')) return;
     try {
-      const { error } = await supabase.from('clients').delete().eq('id', id);
-      if (error) throw error;
+      const { error: deleteError } = await supabase.from('clients').delete().eq('id', id);
+      if (deleteError) throw deleteError;
+
       toast.success('Client deleted successfully');
-      fetchClients();
-    } catch (err) {
-      console.error('Error deleting client:', err);
-      toast.error('Failed to delete client');
+      await fetchClients();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete client';
+      toast.error(message);
+      console.error('Delete client error:', err);
     }
   };
 
@@ -79,7 +87,7 @@ const ClientsPage = () => {
     return (
       <DashboardLayout>
         <div className="text-center text-error-500">
-          Error loading clients. Please try again later.
+          Error loading clients: {error}
         </div>
       </DashboardLayout>
     );

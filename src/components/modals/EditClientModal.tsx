@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { Client } from '../../types';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface EditClientFormData {
   name: string;
@@ -18,18 +19,28 @@ interface EditClientModalProps {
   onSuccess: () => void;
 }
 
-const EditClientModal = ({ client, onClose, onSuccess }: EditClientModalProps) => {
+const EditClientModal: React.FC<EditClientModalProps> = ({ client, onClose, onSuccess }) => {
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<EditClientFormData>({
     defaultValues: {
       name: client.name,
       email: client.email,
-      phone: client.phone,
+      phone: client.phone || '',
     },
   });
+
+  // Reset form values when client changes (for modal re-use)
+  React.useEffect(() => {
+    reset({
+      name: client.name,
+      email: client.email,
+      phone: client.phone || '',
+    });
+  }, [client, reset]);
 
   const onSubmit = async (data: EditClientFormData) => {
     try {
@@ -39,21 +50,24 @@ const EditClientModal = ({ client, onClose, onSuccess }: EditClientModalProps) =
           name: data.name,
           email: data.email,
           phone: data.phone || null,
-          calendar_id: client.calendar_id, // ✅ garante manter o calendar_id
+          calendar_id: client.calendarId,
         })
         .eq('id', client.id);
 
       if (error) throw error;
+
+      toast.success('Client updated successfully');
       onSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update client');
       console.error('Error updating client:', err);
-      alert('Failed to update client');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Edit Client</CardTitle>
@@ -64,6 +78,7 @@ const EditClientModal = ({ client, onClose, onSuccess }: EditClientModalProps) =
               label="Full Name"
               {...register('name', { required: 'Name is required' })}
               error={errors.name?.message}
+              disabled={isSubmitting}
             />
             <Input
               type="email"
@@ -76,6 +91,7 @@ const EditClientModal = ({ client, onClose, onSuccess }: EditClientModalProps) =
                 },
               })}
               error={errors.email?.message}
+              disabled={isSubmitting}
             />
             <Input
               label="Phone"
@@ -86,12 +102,22 @@ const EditClientModal = ({ client, onClose, onSuccess }: EditClientModalProps) =
                 },
               })}
               error={errors.phone?.message}
+              disabled={isSubmitting}
             />
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSubmitting}>
+              <Button
+                type="submit"
+                isLoading={isSubmitting}
+                disabled={isSubmitting}
+              >
                 Save Changes
               </Button>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -57,19 +57,39 @@ const CalendarsPage = () => {
       const { data: specialtiesData, error: specialtiesError } = await supabase
         .from('specialties')
         .select('*')
-        .in('calendar_id', calendarIds);
+        .in('calendar_id', calendarIds)
+        .eq('user_id', user.id); // ✅ filtro extra de user_id
 
-      if (specialtiesError) throw specialtiesError;
-      setSpecialties(specialtiesData || []);
+        if (specialtiesError) throw specialtiesError;
+        // 🔥 Mapeamento para camelCase
+        setSpecialties(
+          (specialtiesData || []).map((s) => ({
+            ...s,
+            calendarId: s.calendar_id, // mapear snake_case → camelCase
+          }))
+        );
 
-      const { data: professionalsData, error: professionalsError } = await supabase
+        const { data: professionalsData, error: professionalsError } = await supabase
         .from('professionals')
-        .select('*')
-        .in('calendar_id', calendarIds);
-
+        .select(`
+          *,
+          specialties:professional_specialties (
+            specialties(id, name)
+          )
+        `)
+        .in('calendar_id', calendarIds)
+        .eq('user_id', user.id);
+  
       if (professionalsError) throw professionalsError;
-      setProfessionals(professionalsData || []);
-
+      // 🔥 Mapeamento para camelCase
+      const mappedProfessionals: Professional[] = (professionalsData || []).map((p: any) => ({
+        ...p,
+        calendarId: p.calendar_id,
+        avatar: p.avatar || null,
+        specialties: (p.specialties || []).map((rel: any) => rel.specialties),
+      }));
+      setProfessionals(mappedProfessionals);
+  
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch data'));
     } finally {
@@ -77,9 +97,11 @@ const CalendarsPage = () => {
     }
   };
 
-  React.useEffect(() => {
-    fetchData();
-  }, [user]);
+  useEffect(() => {
+    if (user?.id) {
+      fetchData();
+    }
+  }, [user?.id]);
 
   const handleDeleteCalendar = async (id: string) => {
     try {
@@ -87,9 +109,10 @@ const CalendarsPage = () => {
       if (error) throw error;
       setCalendars(calendars.filter((calendar) => calendar.id !== id));
       toast.success('Calendar deleted successfully');
-    } catch (error) {
-      console.error('Error deleting calendar:', error);
-      toast.error('Failed to delete calendar');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete calendar';
+      console.error(message);
+      toast.error(message);
     }
   };
 
@@ -99,9 +122,10 @@ const CalendarsPage = () => {
       if (error) throw error;
       setSpecialties(specialties.filter((specialty) => specialty.id !== id));
       toast.success('Specialty deleted successfully');
-    } catch (error) {
-      console.error('Error deleting specialty:', error);
-      toast.error('Failed to delete specialty');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete specialty';
+      console.error(message);
+      toast.error(message);
     }
   };
 
@@ -111,9 +135,10 @@ const CalendarsPage = () => {
       if (error) throw error;
       setProfessionals(professionals.filter((professional) => professional.id !== id));
       toast.success('Professional deleted successfully');
-    } catch (error) {
-      console.error('Error deleting professional:', error);
-      toast.error('Failed to delete professional');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete professional';
+      console.error(message);
+      toast.error(message);
     }
   };
 
@@ -152,8 +177,8 @@ const CalendarsPage = () => {
 
       <div className="grid grid-cols-1 gap-6 mb-8">
         {calendars.map((calendar) => {
-          const calendarSpecialties = specialties.filter((s) => s.calendar_id === calendar.id);
-          const calendarProfessionals = professionals.filter((p) => p.calendar_id === calendar.id);
+          const calendarSpecialties = specialties.filter((s) => s.calendarId === calendar.id);
+          const calendarProfessionals = professionals.filter((p) => p.calendarId === calendar.id);
 
           return (
             <Card key={calendar.id}>
@@ -167,7 +192,7 @@ const CalendarsPage = () => {
                       <CardTitle>{calendar.name}</CardTitle>
                       <div className="flex items-center mt-1 text-sm text-gray-500">
                         <MapPin size={14} className="mr-1" />
-                        <span>{calendar.location_id || 'Location not set'}</span>
+                        <span>{calendar.locationId || 'Location not set'}</span>
                       </div>
                     </div>
                   </div>
@@ -277,7 +302,11 @@ const CalendarsPage = () => {
                       {calendarProfessionals.length > 0 ? (
                         <ul className="space-y-2">
                           {calendarProfessionals.map((professional) => {
-                            const specialty = specialties.find((s) => s.id === professional.specialty_id);
+                            <p className="text-sm text-gray-500">
+                            {professional.specialties?.length
+                              ? professional.specialties.map((s) => s.name).join(', ')
+                              : 'No specialty assigned'}
+                          </p>
                             return (
                               <li
                                 key={professional.id}
@@ -292,7 +321,9 @@ const CalendarsPage = () => {
                                   <div>
                                     <p className="font-medium">{professional.name}</p>
                                     <p className="text-sm text-gray-500">
-                                      {specialty?.name || 'No specialty assigned'}
+                                      {professional.specialties?.length
+                                        ? professional.specialties.map((s) => s.name).join(', ')
+                                        : 'No specialty assigned'}
                                     </p>
                                   </div>
                                 </div>
@@ -328,7 +359,6 @@ const CalendarsPage = () => {
 
       {showCreateCalendar && (
         <CreateCalendarModal onClose={() => setShowCreateCalendar(false)} onSuccess={fetchData} />
-
       )}
 
       {showCreateSpecialty && selectedCalendarId && (
@@ -345,7 +375,7 @@ const CalendarsPage = () => {
       {showCreateProfessional && selectedCalendarId && (
         <CreateProfessionalModal
           calendarId={selectedCalendarId}
-          specialties={specialties.filter((s) => s.calendar_id === selectedCalendarId)}
+          specialties={specialties.filter((s) => s.calendarId === selectedCalendarId)}
           onClose={() => {
             setShowCreateProfessional(false);
             setSelectedCalendarId(null);
@@ -373,7 +403,7 @@ const CalendarsPage = () => {
       {editingProfessional && (
         <EditProfessionalModal
           professional={editingProfessional}
-          specialties={specialties.filter((s) => s.calendar_id === editingProfessional.calendar_id)}
+          specialties={specialties.filter((s) => s.calendarId === editingProfessional.calendarId)}
           onClose={() => setEditingProfessional(null)}
           onSuccess={fetchData}
         />

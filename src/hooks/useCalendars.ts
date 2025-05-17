@@ -1,44 +1,58 @@
-import { useEffect, useState } from 'react';
-import { Calendar } from '../types';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Calendar } from '../types';
 
 export function useCalendars() {
+  const { user } = useAuth();
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
+  const [error, setError] = useState<string | null>(null);
 
-  async function fetchCalendars() {
+  const fetchCalendars = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      if (!user) {
+      if (!user?.id) {
         setCalendars([]);
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('calendars')
         .select('*')
         .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      setCalendars(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch calendars'));
+      if (error) throw error;
+
+      const formattedCalendars = (data || []).map(calendar => ({
+        id: calendar.id,
+        name: calendar.name,
+        locationId: calendar.location_id,
+        ownerId: calendar.owner_id,
+        userId: calendar.user_id,
+        createdAt: new Date(calendar.created_at),
+      }));
+
+      setCalendars(formattedCalendars);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch calendars');
+      console.error('Calendar fetch error:', err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [user?.id]);
 
   useEffect(() => {
     fetchCalendars();
-  }, [user]);
+  }, [fetchCalendars]);
 
-  const refetch = async () => {
-    setLoading(true);
-    await fetchCalendars();
+  return {
+    calendars,
+    loading,
+    error,
+    refetch: fetchCalendars,
   };
-
-  return { calendars, loading, error, refetch };
 }

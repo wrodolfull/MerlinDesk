@@ -1,4 +1,6 @@
+// @ts-ignore: Deno runtime handles remote module imports
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// @ts-ignore: Deno handles npm imports internally
 import { createClient } from 'npm:@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
@@ -127,28 +129,108 @@ serve(async (req) => {
 
     // Book new appointment
     if (req.method === 'POST' && path === 'book') {
-      const { professionalId, clientId, specialtyId, startTime, endTime, notes } = await req.json();
-
-      const { data, error } = await supabaseClient
-        .from('appointments')
-        .insert({
-          professional_id: professionalId,
-          client_id: clientId,
-          specialty_id: specialtyId,
-          start_time: startTime,
-          end_time: endTime,
+      try {
+        const json = await req.json();
+        console.log('📦 Corpo recebido no /book:', JSON.stringify(json, null, 2));
+    
+        const {
+          professionalId,
+          clientId,
+          specialtyId,
+          startTime,
+          endTime,
           notes,
-          status: 'confirmed',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+          calendarId,
+        } = json;
+        
+        // Buscar o owner_id do calendário
+        const { data: calendarInfo, error: calendarError } = await supabaseClient
+          .from('calendars')
+          .select('owner_id')
+          .eq('id', calendarId)
+          .single();
+        
+        if (calendarError || !calendarInfo) {
+          console.error('Erro ao buscar owner_id do calendário:', calendarError?.message);
+          return new Response(
+            JSON.stringify({ error: 'Failed to resolve calendar owner' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const userId = calendarInfo.owner_id;
+    
+        if (!professionalId || !clientId || !specialtyId || !startTime || !endTime || !calendarId) {
+          console.error('❌ Campos obrigatórios ausentes:', {
+            professionalId,
+            clientId,
+            specialtyId,
+            startTime,
+            endTime,
+            calendarId
+          });
+    
+          return new Response(
+            JSON.stringify({ error: 'Missing required fields' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+    
+        console.log('✅ Inserindo no banco com dados:', {
+          professionalId,
+          clientId,
+          specialtyId,
+          calendarId,
+          userId,
+          startTime,
+          endTime,
+          notes
+        });
+    
+        const { data, error } = await supabaseClient
+          .from('appointments')
+          .insert({
+            professional_id: professionalId,
+            client_id: clientId,
+            specialty_id: specialtyId,
+            calendar_id: calendarId,
+            user_id: userId || null,
+            start_time: startTime,
+            end_time: endTime,
+            notes,
+            status: 'confirmed',
+          })
+          .select()
+          .single();
+    
+        if (error) {
+          console.error('🔥 Erro ao inserir agendamento:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+    
+          return new Response(
+            JSON.stringify({
+              error: error.message,
+              details: error.details,
+              hint: error.hint
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+    
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    
+      } catch (error) {
+        console.error('💥 Erro inesperado:', error.message || error.toString());
+        return new Response(
+          JSON.stringify({ error: error.message || 'Internal Server Error' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Reschedule appointment
