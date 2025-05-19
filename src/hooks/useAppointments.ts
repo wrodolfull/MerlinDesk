@@ -25,11 +25,15 @@ export function useAppointments(options?: UseAppointmentsOptions) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAppointments = useCallback(async () => {
+    console.log('Fetching appointments...');
     setLoading(true);
     setError(null);
 
     try {
-      if (!user?.id) return;
+      if (!user?.id) {
+        console.log('No user ID found, skipping fetch');
+        return;
+      }
 
       // Buscar todos os calendários onde o usuário logado é o dono
       const { data: calendars, error: calendarError } = await supabase
@@ -39,11 +43,13 @@ export function useAppointments(options?: UseAppointmentsOptions) {
 
       if (calendarError) throw calendarError;
       if (!calendars || calendars.length === 0) {
+        console.log('No calendars found for user', user.id);
         setAppointments([]);
         return;
       }
 
       const calendarIds = calendars.map((c) => c.id);
+      console.log('Found calendars:', calendarIds);
 
       // Buscar os agendamentos vinculados a esses calendários
       let query = supabase
@@ -60,7 +66,7 @@ export function useAppointments(options?: UseAppointmentsOptions) {
           notes,
           created_at,
           client:clients(*),
-          professional:professionals(*),
+          professional:professionals(*, specialty:specialties(*)),
           specialty:specialties(*)
         `)
         .in('calendar_id', calendarIds)
@@ -78,36 +84,97 @@ export function useAppointments(options?: UseAppointmentsOptions) {
 
       if (error) throw error;
       if (!data) {
+        console.log('No appointments found');
         setAppointments([]);
         return;
       }
 
-      setAppointments(
-        data.map((apt) => ({
-          ...apt,
-          clientId: apt.client_id,
-          professionalId: apt.professional_id,
-          specialtyId: apt.specialty_id,
-          calendarId: apt.calendar_id,
-          startTime: new Date(apt.start_time),
-          endTime: new Date(apt.end_time),
-          createdAt: new Date(apt.created_at),
-          status: apt.status,
-          notes: apt.notes,
-          client: apt.client,
-          professional: apt.professional,
-          specialty: apt.specialty,
-        }))
-      );
+      console.log('Fetched appointments:', data.length);
+      
+      const formattedAppointments = data.map((apt) => ({
+        ...apt,
+        clientId: apt.client_id,
+        professionalId: apt.professional_id,
+        specialtyId: apt.specialty_id,
+        calendarId: apt.calendar_id,
+        startTime: new Date(apt.start_time),
+        endTime: new Date(apt.end_time),
+        createdAt: new Date(apt.created_at),
+        status: apt.status,
+        notes: apt.notes,
+        client: apt.client,
+        professional: apt.professional,
+        specialty: apt.specialty,
+      }));
+      
+      console.log('Formatted appointments:', formattedAppointments.length);
+      setAppointments(formattedAppointments);
     } catch (err: unknown) {
+      console.error('Error fetching appointments:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch appointments');
     } finally {
       setLoading(false);
     }
-  }, [user?.id, JSON.stringify(options)]);
+  }, [
+    user?.id, 
+    options?.clientId,
+    options?.professionalId,
+    options?.calendarId,
+    options?.startDate?.toISOString(),
+    options?.endDate?.toISOString(),
+    options?.status?.join(',')
+  ]);
 
+  // Efeito para buscar os dados inicialmente
   useEffect(() => {
     fetchAppointments();
+  }, [fetchAppointments]);
+
+  // Efeito para configurar a subscription em tempo real
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    console.log('Setting up realtime subscription for appointments');
+    
+    const subscription = supabase
+      .channel('appointments_changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'appointments' }, 
+        (payload) => {
+          console.log('New appointment inserted:', payload);
+          fetchAppointments();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'appointments' }, 
+        () => {
+          console.log('Appointment updated');
+          fetchAppointments();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'appointments' }, 
+        () => {
+          console.log('Appointment deleted');
+          fetchAppointments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Unsubscribing from realtime');
+      subscription.unsubscribe();
+    };
+  }, [user?.id, fetchAppointments]);
+
+  // Polling como fallback
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('Polling for new appointments');
+      fetchAppointments();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [fetchAppointments]);
 
   return {

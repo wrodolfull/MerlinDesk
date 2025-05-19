@@ -36,7 +36,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
   const { specialties } = useSpecialties();
   const { clients } = useClients();
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
-    appointment.specialtyId || appointment.specialtyId
+    appointment.specialtyId || appointment.specialty_id
   );
   const [loading, setLoading] = useState(false);
 
@@ -57,7 +57,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     setValue,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<EditAppointmentFormData>(); // ❌ Removido defaultValues
+  } = useForm<EditAppointmentFormData>();
   
   useEffect(() => {
     const clientsLoaded = clients.length > 0;
@@ -80,14 +80,14 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
   const watchSpecialtyId = watch('specialtyId');
 
   useEffect(() => {
-    if (watchSpecialtyId !== undefined) {
+    if (watchSpecialtyId !== undefined && watchSpecialtyId !== selectedSpecialty) {
       setSelectedSpecialty(watchSpecialtyId);
+      // Removida a verificação que limpa o profissional selecionado
     }
-  }, [watchSpecialtyId]);
+  }, [watchSpecialtyId, selectedSpecialty]);
 
-  const filteredProfessionals = selectedSpecialty
-  ? professionals.filter((p) => p.specialty?.id === selectedSpecialty)
-  : professionals;
+  // Não filtrar mais os profissionais - mostrar todos
+  // const filteredProfessionals = professionals;
 
   const onSubmit = async (data: EditAppointmentFormData) => {
     try {
@@ -146,7 +146,6 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 render={({ field }) => (
                   <Select
                     label="Client"
-                    defaultValue={field.value}
                     options={clients.map((c) => ({
                       value: c.id,
                       label: `${c.name} (${c.email}${c.phone ? `, 📱 ${c.phone}` : ''})`,
@@ -163,7 +162,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                   />
                 )}
               />
-
+ 
               <Controller
                 name="specialtyId"
                 control={control}
@@ -180,6 +179,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     onChange={(e) => {
                       const selected = typeof e === 'string' ? e : e.target.value;
                       field.onChange(selected);
+                      setSelectedSpecialty(selected);
                     }}
                     name={field.name}
                     ref={field.ref}
@@ -197,9 +197,9 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 render={({ field }) => (
                   <Select
                     label="Professional"
-                    options={filteredProfessionals.map((p) => ({
+                    options={professionals.map((p) => ({
                       value: p.id,
-                      label: `${p.name} (${p.specialty?.name || 'No specialty'})`,
+                      label: `${p.name}${p.specialty?.name ? ` (${p.specialty.name})` : ''}${p.id === appointment.professionalId ? ' - atual' : ''}`
                     }))}
                     value={field.value}
                     onChange={(e) => {

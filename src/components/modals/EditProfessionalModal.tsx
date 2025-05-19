@@ -173,12 +173,7 @@ const EditProfessionalModal: React.FC<EditProfessionalModalProps> = ({
               )}
             />
 
-            <Input
-              label="Avatar URL"
-              {...register('avatar')}
-              placeholder="https://example.com/avatar.jpg"
-              disabled={isSubmitting}
-            />
+            
 
             <Input
               label="Bio"

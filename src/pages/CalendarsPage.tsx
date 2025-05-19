@@ -313,11 +313,7 @@ const CalendarsPage = () => {
                                 className="flex justify-between items-center p-2 bg-white rounded border border-gray-200"
                               >
                                 <div className="flex items-center">
-                                  <img
-                                    src={professional.avatar || 'https://via.placeholder.com/40'}
-                                    alt={professional.name}
-                                    className="w-10 h-10 rounded-full mr-3 object-cover"
-                                  />
+                                  
                                   <div>
                                     <p className="font-medium">{professional.name}</p>
                                     <p className="text-sm text-gray-500">

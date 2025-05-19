@@ -1,12 +1,27 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 
+// Componente Slot para implementar o padrão asChild
+const Slot = React.forwardRef<HTMLElement, { children: React.ReactElement, className?: string }>(
+  ({ children, className, ...props }, ref) => {
+    return React.cloneElement(children, {
+      ...props,
+      ...children.props,
+      ref,
+      className: cn(className, children.props.className),
+    });
+  }
+);
+
+Slot.displayName = 'Slot';
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'link';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'icon';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  asChild?: boolean; // Adicionar a propriedade asChild
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
@@ -18,6 +33,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   leftIcon,
   rightIcon,
   disabled,
+  asChild = false,
   ...props
 }, ref) => {
   const baseClasses = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
@@ -34,16 +50,35 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
     sm: 'text-sm px-3 py-1.5',
     md: 'text-sm px-4 py-2',
     lg: 'text-base px-6 py-3',
+    icon: 'p-2',
   };
-  
+
+  const buttonClasses = cn(
+    baseClasses,
+    variants[variant],
+    variant !== 'link' && sizes[size],
+    className
+  );
+
+  // Se asChild for true, o primeiro filho deve ser um elemento React válido
+  if (asChild) {
+    if (!React.Children.only(children) || !React.isValidElement(children)) {
+      console.error('Button with asChild prop must have exactly one React element child');
+      return null;
+    }
+
+    return React.cloneElement(children as React.ReactElement, {
+      className: cn(buttonClasses, (children as React.ReactElement).props.className),
+      disabled: disabled || isLoading,
+      ref,
+      ...props,
+    });
+  }
+
+  // Caso contrário, renderize um botão normal
   return (
     <button
-      className={cn(
-        baseClasses,
-        variants[variant],
-        variant !== 'link' && sizes[size],
-        className
-      )}
+      className={buttonClasses}
       disabled={disabled || isLoading}
       ref={ref}
       {...props}

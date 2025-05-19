@@ -45,20 +45,109 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     setCurrentStep(5);
   };
   
-  const handleConfirmBooking = () => {
-    if (onComplete && bookingData.client && bookingData.professional && bookingData.specialty && bookingData.timeSlot) {
-      onComplete({
-        clientId: bookingData.client.id,
-        client: bookingData.client,
-        professionalId: bookingData.professional.id,
-        specialtyId: bookingData.specialty.id,
-        startTime: bookingData.timeSlot.start,
-        endTime: bookingData.timeSlot.end,
-        notes: '',
-      });
+  const handleConfirmBooking = async () => {
+    try {
+      console.log('📋 bookingData recebido:', bookingData);
+      
+      if (!bookingData.client || !bookingData.professional || !bookingData.specialty || !bookingData.timeSlot || !bookingData.date) {
+        console.error('Dados de agendamento incompletos');
+        return;
+      }
+      
+      // Obter o owner_id do calendário
+      const { data: calendarData, error: calendarError } = await supabase
+        .from('calendars')
+        .select('owner_id')
+        .eq('id', calendarId)
+        .single();
+        
+      if (calendarError) throw calendarError;
+      
+      const owner_id = calendarData.owner_id;
+      
+      if (!owner_id) {
+        throw new Error('Não foi possível determinar o proprietário do calendário');
+      }
+      
+      // Verificar se o cliente já existe pelo email
+      let clientId;
+      
+      // Primeiro, verificar se o cliente já existe pelo email
+      const { data: existingClient, error: clientCheckError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('email', bookingData.client.email)
+        .maybeSingle(); // Use maybeSingle em vez de single para evitar erros
+        
+      if (clientCheckError && clientCheckError.code !== 'PGRST116') {
+        throw new Error(`Erro ao verificar cliente: ${clientCheckError.message}`);
+      }
+      
+      if (existingClient) {
+        // Cliente já existe, usar o ID existente
+        console.log('Cliente já existe, usando ID existente:', existingClient.id);
+        clientId = existingClient.id;
+      } else {
+        // Cliente não existe, criar novo
+        console.log('Criando novo cliente com email:', bookingData.client.email);
+        const { data: newClient, error: createClientError } = await supabase
+          .from('clients')
+          .insert({
+            name: bookingData.client.name,
+            email: bookingData.client.email,
+            phone: bookingData.client.phone,
+            owner_id: owner_id
+          })
+          .select('id')
+          .single();
+          
+        if (createClientError) {
+          throw new Error(`Erro ao criar cliente: ${createClientError.message}`);
+        }
+        
+        clientId = newClient.id;
+        console.log('Novo cliente criado com ID:', clientId);
+      }
+      
+      // Preparar os dados do agendamento no formato correto
+      const startTime = new Date(bookingData.timeSlot.start);
+      const endTime = new Date(bookingData.timeSlot.end);
+      
+      const appointmentData = {
+        client_id: clientId,
+        professional_id: bookingData.professional.id,
+        specialty_id: bookingData.specialty.id,
+        calendar_id: calendarId,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: 'pending',
+        notes: ''
+      };
+      
+      console.log('📦 Dados sendo enviados ao Supabase:', appointmentData);
+      
+      // Salvar o agendamento
+      const { data: appointment, error } = await supabase
+        .from('appointments')
+        .insert(appointmentData)
+        .select()
+        .single();
+        
+      if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+      
+      console.log('✅ Agendamento criado com sucesso:', appointment);
+      
+      // Chamar o callback onComplete com os dados completos
+      if (onComplete) {
+        onComplete(appointment);
+      }
+      
+    } catch (error) {
+      console.error('❌ Erro ao criar agendamento:', error);
+      throw error; // Propagar o erro para que possa ser tratado pelo chamador
     }
   };
-  
+
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { Card, CardContent } from '../components/ui/Card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Loader, Plus, Edit, Trash2, Clock } from 'lucide-react';
+import { 
+  Loader, Plus, Edit, Trash2, Clock, Search, 
+  Mail, Phone, Calendar, Tag
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import EditProfessionalModal from '../components/modals/EditProfessionalModal';
@@ -12,7 +15,8 @@ import { useSpecialties } from '../hooks/useSpecialties';
 import { useCalendars } from '../hooks/useCalendars';
 import Avatar from '../components/ui/Avatar';
 import toast, { Toaster } from 'react-hot-toast';
-import { Professional } from '../types'; // Certifique-se de criar este tipo ou importar
+import { Professional } from '../types';
+import Input from '../components/ui/Input';
 
 const ProfessionalsPage: React.FC = () => {
   const { specialties } = useSpecialties();
@@ -26,6 +30,10 @@ const ProfessionalsPage: React.FC = () => {
   const [editingProfessional, setEditingProfessional] = useState<Professional | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [managingHours, setManagingHours] = useState<Professional | null>(null);
+  
+  // Novos estados para filtros (removido showInactive)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
 
   const fetchProfessionals = async () => {
     try {
@@ -33,16 +41,17 @@ const ProfessionalsPage: React.FC = () => {
       if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-      .from('professionals')
-      .select(`
-        *,
-        specialties:professional_specialties(
-          specialties(id, name)
-        )
-      `)
-      .eq('user_id', user.id);
+        .from('professionals')
+        .select(`
+          *,
+          specialties:professional_specialties(
+            specialties(id, name)
+          )
+        `)
+        .eq('user_id', user.id);
 
       if (error) throw error;
+
       const mappedData: Professional[] = (data || []).map((pro: any) => ({
         ...pro,
         specialties: (pro.specialties || []).map((rel: any) => rel.specialties),
@@ -75,6 +84,23 @@ const ProfessionalsPage: React.FC = () => {
       console.error('Delete professional error:', err);
     }
   };
+
+  // Filtragem de profissionais (removida a filtragem por status)
+  const filteredProfessionals = professionals.filter(professional => {
+    const matchesSearch = 
+      professional.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (professional.email && professional.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesSpecialty = !selectedSpecialty || 
+      professional.specialties?.some(s => s.name === selectedSpecialty);
+    
+    return matchesSearch && matchesSpecialty;
+  });
+
+  // Extrair todas as especialidades para o filtro
+  const allSpecialties = Array.from(
+    new Set(professionals.flatMap(p => p.specialties?.map(s => s.name) || []))
+  );
 
   if (loading) {
     return (
@@ -112,10 +138,10 @@ const ProfessionalsPage: React.FC = () => {
   return (
     <DashboardLayout>
       <Toaster />
-      <div className="mb-6 flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Professionals</h1>
-          <p className="text-gray-600">Manage your team of professionals</p>
+          <h1 className="text-3xl font-bold text-gray-900">Professionals</h1>
+          <p className="text-gray-600 mt-1">Manage your team of professionals</p>
         </div>
         <Button
           leftIcon={<Plus size={16} />}
@@ -125,36 +151,89 @@ const ProfessionalsPage: React.FC = () => {
         </Button>
       </div>
 
-      {professionals.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <p className="text-gray-500">No professionals found</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {professionals.map((professional) => (
-            <Card key={professional.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <Avatar
-                    src={professional.avatar}
-                    alt={professional.name}
-                    size="lg"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold">{professional.name}</h3>
-                    <p className="text-sm text-gray-500">{professional.email}</p>
-                    {professional.phone && (
-                      <p className="text-sm text-gray-500">{professional.phone}</p>
-                    )}
-                    {professional.bio && (
-                      <p className="text-sm text-gray-600 mt-2">{professional.bio}</p>
-                    )}
-                    <p className="text-sm text-gray-500 mt-1">
-                      {professional.specialties?.length
-                        ? professional.specialties.map((s) => s.name).join(', ')
-                        : 'No specialty assigned'}
-                    </p>
-                    <div className="flex space-x-2 mt-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Professionals</CardTitle>
+          <CardDescription>
+            View and manage all professionals in your practice
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search professionals..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <select
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={selectedSpecialty || ''}
+                onChange={(e) => setSelectedSpecialty(e.target.value || null)}
+              >
+                <option value="">All Specialties</option>
+                {allSpecialties.map(specialty => (
+                  <option key={specialty} value={specialty}>{specialty}</option>
+                ))}
+              </select>
+              {/* Botão de filtro de status removido */}
+            </div>
+          </div>
+
+          {filteredProfessionals.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <p className="text-gray-500">No professionals found</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredProfessionals.map((professional) => (
+                <div
+                  key={professional.id}
+                  className="border rounded-lg p-4 bg-white"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                      <Avatar
+                        src={professional.avatar}
+                        alt={professional.name}
+                        size="lg"
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{professional.name}</h3>
+                        </div>
+                        <div className="mt-1 space-y-1 text-sm text-gray-500">
+                          {professional.email && (
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4" />
+                              {professional.email}
+                            </div>
+                          )}
+                          {professional.phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4" />
+                              {professional.phone}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4" />
+                            {professional.specialties?.length
+                              ? professional.specialties.map((s) => s.name).join(', ')
+                              : 'No specialty assigned'}
+                          </div>
+                          {professional.bio && (
+                            <p className="text-sm text-gray-600 mt-2">{professional.bio}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -183,11 +262,11 @@ const ProfessionalsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {showCreateModal && (
         <CreateProfessionalModal
