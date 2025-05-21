@@ -36,41 +36,33 @@ const DashboardPage: React.FC = () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('User not authenticated');
-      
-      // Buscar nome do usuário
-      const { data: userData, error: profileError } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single();
-        
-      if (!profileError && userData) {
-        setUserName(userData.full_name || 'User');
-      }
-
+  
+      // Obter nome diretamente do Supabase Auth
+      setUserName(user.user_metadata?.name || user.email || 'User');
+  
       const now = new Date();
       const oneWeekAgo = new Date(now);
       oneWeekAgo.setDate(now.getDate() - 7);
-
+  
       // Calcular estatísticas com base nos appointments já carregados
       const todayAppointments = appointments.filter((apt) => {
         const aptDate = apt.startTime;
         return aptDate.toDateString() === now.toDateString();
       }).length;
-
+  
       const completedThisWeek = appointments.filter((apt) => {
         return apt.status === 'completed' && apt.startTime >= oneWeekAgo;
       }).length;
-
+  
       const cancellations = appointments.filter((apt) => apt.status === 'canceled').length;
-
+  
       const { count: clientsCount, error: clientsError } = await supabase
         .from('clients')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
-
+  
       if (clientsError) throw clientsError;
-
+  
       setStats({
         todayAppointments,
         totalClients: clientsCount ?? 0,
@@ -85,7 +77,7 @@ const DashboardPage: React.FC = () => {
       console.error('Error fetching additional data:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
     }
-  };
+  };  
 
   // Configurar subscription para atualizações em tempo real
 useEffect(() => {
@@ -120,7 +112,7 @@ useEffect(() => {
   const interval = setInterval(() => {
     console.log('🔍 Polling para novos agendamentos');
     refetch();
-  }, 30000);
+  }, 60000);
 
   return () => {
     console.log('❌ Cancelando subscription e polling');

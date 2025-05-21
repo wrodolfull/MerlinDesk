@@ -11,6 +11,11 @@ export interface Client {
   calendarId: string;
   createdAt: Date;
   ownerId: string;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count?: number;
+  is_pinned?: boolean;
+  avatar_url?: string;
 }
 
 export interface Calendar {

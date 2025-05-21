@@ -5,6 +5,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   helperText?: string;
+  leftIcon?: React.ReactNode;
+  className?: string;
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(({
@@ -14,6 +16,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({
   helperText,
   required,
   id,
+  leftIcon,
   ...props
 }, ref) => {
   const inputId = id || Math.random().toString(36).substring(2, 9);
@@ -29,18 +32,26 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({
           {required && <span className="text-error-500 ml-1">*</span>}
         </label>
       )}
-      <input
-        id={inputId}
-        className={cn(
-          "w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2",
-          error
-            ? "border-error-500 focus:ring-error-500 focus:border-error-500"
-            : "border-gray-300 focus:ring-primary-500 focus:border-primary-500",
-          className
+      <div className="relative">
+        {leftIcon && (
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+            {leftIcon}
+          </div>
         )}
-        ref={ref}
-        {...props}
-      />
+        <input
+          id={inputId}
+          className={cn(
+            "w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2",
+            leftIcon ? "pl-10" : "",
+            error
+              ? "border-error-500 focus:ring-error-500 focus:border-error-500"
+              : "border-gray-300 focus:ring-primary-500 focus:border-primary-500",
+            className
+          )}
+          ref={ref}
+          {...props}
+        />
+      </div>
       {(error || helperText) && (
         <div className="mt-1 text-sm">
           {error ? (

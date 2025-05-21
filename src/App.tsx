@@ -27,6 +27,7 @@ import PricingPage from './pages/PricingPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ChatPage from './pages/ChatPage';
 import AITrainingPage from './pages/AITrainingPage';
+import AssistantSettingsPage from './pages/AssistantSettingsPage';
 
 function App() {
   return (
@@ -152,6 +153,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <ClientsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/assistant"
+                element={
+                  <PrivateRoute>
+                    <AssistantSettingsPage />
                   </PrivateRoute>
                 }
               />
