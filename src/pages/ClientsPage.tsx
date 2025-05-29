@@ -74,7 +74,7 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, onClose
       <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold">Appointment History: {client.name}</h2>
+            <h2 className="text-xl font-bold">Histórico: {client.name}</h2>
             <Button variant="ghost" size="sm" onClick={onClose}>×</Button>
           </div>
         </div>
@@ -88,7 +88,7 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, onClose
             <div className="text-center text-error-500 py-8">{error}</div>
           ) : appointments.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
-              No appointment history found for this client.
+              Nenhum histórico encontrado para este cliente.
             </div>
           ) : (
             <div className="space-y-4">
@@ -109,7 +109,7 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, onClose
                           {appointment.specialty?.name || 'Unknown service'}
                         </p>
                         <p className="text-sm text-gray-500">
-                          with {appointment.professional?.name || 'Unknown professional'}
+                          Com {appointment.professional?.name || 'Unknown professional'}
                         </p>
                       </div>
                       {appointment.notes && (
@@ -135,7 +135,7 @@ const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, onClose
         
         <div className="p-4 border-t">
           <Button variant="outline" onClick={onClose} className="w-full">
-            Close
+            Fechar
           </Button>
         </div>
       </Card>
@@ -164,30 +164,29 @@ const ClientsPage: React.FC = () => {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-
-      // Buscar todos os calendários do usuário
+  
+      // Buscar calendário principal do usuário para criação de novos clientes
       const { data: calendarsData, error: calendarsError } = await supabase
         .from('calendars')
         .select('id')
-        .eq('owner_id', user.id);
-
+        .eq('owner_id', user.id)
+        .limit(1);
+  
       if (calendarsError) throw calendarsError;
-
+  
       if (!calendarsData || calendarsData.length === 0) {
         throw new Error('No calendars found');
       }
-
-      const calendarIds = calendarsData.map(cal => cal.id);
-      setCalendarId(calendarIds[0]); // Usar o primeiro calendário para criação de novos clientes
-
-      // Buscar os clientes vinculados a qualquer um dos calendários do usuário
-      // OU clientes que foram criados pelo usuário (owner_id = user.id)
+  
+      setCalendarId(calendarsData[0].id);
+  
+      // ✅ CORREÇÃO: Buscar apenas clientes do owner atual
       const { data, error: clientsError } = await supabase
         .from('clients')
         .select('*')
-        .or(`calendar_id.in.(${calendarIds.join(',')}),owner_id.eq.${user.id}`)
+        .eq('owner_id', user.id)  // Apenas clientes deste owner
         .order('created_at', { ascending: false });
-
+  
       if (clientsError) throw clientsError;
 
       setClients(data || []);
@@ -377,11 +376,11 @@ const ClientsPage: React.FC = () => {
       <Toaster />
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-          <p className="text-gray-600">View, edit, and manage your clients</p>
+          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
+          <p className="text-gray-600">Visualize, edite, e gerencie seus clientes</p>
         </div>
         <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreateModal(true)}>
-          Add Client
+          Criar cliente
         </Button>
       </div>
 
@@ -390,7 +389,7 @@ const ClientsPage: React.FC = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <Input
-            placeholder="Search clients by name, email or phone..."
+            placeholder="Procure clientes por nome, e-mail ou telefone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -434,10 +433,10 @@ const ClientsPage: React.FC = () => {
                 <div className="flex items-center text-sm text-gray-500 mt-1">
                   <Calendar className="h-4 w-4 mr-1" />
                   <span>
-                    Last appointment: {formatLastAppointment(clientsWithLastAppointment[client.id])}
+                    Último agendamento: {formatLastAppointment(clientsWithLastAppointment[client.id])}
                     {clientsWithLastAppointment[client.id] && clientsWithLastAppointmentProfessional[client.id] && (
                       <span className="ml-1">
-                        with <span className="font-medium">{clientsWithLastAppointmentProfessional[client.id]}</span>
+                        com <span className="font-medium">{clientsWithLastAppointmentProfessional[client.id]}</span>
                       </span>
                     )}
                   </span>
@@ -449,7 +448,7 @@ const ClientsPage: React.FC = () => {
                     leftIcon={<History size={14} />}
                     onClick={() => setViewingHistoryClient(client)}
                   >
-                    History
+                    Histórico
                   </Button>
                   <Button
                     size="sm"
@@ -457,7 +456,7 @@ const ClientsPage: React.FC = () => {
                     leftIcon={<Edit size={14} />}
                     onClick={() => setEditingClient(client)}
                   >
-                    Edit
+                    Editar
                   </Button>
                   <Button
                     size="sm"
@@ -466,7 +465,7 @@ const ClientsPage: React.FC = () => {
                     leftIcon={<Trash2 size={14} />}
                     onClick={() => handleDeleteClient(client.id)}
                   >
-                    Delete
+                    Deletar
                   </Button>
                 </div>
               </CardContent>

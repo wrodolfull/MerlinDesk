@@ -11,15 +11,17 @@ import { useForm, Controller } from 'react-hook-form';
 import { supabase } from '../lib/supabase';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
-import { CreditCard, Check, Key } from 'lucide-react';
+import { CreditCard, Check, Key, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface BusinessSettingsForm {
-  businessName: string;
+interface ProfileSettingsForm {
+  name: string;
   email: string;
   phone: string;
-  address: string;
   timezone: string;
+  currentPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
 }
 
 interface NotificationSettingsForm {
@@ -42,6 +44,7 @@ const SettingsPage = () => {
   const [currentPlan, setCurrentPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
   const [apiKeys, setApiKeys] = useState<APIKeysForm>({
     openaiKey: '',
     deepseekKey: '',
@@ -106,13 +109,15 @@ const SettingsPage = () => {
     fetchData();
   }, [user]);
 
-  const businessForm = useForm<BusinessSettingsForm>({
+  const profileForm = useForm<ProfileSettingsForm>({
     defaultValues: {
-      businessName: 'My Business',
-      email: 'contact@mybusiness.com',
-      phone: '(555) 123-4567',
-      address: '123 Business St, City, State 12345',
+      name: user?.user_metadata?.full_name || user?.user_metadata?.name || '',
+      email: user?.email || '',
+      phone: user?.user_metadata?.phone || '',
       timezone: timezone,
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
     },
   });
 
@@ -128,13 +133,65 @@ const SettingsPage = () => {
     defaultValues: apiKeys,
   });
 
-  const onBusinessSubmit = (data: BusinessSettingsForm) => {
-    setTimezone(data.timezone);
-    console.log('Business settings:', data);
+  const onProfileSubmit = async (data: ProfileSettingsForm) => {
+    try {
+      setUpdating(true);
+      setTimezone(data.timezone);
+
+      // Preparar dados para atualização
+      const updateData: any = {
+        data: {
+          full_name: data.name,
+          name: data.name,
+          phone: data.phone,
+        }
+      };
+
+      // Atualizar email se foi alterado
+      if (data.email !== user?.email) {
+        updateData.email = data.email;
+        toast.success('Um email de confirmação foi enviado para o novo endereço');
+      }
+
+      // Atualizar senha se fornecida
+      if (data.currentPassword && data.newPassword) {
+        // Verificar senha atual
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: user?.email || '',
+          password: data.currentPassword,
+        });
+
+        if (signInError) {
+          toast.error('Senha atual incorreta');
+          return;
+        }
+
+        updateData.password = data.newPassword;
+      }
+
+      // Atualizar dados do usuário
+      const { error: updateError } = await supabase.auth.updateUser(updateData);
+
+      if (updateError) throw updateError;
+
+      toast.success('Perfil atualizado com sucesso');
+      
+      // Limpar campos de senha
+      profileForm.setValue('currentPassword', '');
+      profileForm.setValue('newPassword', '');
+      profileForm.setValue('confirmPassword', '');
+
+    } catch (error: any) {
+      console.error('Erro ao atualizar perfil:', error);
+      toast.error(error.message || 'Falha ao atualizar perfil');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const onNotificationSubmit = (data: NotificationSettingsForm) => {
     console.log('Notification settings:', data);
+    toast.success('Configurações de notificação salvas');
   };
 
   const onAPIKeysSubmit = async (data: APIKeysForm) => {
@@ -149,11 +206,11 @@ const SettingsPage = () => {
 
       if (error) throw error;
 
-      toast.success('API keys updated successfully');
+      toast.success('Chaves de API atualizadas com sucesso');
       setApiKeys(data);
     } catch (err) {
-      console.error('Error updating API keys:', err);
-      toast.error('Failed to update API keys');
+      console.error('Erro ao atualizar chaves de API:', err);
+      toast.error('Falha ao atualizar chaves de API');
     }
   };
 
@@ -161,11 +218,34 @@ const SettingsPage = () => {
     navigate('/pricing');
   };
 
+  const formatFeatureLabel = (key: string, value: any): string => {
+    const labels: Record<string, string> = {
+      analytics: 'Relatórios e Análises',
+      calendars: 'Calendários',
+      professionals: 'Profissionais',
+      custom_branding: 'Marca personalizada',
+      sms_notifications: 'Notificações por SMS',
+      email_notifications: 'Notificações por Email',
+      appointments_per_month: 'Agendamentos por mês',
+    };
+
+    if (typeof value === 'boolean') {
+      return value ? `${labels[key]} habilitado` : `${labels[key]} desabilitado`;
+    }
+
+    if (value === -1) {
+      return `${labels[key]} ilimitados`;
+    }
+
+    return `${value} ${labels[key]}`;
+  };
+
+
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
-        <p className="text-gray-600">{t('settings.description')}</p>
+        <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
+        <p className="text-gray-600">Gerencie suas preferências e configurações da conta</p>
       </div>
 
       {/* Tabs */}
@@ -179,7 +259,7 @@ const SettingsPage = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            General
+            Geral
           </button>
           <button
             onClick={() => setTab('notifications')}
@@ -189,7 +269,7 @@ const SettingsPage = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Notifications
+            Notificações
           </button>
           <button
             onClick={() => setTab('api-keys')}
@@ -199,7 +279,7 @@ const SettingsPage = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            API Keys
+            Chaves de API
           </button>
           <button
             onClick={() => setTab('subscription')}
@@ -209,7 +289,7 @@ const SettingsPage = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Subscription
+            Assinatura
           </button>
         </nav>
       </div>
@@ -220,7 +300,7 @@ const SettingsPage = () => {
           <>
             <Card>
               <CardHeader>
-                <CardTitle>{t('settings.language')}</CardTitle>
+                <CardTitle>Idioma</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="max-w-xs">
@@ -231,37 +311,47 @@ const SettingsPage = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>{t('settings.business.title')}</CardTitle>
+                <CardTitle className="flex items-center">
+                  <User className="mr-2" size={20} />
+                  Informações do Perfil
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={businessForm.handleSubmit(onBusinessSubmit)} className="space-y-4">
+                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
                   <Input
-                    label={t('settings.business.name')}
-                    {...businessForm.register('businessName', { required: true })}
+                    label="Nome Completo"
+                    {...profileForm.register('name', { required: 'Nome é obrigatório' })}
                   />
                   
                   <Input
-                    label={t('settings.business.email')}
+                    label="Email"
                     type="email"
-                    {...businessForm.register('email', { required: true })}
+                    {...profileForm.register('email', { 
+                      required: 'Email é obrigatório',
+                      pattern: {
+                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                        message: 'Email inválido'
+                      }
+                    })}
                   />
                   
                   <Input
-                    label={t('settings.business.phone')}
-                    {...businessForm.register('phone', { required: true })}
-                  />
-                  
-                  <Input
-                    label={t('settings.business.address')}
-                    {...businessForm.register('address', { required: true })}
+                    label="Telefone"
+                    {...profileForm.register('phone', {
+                      pattern: {
+                        value: /^[\d\s\(\)\-\+]+$/,
+                        message: 'Formato de telefone inválido'
+                      }
+                    })}
+                    placeholder="(11) 99999-9999"
                   />
                   
                   <Controller
                     name="timezone"
-                    control={businessForm.control}
+                    control={profileForm.control}
                     render={({ field }) => (
                       <Select
-                        label={t('settings.timezone')}
+                        label="Fuso Horário"
                         options={[
                           { value: 'America/Sao_Paulo', label: 'Brasília (GMT-3)' },
                           { value: 'America/New_York', label: 'New York (GMT-4)' },
@@ -276,9 +366,53 @@ const SettingsPage = () => {
                     )}
                   />
 
+                  <div className="pt-4 border-t">
+                    <h3 className="text-lg font-medium mb-4">Alterar Senha</h3>
+                    
+                    <Input
+                      type="password"
+                      label="Senha Atual"
+                      {...profileForm.register('currentPassword', {
+                        validate: (value) => {
+                          const newPass = profileForm.watch('newPassword');
+                          if (newPass && !value) {
+                            return 'Senha atual é obrigatória para alterar a senha';
+                          }
+                          return true;
+                        }
+                      })}
+                    />
+
+                    <Input
+                      type="password"
+                      label="Nova Senha"
+                      {...profileForm.register('newPassword', {
+                        minLength: {
+                          value: 8,
+                          message: 'A senha deve ter pelo menos 8 caracteres',
+                        },
+                        pattern: {
+                          value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+                          message: 'A senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número'
+                        }
+                      })}
+                    />
+
+                    <Input
+                      type="password"
+                      label="Confirmar Nova Senha"
+                      {...profileForm.register('confirmPassword', {
+                        validate: value => {
+                          const newPassword = profileForm.watch('newPassword');
+                          return !newPassword || value === newPassword || 'As senhas não coincidem';
+                        }
+                      })}
+                    />
+                  </div>
+
                   <div className="flex justify-end">
-                    <Button type="submit">
-                      {t('common.save')}
+                    <Button type="submit" isLoading={updating}>
+                      {updating ? 'Salvando...' : 'Salvar Alterações'}
                     </Button>
                   </div>
                 </form>
@@ -291,7 +425,7 @@ const SettingsPage = () => {
         {activeTab === 'notifications' && (
           <Card>
             <CardHeader>
-              <CardTitle>{t('settings.notifications.title')}</CardTitle>
+              <CardTitle>Configurações de Notificação</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={notificationForm.handleSubmit(onNotificationSubmit)} className="space-y-4">
@@ -303,7 +437,7 @@ const SettingsPage = () => {
                     {...notificationForm.register('emailNotifications')}
                   />
                   <label htmlFor="emailNotifications" className="text-sm text-gray-700">
-                    {t('settings.notifications.email')}
+                    Notificações por Email
                   </label>
                 </div>
 
@@ -315,13 +449,13 @@ const SettingsPage = () => {
                     {...notificationForm.register('smsNotifications')}
                   />
                   <label htmlFor="smsNotifications" className="text-sm text-gray-700">
-                    {t('settings.notifications.sms')}
+                    Notificações por SMS
                   </label>
                 </div>
 
                 <Input
                   type="number"
-                  label={t('settings.notifications.reminderTime')}
+                  label="Tempo de Lembrete (horas)"
                   {...notificationForm.register('reminderTime', {
                     required: true,
                     min: 1,
@@ -331,7 +465,7 @@ const SettingsPage = () => {
 
                 <div className="flex justify-end">
                   <Button type="submit">
-                    {t('common.save')}
+                    Salvar Configurações
                   </Button>
                 </div>
               </form>
@@ -343,12 +477,12 @@ const SettingsPage = () => {
         {activeTab === 'api-keys' && (
           <Card>
             <CardHeader>
-              <CardTitle>API Keys Configuration</CardTitle>
+              <CardTitle>Configuração de Chaves de API</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={apiKeysForm.handleSubmit(onAPIKeysSubmit)} className="space-y-4">
                 <Input
-                  label="OpenAI API Key"
+                  label="Chave da API OpenAI"
                   type="password"
                   leftIcon={<Key size={16} />}
                   {...apiKeysForm.register('openaiKey')}
@@ -356,7 +490,7 @@ const SettingsPage = () => {
                 />
 
                 <Input
-                  label="DeepSeek API Key"
+                  label="Chave da API DeepSeek"
                   type="password"
                   leftIcon={<Key size={16} />}
                   {...apiKeysForm.register('deepseekKey')}
@@ -365,7 +499,7 @@ const SettingsPage = () => {
 
                 <div className="flex justify-end">
                   <Button type="submit">
-                    Save API Keys
+                    Salvar Chaves de API
                   </Button>
                 </div>
               </form>
@@ -377,51 +511,43 @@ const SettingsPage = () => {
         {activeTab === 'subscription' && (
           <Card>
             <CardHeader>
-              <CardTitle>Current Plan</CardTitle>
+              <CardTitle>Plano Atual</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div>Loading subscription details...</div>
+                <div>Carregando detalhes da assinatura...</div>
               ) : error ? (
-                <div className="text-red-600">Error loading subscription: {error}</div>
+                <div className="text-red-600">Erro ao carregar assinatura: {error}</div>
               ) : currentPlan ? (
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold">{currentPlan.name} Plan</h3>
+                      <h3 className="text-lg font-semibold">Plano {currentPlan.name}</h3>
                       <p className="text-gray-600">{currentPlan.description}</p>
                     </div>
                     <CreditCard className="h-8 w-8 text-primary-600" />
                   </div>
 
                   <div className="space-y-3 mb-6">
-                    {Object.entries(currentPlan.features || {}).map(([key, value]: [string, any]) => (
-                      <div key={key} className="flex items-center text-gray-700">
-                        <Check className="h-5 w-5 text-primary-500 mr-3" />
-                        <span>
-                          {key === 'calendars' && value === -1
-                            ? 'Unlimited calendars'
-                            : key === 'professionals' && value === -1
-                            ? 'Unlimited professionals'
-                            : key === 'appointments_per_month' && value === -1
-                            ? 'Unlimited appointments'
-                            : `${value} ${key.replace('_', ' ')}`}
-                        </span>
-                      </div>
-                    ))}
+                    {Object.entries(currentPlan.features || {}).map(([key, value]) => (
+                    <div key={key} className="flex items-center text-gray-700">
+                      <Check className="h-5 w-5 text-primary-500 mr-3" />
+                      <span>{formatFeatureLabel(key, value)}</span>
+                    </div>
+                  ))}
                   </div>
 
                   {(!currentPlan.name || currentPlan.name === 'Free') && (
                     <Button onClick={handleUpgrade} className="w-full">
-                      Upgrade to Business Plan
+                      Fazer Upgrade para Plano Business
                     </Button>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-gray-600 mb-4">No active subscription found</p>
+                  <p className="text-gray-600 mb-4">Nenhuma assinatura ativa encontrada</p>
                   <Button onClick={handleUpgrade}>
-                    View Available Plans
+                    Ver Planos Disponíveis
                   </Button>
                 </div>
               )}

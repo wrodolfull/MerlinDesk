@@ -54,16 +54,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   const navItems = [
     { path: '/dashboard', icon: <Grid3X3 size={20} />, label: 'Dashboard' },
-    { path: '/appointments', icon: <Clock size={20} />, label: 'Appointments' },
-    { path: '/calendars', icon: <Calendar size={20} />, label: 'Calendars' },
-    { path: '/specialties', icon: <Building size={20} />, label: 'Specialties' },
-    { path: '/professionals', icon: <UserCircle size={20} />, label: 'Professionals' },
-    { path: '/clients', icon: <Users size={20} />, label: 'Clients' },
-    { path: '/assistant', icon: <Stars size={20} />, label: 'Assistant' },
-    { path: '/chat', icon: <MessageCircle size={20} />, label: 'Chat' },
-    { path: '/ai-training', icon: <Brain size={20} />, label: 'AI Training' },
-    { path: '/analytics', icon: <BarChart size={20} />, label: 'Analytics' },
-    { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+    { path: '/appointments', icon: <Clock size={20} />, label: 'Agendamentos' },
+    { path: '/calendars', icon: <Calendar size={20} />, label: 'Calendário' },
+    { path: '/specialties', icon: <Building size={20} />, label: 'Especialidades' },
+    { path: '/professionals', icon: <UserCircle size={20} />, label: 'Profissionais' },
+    { path: '/clients', icon: <Users size={20} />, label: 'Clientes' },
+    { path: '/assistant', icon: <Stars size={20} />, label: 'Assistante Virtual' },
+    //{ path: '/chat', icon: <MessageCircle size={20} />, label: 'Chat' },
+    //{ path: '/ai-training', icon: <Brain size={20} />, label: 'AI Training' },
+    { path: '/analytics', icon: <BarChart size={20} />, label: 'Relatório' },
+    { path: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
   ];
 
   const isActive = (path: string) => {
@@ -174,7 +174,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 className="mt-4 flex items-center w-full py-2 px-3 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
               >
                 <LogOut size={18} className="mr-2" />
-                Sign out
+                Sair
               </button>
             ) : (
               <button 

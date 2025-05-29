@@ -63,7 +63,7 @@ const AppointmentsPage = () => {
       toast.error(errorMessage);
     }
   };
-
+ 
   const filteredAppointments = appointments.filter((appointment) => {
     const now = new Date();
     const appointmentDate = new Date(appointment.startTime);
@@ -113,16 +113,16 @@ const AppointmentsPage = () => {
       <Toaster />
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
-          <p className="text-gray-600">Manage your scheduled appointments</p>
+          <h1 className="text-2xl font-bold text-gray-900">Agendamentos</h1>
+          <p className="text-gray-600">Gerencie seus agendamentos</p>
         </div>
         <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreateModal(true)}>
-          New Appointment
+          Novo agendamento
         </Button>
       </div>
 
       <Input
-        placeholder="Search by professional or status"
+        placeholder="Procure por profissional ou status"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         className="mb-4"
@@ -133,16 +133,16 @@ const AppointmentsPage = () => {
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-2 flex-grow">
               <Filter size={20} className="text-gray-500" />
-              <h3 className="font-medium">Filters</h3>
+              <h3 className="font-medium">Filtros</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full sm:w-auto">
               <Select
                 options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: 'confirmed', label: 'Confirmed' },
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'completed', label: 'Completed' },
-                  { value: 'canceled', label: 'Canceled' },
+                  { value: 'all', label: 'Todos' },
+                  { value: 'confirmed', label: 'Confirmado' },
+                  { value: 'pending', label: 'Pendente' },
+                  { value: 'completed', label: 'Concluído' },
+                  { value: 'canceled', label: 'Cancelado' },
                 ]}
                 value={filter.status}
                 onChange={(event) => {
@@ -153,10 +153,10 @@ const AppointmentsPage = () => {
               />
               <Select
                 options={[
-                  { value: 'all', label: 'All Time' },
-                  { value: 'today', label: 'Today' },
-                  { value: 'upcoming', label: 'Upcoming' },
-                  { value: 'past', label: 'Past' },
+                  { value: 'all', label: 'Todos' },
+                  { value: 'today', label: 'Hoje' },
+                  { value: 'upcoming', label: 'Próximos' },
+                  { value: 'past', label: 'Anteriores' },
                 ]}
                 value={filter.timeframe}
                 onChange={(event) => {
@@ -210,12 +210,12 @@ const AppointmentsPage = () => {
         <Card>
           <CardContent className="p-12 flex flex-col items-center justify-center text-center">
             <Calendar className="h-12 w-12 text-gray-400 mb-2" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No appointments found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Nenhum agendamento encontrado</h3>
             <p className="text-gray-500 mb-4">
-              No appointments match your current filters.
+              Nenhum agendamento encontrado com o filtro aplicado.
             </p>
             <Button onClick={() => setFilter({ status: 'all', timeframe: 'all' })}>
-              Clear Filters
+              Limpar filtros
             </Button>
           </CardContent>
         </Card>

@@ -40,15 +40,34 @@ const AppointmentCard = ({
     }
   };
 
-  const handleWhatsApp = () => {
-    if (appointment.client?.phone) {
-      const phone = appointment.client.phone.replace(/\D/g, ''); // remove tudo que não for número
-      const url = `https://wa.me/${phone}`;
-      window.open(url, '_blank');
-    } else {
-      alert('No phone number available for this client.');
-    }
-  };
+const handleWhatsApp = () => {
+  if (appointment.client?.phone) {
+    const phone = appointment.client.phone.replace(/\D/g, '');
+    const nomeCliente = appointment.client.name || '';
+    const profissional = appointment.professional?.name || '';
+    const especialidade = appointment.specialty?.name || '';
+    const local = appointment.calendar?.location || 'nosso endereço';
+    const dataHora = new Date(appointment.start_time).toLocaleString('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+
+    const mensagem = encodeURIComponent(
+      `📅 *Agendamento Confirmado!*\n\n` +
+      `Olá ${nomeCliente}, tudo bem? 😊\n\n` +
+      `*Data/Hora:* ${dataHora}\n` +
+      `*Profissional:* ${profissional}\n` +
+      `*Especialidade:* ${especialidade}\n` +
+      `*Local:* ${local}\n\n` +
+      `Se tiver qualquer dúvida, é só mandar uma mensagem por aqui mesmo!`
+    );
+
+    const url = `https://wa.me/55${phone}?text=${mensagem}`;
+    window.open(url, '_blank');
+  } else {
+    alert('Nenhum número de telefone disponível para este cliente.');
+  }
+};
 
   return (
     <Card className="h-full">
@@ -82,7 +101,7 @@ const AppointmentCard = ({
           </div>
           {appointment.client && (
             <div className="flex items-center text-sm text-gray-600 mt-2">
-              <span className="font-medium">Client:</span>
+              <span className="font-medium">Cliente:</span>
               <span className="ml-1">{appointment.client.name}</span>
             </div>
           )}
@@ -103,7 +122,7 @@ const AppointmentCard = ({
               className="flex-1"
               onClick={() => onView(appointment.id)}
             >
-              View
+              Ver
             </Button>
           )}
           {onReschedule && appointment.status !== 'canceled' && appointment.status !== 'completed' && (
@@ -113,7 +132,7 @@ const AppointmentCard = ({
               className="flex-1"
               onClick={() => onReschedule(appointment.id)}
             >
-              Reschedule
+              Reagendar
             </Button>
           )}
           {onCancel && appointment.status !== 'canceled' && appointment.status !== 'completed' && (
@@ -123,7 +142,7 @@ const AppointmentCard = ({
               className="flex-1 text-error-500 border-error-500 hover:bg-error-50"
               onClick={() => onCancel(appointment.id)}
             >
-              Cancel
+              Cancelar
             </Button>
           )}
           {appointment.client?.phone && (
@@ -134,7 +153,7 @@ const AppointmentCard = ({
               onClick={handleWhatsApp}
             >
               <MessageCircle size={16} className="mr-1" />
-              WhatsApp
+              Enviar Lembrete
             </Button>
           )}
         </div>

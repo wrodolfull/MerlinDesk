@@ -112,7 +112,7 @@ useEffect(() => {
   const interval = setInterval(() => {
     console.log('🔍 Polling para novos agendamentos');
     refetch();
-  }, 60000);
+  }, 300000);
 
   return () => {
     console.log('❌ Cancelando subscription e polling');
@@ -189,28 +189,28 @@ useEffect(() => {
   // Definir os cards de estatísticas no estilo do primeiro código
   const statCards = [
     {
-      title: 'Total Appointments',
+      title: 'Agendamentos do dia',
       value: stats.todayAppointments.toString(),
       change: `+${stats.todayAppointmentsChange}%`,
       trend: 'up',
       icon: <CalendarCheck className="h-5 w-5 text-blue-500" />,
     },
     {
-      title: 'Total Clients',
+      title: 'Clientes',
       value: stats.totalClients.toString(),
       change: `+${stats.totalClientsChange}%`,
       trend: 'up',
       icon: <Users className="h-5 w-5 text-purple-500" />,
     },
     {
-      title: 'Completed This Week',
+      title: 'Finalizados essa semana',
       value: stats.completedThisWeek.toString(),
       change: `+${stats.completedChange}`,
       trend: 'up',
       icon: <Clock className="h-5 w-5 text-teal-500" />,
     },
     {
-      title: 'Cancellations',
+      title: 'Cancelamentos',
       value: stats.cancellations.toString(),
       change: `${stats.cancellationsChange}%`,
       trend: 'down',
@@ -247,20 +247,20 @@ useEffect(() => {
       {/* Cabeçalho de boas-vindas estilizado como no primeiro código */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Welcome back, {userName.split(' ')[0]}!</h1>
-          <p className="text-muted-foreground mt-1">Here's what's happening with your scheduling today.</p>
+          <h1 className="text-3xl font-bold">Olá, {userName.split(' ')[0]}!</h1>
+          <p className="text-muted-foreground mt-1">Tem compromisso hoje? Vem ver o que te espera!</p>
         </div>
         <div className="mt-4 md:mt-0 flex space-x-3">
           <Button asChild variant="outline">
             <Link to="/appointments" className="inline-flex items-center">
               <CalendarCheck className="mr-2 h-4 w-4" />
-              View Appointments
+              Ver agendamentos
             </Link>
           </Button>
           <Button asChild>
             <Link to="/calendars">
               <Clock className="mr-2 h-4 w-4" />
-              Manage Calendar
+              Organizar calendário
             </Link>
           </Button>
         </div>
@@ -277,7 +277,7 @@ useEffect(() => {
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className={`text-xs ${stat.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
-                {stat.change} from last month
+                {stat.change} do mês passado
               </p>
             </CardContent>
           </Card>
@@ -287,8 +287,8 @@ useEffect(() => {
       {/* CALENDAR */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Appointments Calendar</h2>
-          <Link to="/appointments"><Button variant="outline" size="sm">View All</Button></Link>
+          <h2 className="text-xl font-bold">Seus agendamentos</h2>
+          <Link to="/appointments"><Button variant="outline" size="sm">Ver todos</Button></Link>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -318,8 +318,8 @@ useEffect(() => {
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Appointments</CardTitle>
-            <CardDescription>Your schedule for the next 24 hours</CardDescription>
+            <CardTitle>O que te espera!</CardTitle>
+            <CardDescription>Em breve na sua agenda: próximos 24h!</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -346,14 +346,14 @@ useEffect(() => {
                 ))
               ) : (
                 <div className="text-center py-4 text-muted-foreground">
-                  <p>No upcoming appointments</p>
+                  <p>Sem agendamentos futuros</p>
                 </div>
               )}
             </div>
           </CardContent>
           <CardFooter>
             <Button variant="outline" asChild className="w-full">
-              <Link to="/appointments">View All Appointments</Link>
+              <Link to="/appointments">Ver todos os agendamentos</Link>
             </Button>
           </CardFooter>
         </Card>
@@ -378,6 +378,7 @@ useEffect(() => {
 
       {editingAppointment && (
         <EditAppointmentModal
+          appointment={editingAppointment}
           appointment={editingAppointment}
           onClose={() => setEditingAppointment(null)}
           onSuccess={() => {

@@ -72,14 +72,14 @@ const ProfessionalsPage: React.FC = () => {
   }, [user]);
 
   const handleDeleteProfessional = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this professional?')) return;
+    if (!confirm('Tem certeza que quer deletar esse profissional?')) return;
     try {
       const { error } = await supabase.from('professionals').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Professional deleted successfully');
+      toast.success('Profissional deletado com sucesso!');
       await fetchProfessionals();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete professional';
+      const message = err instanceof Error ? err.message : 'Falha ao deleter profissional';
       toast.error(message);
       console.error('Delete professional error:', err);
     }
@@ -126,9 +126,9 @@ const ProfessionalsPage: React.FC = () => {
     return (
       <DashboardLayout>
         <div className="text-center text-gray-600">
-          <p className="mb-4">Please create a calendar first before adding professionals.</p>
+          <p className="mb-4">Por favor, crie um calendário antes de criar profissionais.</p>
           <Button onClick={() => window.location.href = '/calendars'}>
-            Go to Calendars
+            Vá para Calendário
           </Button>
         </div>
       </DashboardLayout>
@@ -140,22 +140,22 @@ const ProfessionalsPage: React.FC = () => {
       <Toaster />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Professionals</h1>
-          <p className="text-gray-600 mt-1">Manage your team of professionals</p>
+          <h1 className="text-3xl font-bold text-gray-900">Profissionais</h1>
+          <p className="text-gray-600 mt-1">Gerencie seu time de profissionais.</p>
         </div>
         <Button
           leftIcon={<Plus size={16} />}
           onClick={() => setShowCreateModal(true)}
         >
-          Add Professional
+          Criar profissional
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Professionals</CardTitle>
+          <CardTitle>Profissionais</CardTitle>
           <CardDescription>
-            View and manage all professionals in your practice
+            Visualize e gerencie todos os profissionais
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -164,7 +164,7 @@ const ProfessionalsPage: React.FC = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search professionals..."
+                  placeholder="Procure profissionais..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -177,7 +177,7 @@ const ProfessionalsPage: React.FC = () => {
                 value={selectedSpecialty || ''}
                 onChange={(e) => setSelectedSpecialty(e.target.value || null)}
               >
-                <option value="">All Specialties</option>
+                <option value="">Todas as especialidades</option>
                 {allSpecialties.map(specialty => (
                   <option key={specialty} value={specialty}>{specialty}</option>
                 ))}
@@ -188,7 +188,7 @@ const ProfessionalsPage: React.FC = () => {
 
           {filteredProfessionals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <p className="text-gray-500">No professionals found</p>
+              <p className="text-gray-500">Nenhum profissional encontrado</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -240,7 +240,7 @@ const ProfessionalsPage: React.FC = () => {
                         leftIcon={<Clock size={14} />}
                         onClick={() => setManagingHours(professional)}
                       >
-                        Hours
+                        Expediente
                       </Button>
                       <Button
                         variant="outline"
@@ -248,7 +248,7 @@ const ProfessionalsPage: React.FC = () => {
                         leftIcon={<Edit size={14} />}
                         onClick={() => setEditingProfessional(professional)}
                       >
-                        Edit
+                        Editar
                       </Button>
                       <Button
                         variant="outline"
@@ -257,7 +257,7 @@ const ProfessionalsPage: React.FC = () => {
                         leftIcon={<Trash2 size={14} />}
                         onClick={() => handleDeleteProfessional(professional.id)}
                       >
-                        Delete
+                        Deletar
                       </Button>
                     </div>
                   </div>

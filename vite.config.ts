@@ -8,6 +8,7 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
+    allowedHosts: ['agenda.dohoo.com.br'],
     host: '0.0.0.0',
     port: 5173,
   },

@@ -50,7 +50,15 @@ const CalendarsPage = () => {
         .order('created_at', { ascending: false });
 
       if (calendarsError) throw calendarsError;
-      setCalendars(calendarsData || []);
+      setCalendars(
+        (calendarsData || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          location_id: c.location_id,
+          ownerId: c.owner_id,
+          createdAt: new Date(c.created_at),
+        }))
+      );
 
       const calendarIds = (calendarsData || []).map((c) => c.id);
 
@@ -58,14 +66,13 @@ const CalendarsPage = () => {
         .from('specialties')
         .select('*')
         .in('calendar_id', calendarIds)
-        .eq('user_id', user.id); // ✅ filtro extra de user_id
+        .eq('user_id', user.id);
 
         if (specialtiesError) throw specialtiesError;
-        // 🔥 Mapeamento para camelCase
         setSpecialties(
           (specialtiesData || []).map((s) => ({
             ...s,
-            calendarId: s.calendar_id, // mapear snake_case → camelCase
+            calendarId: s.calendar_id,
           }))
         );
 
@@ -81,7 +88,6 @@ const CalendarsPage = () => {
         .eq('user_id', user.id);
   
       if (professionalsError) throw professionalsError;
-      // 🔥 Mapeamento para camelCase
       const mappedProfessionals: Professional[] = (professionalsData || []).map((p: any) => ({
         ...p,
         calendarId: p.calendar_id,
@@ -167,11 +173,11 @@ const CalendarsPage = () => {
       <Toaster />
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendars</h1>
-          <p className="text-gray-600">Manage your locations and specialties</p>
+          <h1 className="text-2xl font-bold text-gray-900">Calendário</h1>
+          <p className="text-gray-600">Gerencie seus calendários</p>
         </div>
         <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreateCalendar(true)}>
-          New Calendar
+          Criar calendário
         </Button>
       </div>
 
@@ -192,7 +198,7 @@ const CalendarsPage = () => {
                       <CardTitle>{calendar.name}</CardTitle>
                       <div className="flex items-center mt-1 text-sm text-gray-500">
                         <MapPin size={14} className="mr-1" />
-                        <span>{calendar.locationId || 'Location not set'}</span>
+                        <span>{calendar.location_id || 'Nenhuma localização adicionada'}</span>
                       </div>
                     </div>
                   </div>
@@ -203,7 +209,7 @@ const CalendarsPage = () => {
                       leftIcon={<Share2 size={14} />}
                       onClick={() => setSharingCalendar(calendar)}
                     >
-                      Share
+                      Compartilhar
                     </Button>
                     <Button
                       variant="outline"
@@ -211,7 +217,7 @@ const CalendarsPage = () => {
                       leftIcon={<Edit size={14} />}
                       onClick={() => setEditingCalendar(calendar)}
                     >
-                      Edit
+                      Editar
                     </Button>
                     <Button
                       variant="outline"
@@ -220,7 +226,7 @@ const CalendarsPage = () => {
                       leftIcon={<Trash2 size={14} />}
                       onClick={() => handleDeleteCalendar(calendar.id)}
                     >
-                      Delete
+                      Deletar
                     </Button>
                   </div>
                 </div>
@@ -230,7 +236,7 @@ const CalendarsPage = () => {
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="font-medium flex items-center">
-                        <CalendarRange size={18} className="mr-2 text-gray-500" /> Specialties
+                        <CalendarRange size={18} className="mr-2 text-gray-500" /> Especialidades
                       </h3>
                       <Button
                         variant="ghost"
@@ -276,7 +282,7 @@ const CalendarsPage = () => {
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-center text-gray-500 py-4">No specialties added yet</p>
+                        <p className="text-center text-gray-500 py-4">Nenhuma especialidade criada</p>
                       )}
                     </div>
                   </div>
@@ -284,7 +290,7 @@ const CalendarsPage = () => {
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="font-medium flex items-center">
-                        <Users size={18} className="mr-2 text-gray-500" /> Professionals
+                        <Users size={18} className="mr-2 text-gray-500" /> Profissionais
                       </h3>
                       <Button
                         variant="ghost"
@@ -342,7 +348,7 @@ const CalendarsPage = () => {
                           })}
                         </ul>
                       ) : (
-                        <p className="text-center text-gray-500 py-4">No professionals added yet</p>
+                        <p className="text-center text-gray-500 py-4">Nenhum profissional criado</p>
                       )}
                     </div>
                   </div>

@@ -28,28 +28,54 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
   } = useForm<CreateCalendarFormData>();
 
   const onSubmit = async (data: CreateCalendarFormData) => {
-    try {
-      if (!user) throw new Error('User not authenticated');
+  try {
+    if (!user) throw new Error('User not authenticated');
 
-      const { error: calendarError } = await supabase
-        .from('calendars')
-        .insert({
-          name: data.name,
-          location_id: data.location,
-          owner_id: user.id,
-        });
+    const { data: limitsData, error: limitsError } = await supabase
+      .from('user_plan_limits')
+      .select('limits')
+      .eq('user_id', user.id)
+      .single();
 
-      if (calendarError) throw calendarError;
+    if (limitsError) throw limitsError;
 
-      toast.success('Calendar created successfully');
-      reset();
-      onSuccess();
-      onClose();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create calendar. Please try again.');
-      console.error('Error creating calendar:', error);
+    const calendarLimit = limitsData?.limits?.calendars;
+
+    const { count: currentCalendars, error: countError } = await supabase
+      .from('calendars')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', user.id);
+
+    if (countError) throw countError;
+
+    if (currentCalendars === null) {
+      throw new Error('Não foi possível obter a quantidade de calendários existentes.');
     }
-  };
+
+    if (calendarLimit !== -1 && currentCalendars >= calendarLimit) {
+      toast.error('Você atingiu o limite de calendários do seu plano.');
+      return;
+    }
+
+    const { error: calendarError } = await supabase
+      .from('calendars')
+      .insert({
+        name: data.name,
+        location_id: data.location,
+        owner_id: user.id,
+      });
+
+    if (calendarError) throw calendarError;
+
+    toast.success('Calendário criado com sucesso');
+    reset();
+    onSuccess();
+    onClose();
+  } catch (error: any) {
+    toast.error(error.message || 'Erro ao criar calendário.');
+    console.error('Erro ao criar calendário:', error);
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

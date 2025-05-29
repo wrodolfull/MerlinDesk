@@ -28,6 +28,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import ChatPage from './pages/ChatPage';
 import AITrainingPage from './pages/AITrainingPage';
 import AssistantSettingsPage from './pages/AssistantSettingsPage';
+import WhatsAppConnect from './pages/WhatsAppConnect';
 
 function App() {
   return (
@@ -193,6 +194,22 @@ function App() {
                 element={
                   <PrivateRoute>
                     <SettingsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <PrivateRoute>
+                    <SettingsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/conectar-whatsapp"
+                element={
+                  <PrivateRoute>
+                    <WhatsAppConnect />
                   </PrivateRoute>
                 }
               />

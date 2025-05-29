@@ -29,7 +29,7 @@ const SpecialtiesPage: React.FC = () => {
         .eq('owner_id', user.id);
 
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error('No calendar found. Please create a calendar first.');
+      if (!data || data.length === 0) throw new Error('Por favor, primeiro crie um calendário.');
 
       return data.map((c) => c.id);
     } catch (err: unknown) {
@@ -54,7 +54,7 @@ const SpecialtiesPage: React.FC = () => {
       setCalendarIds(ids);
 
       if (ids.length === 0) {
-        throw new Error('No calendar found. Please create a calendar first.');
+        throw new Error('Nenhum calendário encontrado. Por favor, primeiro crie um calendário.');
       }
 
       const { data, error } = await supabase
@@ -79,14 +79,14 @@ const SpecialtiesPage: React.FC = () => {
   }, [user]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this specialty?')) return;
+    if (!confirm('Tem certeza que deseja deletar essa especialidade?')) return;
     try {
       const { error } = await supabase.from('specialties').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Specialty deleted successfully');
+      toast.success('Especialidade deletada com sucesso.');
       await fetchSpecialties();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete specialty';
+      const message = err instanceof Error ? err.message : 'Falha ao deletar especialidade';
       toast.error(message);
       console.error('Delete specialty error:', err);
     }
@@ -123,11 +123,11 @@ const SpecialtiesPage: React.FC = () => {
       <Toaster />
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Specialties</h1>
-          <p className="text-gray-600">Manage your service offerings</p>
+          <h1 className="text-2xl font-bold text-gray-900">Especialidades</h1>
+          <p className="text-gray-600">Gerencie seus serviços</p>
         </div>
         <Button leftIcon={<Plus size={16} />} onClick={handleCreateClick}>
-          Add Specialty
+          Criar especialidade
         </Button>
       </div>
 
@@ -137,8 +137,8 @@ const SpecialtiesPage: React.FC = () => {
             <Card>
               <CardContent className="p-12 flex flex-col items-center justify-center text-center">
                 <Clock className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No specialties found</h3>
-                <p className="text-gray-500">Get started by adding your first specialty.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma especialiadade encontrada</h3>
+                <p className="text-gray-500">Adicione sua primeira especialidade</p>
               </CardContent>
             </Card>
           </div>
@@ -151,7 +151,7 @@ const SpecialtiesPage: React.FC = () => {
                     <h3 className="text-lg font-semibold">{specialty.name}</h3>
                     <div className="flex items-center mt-2 text-gray-600">
                       <Clock size={16} className="mr-1" />
-                      <span>{specialty.duration} minutes</span>
+                      <span>{specialty.duration} Minutos</span>
                     </div>
                     {specialty.price && (
                       <div className="flex items-center mt-1 text-gray-600">

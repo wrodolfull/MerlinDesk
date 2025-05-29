@@ -145,7 +145,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 rules={{ required: 'Client is required' }}
                 render={({ field }) => (
                   <Select
-                    label="Client"
+                    label="Cliente"
                     options={clients.map((c) => ({
                       value: c.id,
                       label: `${c.name} (${c.email}${c.phone ? `, 📱 ${c.phone}` : ''})`,
@@ -170,7 +170,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 rules={{ required: 'Specialty is required' }}
                 render={({ field }) => (
                   <Select
-                    label="Service"
+                    label="Serviço"
                     options={specialties.map((s) => ({
                       value: s.id,
                       label: `${s.name} (${s.duration}min${s.price ? ` - $${s.price}` : ''})`,
@@ -196,7 +196,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 rules={{ required: 'Professional is required' }}
                 render={({ field }) => (
                   <Select
-                    label="Professional"
+                    label="Profissional"
                     options={professionals.map((p) => ({
                       value: p.id,
                       label: `${p.name}${p.specialty?.name ? ` (${p.specialty.name})` : ''}${p.id === appointment.professionalId ? ' - atual' : ''}`
@@ -216,7 +216,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
             <Input
               type="datetime-local"
-              label="Start Time"
+              label="hora"
               {...register('startTime', { required: 'Start time is required' })}
               error={errors.startTime?.message}
               disabled={loading}
@@ -248,7 +248,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
               />
 
             <Input
-              label="Notes"
+              label="Observação"
               {...register('notes')}
               error={errors.notes?.message}
               disabled={loading}

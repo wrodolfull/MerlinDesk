@@ -27,14 +27,14 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
   } = useForm<EditCalendarFormData>({
     defaultValues: {
       name: calendar.name,
-      location: calendar.locationId || '',
+      location: calendar.location_id || '',
     },
   });
 
   React.useEffect(() => {
     reset({
       name: calendar.name,
-      location: calendar.locationId || '',
+      location: calendar.location_id || '',
     });
   }, [calendar, reset]);
 

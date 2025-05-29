@@ -172,7 +172,7 @@ export function useAppointments(options?: UseAppointmentsOptions) {
     const interval = setInterval(() => {
       console.log('Polling for new appointments');
       fetchAppointments();
-    }, 30000);
+    }, 300000);
     
     return () => clearInterval(interval);
   }, [fetchAppointments]);

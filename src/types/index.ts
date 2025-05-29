@@ -21,7 +21,7 @@ export interface Client {
 export interface Calendar {
   id: string;
   name: string;
-  locationId?: string;
+  location_id?: string;
   ownerId: string;
   createdAt: Date;
 }

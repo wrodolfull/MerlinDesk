@@ -424,14 +424,14 @@ const AnalyticsPage = () => {
         labels: dailyAppointments.map(d => d.date),
         datasets: [
           {
-            label: 'Appointments',
+            label: 'Agendamento',
             data: dailyAppointments.map(d => d.count),
             borderColor: 'rgb(59, 130, 246)',
             backgroundColor: 'rgba(59, 130, 246, 0.5)',
             tension: 0.4,
           },
           {
-            label: 'Revenue ($)',
+            label: 'Receita (R$)',
             data: dailyAppointments.map(d => d.revenue),
             borderColor: 'rgb(16, 185, 129)',
             backgroundColor: 'rgba(16, 185, 129, 0.5)',
@@ -445,14 +445,14 @@ const AnalyticsPage = () => {
         labels: Object.keys(serviceStats),
         datasets: [
           {
-            label: 'Appointments',
+            label: 'Agendamento',
             data: Object.values(serviceStats).map(s => s.count),
             backgroundColor: 'rgba(59, 130, 246, 0.5)',
             borderColor: 'rgb(59, 130, 246)',
             borderWidth: 1,
           },
           {
-            label: 'Revenue ($)',
+            label: 'Receita (R$)',
             data: Object.values(serviceStats).map(s => s.revenue),
             backgroundColor: 'rgba(16, 185, 129, 0.5)',
             borderColor: 'rgb(16, 185, 129)',
@@ -462,7 +462,7 @@ const AnalyticsPage = () => {
       });
       
       setStatusData({
-        labels: ['Pending', 'Confirmed', 'Completed', 'Canceled'],
+        labels: ['Pendente', 'Confirmado', 'Concluído', 'Canceledo'],
         datasets: [
           {
             label: 'Appointment Status',
@@ -488,14 +488,14 @@ const AnalyticsPage = () => {
         labels: Object.keys(topClients),
         datasets: [
           {
-            label: 'Appointments',
+            label: 'Agendamento',
             data: Object.values(topClients).map(c => c.count),
             backgroundColor: 'rgba(124, 58, 237, 0.5)',
             borderColor: 'rgb(124, 58, 237)',
             borderWidth: 1,
           },
           {
-            label: 'Revenue ($)',
+            label: 'Receita (R$)',
             data: Object.values(topClients).map(c => c.revenue),
             backgroundColor: 'rgba(236, 72, 153, 0.5)',
             borderColor: 'rgb(236, 72, 153)',
@@ -508,14 +508,14 @@ const AnalyticsPage = () => {
         labels: Object.keys(professionalStats),
         datasets: [
           {
-            label: 'Appointments',
+            label: 'Agendamentos',
             data: Object.values(professionalStats).map(p => p.count),
             backgroundColor: 'rgba(245, 158, 11, 0.5)',
             borderColor: 'rgb(245, 158, 11)',
             borderWidth: 1,
           },
           {
-            label: 'Revenue ($)',
+            label: 'Receita (R$)',
             data: Object.values(professionalStats).map(p => p.revenue),
             backgroundColor: 'rgba(6, 182, 212, 0.5)',
             borderColor: 'rgb(6, 182, 212)',
@@ -528,7 +528,7 @@ const AnalyticsPage = () => {
         labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
         datasets: [
           {
-            label: 'Appointments by Hour',
+            label: 'Agendamentos por hora',
             data: Object.values(hourlyStats),
             backgroundColor: 'rgba(139, 92, 246, 0.5)',
             borderColor: 'rgb(139, 92, 246)',
@@ -719,8 +719,8 @@ const AnalyticsPage = () => {
       <Toaster />
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">Track your business performance and insights</p>
+          <h1 className="text-2xl font-bold text-gray-900">Relatório</h1>
+          <p className="text-gray-600">Acompanhe o desempenho e os insights do seu negócio.</p>
         </div>
         
         <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
@@ -729,7 +729,7 @@ const AnalyticsPage = () => {
             leftIcon={<Filter size={16} />}
             onClick={() => setShowFilters(!showFilters)}
           >
-            Filters
+            Filtros
           </Button>
           
           <Button 
@@ -737,7 +737,7 @@ const AnalyticsPage = () => {
             leftIcon={<RefreshCw size={16} />}
             onClick={() => fetchAnalytics()}
           >
-            Refresh
+            Atualizar
           </Button>
           
           <Button 
@@ -746,7 +746,7 @@ const AnalyticsPage = () => {
             onClick={exportToExcel}
             isLoading={exportLoading}
           >
-            Export Excel
+            Exportar Excel
           </Button>
           
           <Button 
@@ -755,7 +755,7 @@ const AnalyticsPage = () => {
             onClick={exportToPDF}
             isLoading={exportLoading}
           >
-            Export PDF
+            Exportar PDF
           </Button>
           
           <Button 
@@ -764,7 +764,7 @@ const AnalyticsPage = () => {
             onClick={sendReportByEmail}
             isLoading={emailLoading}
           >
-            Email Report
+            Enviar para E-mail
           </Button>
         </div>
       </div>
@@ -976,7 +976,7 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Total Appointments</p>
+                <p className="text-sm font-medium text-gray-500">Total agendamentos</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalAppointments}</p>
                 <div className={`flex items-center mt-1 ${stats.appointmentsChange >= 0 ? 'text-success-500' : 'text-error-500'} text-sm`}>
                   {stats.appointmentsChange >= 0 ? (
@@ -984,7 +984,7 @@ const AnalyticsPage = () => {
                   ) : (
                     <ArrowDown size={14} className="mr-1" />
                   )}
-                  <span>{Math.abs(stats.appointmentsChange)}% from previous period</span>
+                  <span>{Math.abs(stats.appointmentsChange)}% do período anterior</span>
                 </div>
               </div>
               <div className="p-2 bg-primary-100 rounded-full">
@@ -998,7 +998,7 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Active Clients</p>
+                <p className="text-sm font-medium text-gray-500">Clientes ativos</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.activeClients}</p>
                 <div className={`flex items-center mt-1 ${stats.clientsChange >= 0 ? 'text-success-500' : 'text-error-500'} text-sm`}>
                   {stats.clientsChange >= 0 ? (
@@ -1006,7 +1006,7 @@ const AnalyticsPage = () => {
                   ) : (
                     <ArrowDown size={14} className="mr-1" />
                   )}
-                  <span>{Math.abs(stats.clientsChange)}% from previous period</span>
+                  <span>{Math.abs(stats.clientsChange)}% do período anterior</span>
                 </div>
               </div>
               <div className="p-2 bg-secondary-100 rounded-full">
@@ -1020,7 +1020,7 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Average Duration</p>
+                <p className="text-sm font-medium text-gray-500">Duração média</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.averageDuration}min</p>
                 <div className={`flex items-center mt-1 ${stats.durationChange >= 0 ? 'text-success-500' : 'text-error-500'} text-sm`}>
                   {stats.durationChange >= 0 ? (
@@ -1028,7 +1028,7 @@ const AnalyticsPage = () => {
                   ) : (
                     <ArrowDown size={14} className="mr-1" />
                   )}
-                  <span>{Math.abs(stats.durationChange)}% from previous period</span>
+                  <span>{Math.abs(stats.durationChange)}% do período anterior</span>
                 </div>
               </div>
               <div className="p-2 bg-primary-100 rounded-full">
@@ -1042,7 +1042,7 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Revenue</p>
+                <p className="text-sm font-medium text-gray-500">Receita</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">${stats.revenue}</p>
                 <div className={`flex items-center mt-1 ${stats.revenueChange >= 0 ? 'text-success-500' : 'text-error-500'} text-sm`}>
                   {stats.revenueChange >= 0 ? (
@@ -1050,7 +1050,7 @@ const AnalyticsPage = () => {
                   ) : (
                     <ArrowDown size={14} className="mr-1" />
                   )}
-                  <span>{Math.abs(stats.revenueChange)}% from previous period</span>
+                  <span>{Math.abs(stats.revenueChange)}% do período anterior</span>
                 </div>
               </div>
               <div className="p-2 bg-secondary-100 rounded-full">
@@ -1064,11 +1064,11 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+                <p className="text-sm font-medium text-gray-500">Taxa de conclusão</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.completionRate}%</p>
                 <div className="flex items-center mt-1 text-success-500 text-sm">
                   <CalendarCheck size={14} className="mr-1" />
-                  <span>Completed appointments</span>
+                  <span>Agendamentos concluídos</span>
                 </div>
               </div>
               <div className="p-2 bg-green-100 rounded-full">
@@ -1082,11 +1082,11 @@ const AnalyticsPage = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-500">Cancellation Rate</p>
+                <p className="text-sm font-medium text-gray-500">Taxa de cancelamento</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.cancellationRate}%</p>
                 <div className="flex items-center mt-1 text-error-500 text-sm">
                   <ArrowDown size={14} className="mr-1" />
-                  <span>Canceled appointments</span>
+                  <span>Agendamentos cancelados</span>
                 </div>
               </div>
               <div className="p-2 bg-red-100 rounded-full">
@@ -1101,9 +1101,9 @@ const AnalyticsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Appointments & Revenue Over Time</CardTitle>
+              <CardTitle>Agendamentos e Receita ao Longo do Tempo</CardTitle>
               <CardDescription>
-                Track appointments and revenue trends over the selected period
+                Acompanhe os agendamentos e as tendências de receita no período selecionado
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1152,9 +1152,9 @@ const AnalyticsPage = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Appointment Status Distribution</CardTitle>
+              <CardTitle>Distribuição do Status dos Agendamentos</CardTitle>
               <CardDescription>
-                Overview of appointment statuses during the selected period
+                Visão geral dos status dos agendamentos durante o período selecionado
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1190,9 +1190,9 @@ const AnalyticsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Services Performance</CardTitle>
+              <CardTitle>Desempenho dos Serviços</CardTitle>
               <CardDescription>
-                Appointments and revenue by service
+                Agendamentos e receita por serviço
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1231,9 +1231,9 @@ const AnalyticsPage = () => {
           
           <Card>
             <CardHeader>
-              <CardTitle>Professional Performance</CardTitle>
+              <CardTitle>Desempenho dos Profissionais</CardTitle>
               <CardDescription>
-                Appointments and revenue by professional
+                Agendamentos e receita por profissional
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1274,9 +1274,9 @@ const AnalyticsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Top Clients</CardTitle>
+              <CardTitle>Principais Clientes</CardTitle>
               <CardDescription>
-                Appointments and revenue by client (top 10)
+                Agendamentos e receita por cliente (top 10)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1316,9 +1316,9 @@ const AnalyticsPage = () => {
           
           <Card>
             <CardHeader>
-              <CardTitle>Appointments by Hour</CardTitle>
+              <CardTitle>Agendamentos por Horário</CardTitle>
               <CardDescription>
-                Distribution of appointments throughout the day
+                Distribuição dos agendamentos ao longo do dia
               </CardDescription>
             </CardHeader>
             <CardContent>

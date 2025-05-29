@@ -6,6 +6,7 @@ import { ClientInfoForm } from './ClientInfoForm';
 import { BookingConfirmation } from './BookingConfirmation';
 import { Client, Professional, Specialty } from '../../types';
 import { supabase } from '../../lib/supabase';
+import { Check } from 'lucide-react';
 
 interface BookingStepsProps {
   calendarId: string;
@@ -72,23 +73,21 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       // Verificar se o cliente já existe pelo email
       let clientId;
       
-      // Primeiro, verificar se o cliente já existe pelo email
       const { data: existingClient, error: clientCheckError } = await supabase
         .from('clients')
         .select('id')
         .eq('email', bookingData.client.email)
-        .maybeSingle(); // Use maybeSingle em vez de single para evitar erros
+        .eq('owner_id', owner_id)
+        .maybeSingle();
         
       if (clientCheckError && clientCheckError.code !== 'PGRST116') {
         throw new Error(`Erro ao verificar cliente: ${clientCheckError.message}`);
       }
       
       if (existingClient) {
-        // Cliente já existe, usar o ID existente
         console.log('Cliente já existe, usando ID existente:', existingClient.id);
         clientId = existingClient.id;
       } else {
-        // Cliente não existe, criar novo
         console.log('Criando novo cliente com email:', bookingData.client.email);
         const { data: newClient, error: createClientError } = await supabase
           .from('clients')
@@ -109,7 +108,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
         console.log('Novo cliente criado com ID:', clientId);
       }
       
-      // Preparar os dados do agendamento no formato correto
+      // Preparar os dados do agendamento
       const startTime = new Date(bookingData.timeSlot.start);
       const endTime = new Date(bookingData.timeSlot.end);
       
@@ -137,14 +136,13 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       
       console.log('✅ Agendamento criado com sucesso:', appointment);
       
-      // Chamar o callback onComplete com os dados completos
       if (onComplete) {
         onComplete(appointment);
       }
       
     } catch (error) {
       console.error('❌ Erro ao criar agendamento:', error);
-      throw error; // Propagar o erro para que possa ser tratado pelo chamador
+      throw error;
     }
   };
 
@@ -162,7 +160,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       })
     : [];
 
-  // Get available time slots based on selected professional and specialty
+  // Get available time slots
   const getTimeSlots = async (date: Date) => {
     if (!bookingData.professional || !bookingData.specialty) return [];
   
@@ -186,49 +184,64 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       return [];
     }
   };
-  
-  
+
+  const steps = [
+    { id: 1, title: ''},
+    { id: 2, title: ''},
+    { id: 3, title: ''},
+    { id: 4, title: ''},
+    { id: 5, title: ''}
+  ];
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {[1, 2, 3, 4, 5].map((step) => (
-            <React.Fragment key={step}>
-              <div className="flex flex-col items-center">
+    <div className="max-w-4xl mx-auto">
+      {/* Progress Steps - Design Moderno */}
+      <div className="mb-12">
+        <div className="flex items-center justify-between relative">
+          {/* Linha de progresso de fundo */}
+          <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
+          
+          {/* Linha de progresso ativa */}
+          <div 
+            className="absolute top-4 left-0 h-0.5 bg-blue-600 z-10 transition-all duration-500 ease-out"
+            style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+          ></div>
+
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex flex-col items-center relative z-20">
+              {/* Círculo do step */}
               <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                  currentStep >= step
-                    ? 'bg-primary-600 border-primary-600 text-white'
-                    : 'border-gray-300 text-gray-400'
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
+                  currentStep > step.id
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : currentStep === step.id
+                    ? 'bg-white border-blue-600 text-blue-600 shadow-lg ring-4 ring-blue-100'
+                    : 'bg-white border-gray-300 text-gray-400'
                 }`}
               >
-                  {currentStep > step ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <span className="text-sm">{step}</span>
-                  )}
-                </div>
-                <div className="text-xs mt-1 text-center">
-                  {step === 1 && 'Specialty'}
-                  {step === 2 && 'Professional'}
-                  {step === 3 && 'Date & Time'}
-                  {step === 4 && 'Your Info'}
-                  {step === 5 && 'Confirm'}
-                </div>
+                {currentStep > step.id ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <div className={`w-2 h-2 rounded-full ${
+                    currentStep === step.id ? 'bg-blue-600' : 'bg-gray-400'
+                  }`} />
+                )}
               </div>
               
-              {step < 5 && (
-                <div
-                className={`flex-1 h-0.5 mx-2 ${
-                  currentStep > step ? 'bg-primary-600' : 'bg-gray-300'
-                }`}
-              />
-              )}
-            </React.Fragment>
+              {/* Título e descrição */}
+              <div className="text-center mt-3 max-w-24">
+                <div className={`text-sm font-medium transition-colors ${
+                  currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                }`}>
+                  {step.title}
+                </div>
+                <div className={`text-xs mt-1 transition-colors ${
+                  currentStep >= step.id ? 'text-gray-600' : 'text-gray-400'
+                }`}>
+                  {step.description}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>

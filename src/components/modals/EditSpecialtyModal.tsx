@@ -72,12 +72,12 @@ const EditSpecialtyModal: React.FC<EditSpecialtyModalProps> = ({ specialty, onCl
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Edit Specialty</CardTitle>
+          <CardTitle>Editar Especialidade</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Specialty Name"
+              label="Especialidade"
               error={errors.name?.message}
               {...register('name', { required: 'Specialty name is required' })}
               disabled={isSubmitting}
@@ -85,7 +85,7 @@ const EditSpecialtyModal: React.FC<EditSpecialtyModalProps> = ({ specialty, onCl
             
             <Input
               type="number"
-              label="Duration (minutes)"
+              label="Duração (minutos)"
               error={errors.duration?.message}
               {...register('duration', {
                 required: 'Duration is required',
@@ -96,7 +96,7 @@ const EditSpecialtyModal: React.FC<EditSpecialtyModalProps> = ({ specialty, onCl
             
             <Input
               type="number"
-              label="Price"
+              label="Preço"
               step="0.01"
               error={errors.price?.message}
               {...register('price', {
@@ -106,7 +106,7 @@ const EditSpecialtyModal: React.FC<EditSpecialtyModalProps> = ({ specialty, onCl
             />
             
             <Input
-              label="Description"
+              label="Descrição"
               {...register('description')}
               disabled={isSubmitting}
             />
@@ -118,14 +118,14 @@ const EditSpecialtyModal: React.FC<EditSpecialtyModalProps> = ({ specialty, onCl
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
               >
-                Save Changes
+                Salvar
               </Button>
             </div>
           </form>

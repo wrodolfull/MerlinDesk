@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Specialty } from '../../types';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactSelect from 'react-select';
+import { usePlanLimits } from '../../hooks/usePlanLimits';
 
 interface CreateProfessionalFormData {
   name: string;
@@ -31,6 +32,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const { limits, loading } = usePlanLimits();
 
   const {
     register,
@@ -45,6 +47,25 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
       if (!user) throw new Error('User not authenticated');
       if (!calendarId) throw new Error('Calendar ID is required');
       if (!data.specialtyIds?.length) throw new Error('At least one specialty is required');
+      if (!limits) throw new Error('Não foi possível carregar os limites do plano.');
+
+      const professionalLimit = limits.professionals;
+
+      const { count: currentProfessionals, error: countError } = await supabase
+        .from('professionals')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (countError) throw countError;
+
+      if (currentProfessionals === null) {
+        throw new Error('Não foi possível obter a quantidade de profissionais existentes.');
+      }
+
+      if (professionalLimit !== -1 && currentProfessionals >= professionalLimit) {
+        toast.error('Você atingiu o limite de profissionais do seu plano.');
+        return;
+      }
 
       const { data: professional, error: insertError } = await supabase
         .from('professionals')
@@ -100,7 +121,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
               label="Full Name"
               error={errors.name?.message}
               {...register('name', { required: 'Name is required' })}
-              disabled={isSubmitting}
+              disabled={isSubmitting || loading}
             />
 
             <Input
@@ -114,7 +135,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
                   message: 'Invalid email address',
                 },
               })}
-              disabled={isSubmitting}
+              disabled={isSubmitting || loading}
             />
 
             <Input
@@ -126,7 +147,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
                 },
               })}
               error={errors.phone?.message}
-              disabled={isSubmitting}
+              disabled={isSubmitting || loading}
             />
 
             <Controller
@@ -150,7 +171,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
                         : [];
                       field.onChange(values);
                     }}
-                    isDisabled={isSubmitting}
+                    isDisabled={isSubmitting || loading}
                     classNamePrefix="react-select"
                   />
                   {errors.specialtyIds && (
@@ -163,7 +184,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
             <Input
               label="Bio"
               {...register('bio')}
-              disabled={isSubmitting}
+              disabled={isSubmitting || loading}
             />
 
             <div className="flex justify-end space-x-2">
@@ -171,14 +192,14 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                disabled={isSubmitting}
+                disabled={isSubmitting || loading}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
-                disabled={isSubmitting}
+                disabled={isSubmitting || loading}
               >
                 Add Professional
               </Button>
