@@ -17,5 +17,5 @@
 1. Clone o repositório:
 
 ```bash
-git clone https://github.com/wrodolfull/Zap-Agenda.git
+git clone https://github.com/wrodolfull/MerlinDesk.git
 cd Zap-Agenda
