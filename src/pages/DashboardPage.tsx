@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -29,9 +29,45 @@ const DashboardPage: React.FC = () => {
   const [initialDate, setInitialDate] = useState<Date | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [userName, setUserName] = useState('');
+  
+  // Estados para notificações
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [previousAppointmentCount, setPreviousAppointmentCount] = useState(0);
 
-  // Função para buscar dados adicionais (nome do usuário e estatísticas)
-  const fetchAdditionalData = async () => {
+  // Função para tocar o som de notificação
+  const playNotificationSound = () => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(error => {
+          console.error('Erro ao reproduzir áudio:', error);
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao tocar notificação sonora:', error);
+    }
+  };
+
+  // Função para mostrar notificação do navegador
+  const showBrowserNotification = (appointment: any) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Novo Agendamento!', {
+        body: `${appointment.client?.name || 'Cliente'} agendou para ${new Date(appointment.start_time).toLocaleString()}`,
+        icon: '/favicon.ico',
+        tag: 'new-appointment'
+      });
+    }
+  };
+
+  // Solicitar permissão para notificações do navegador
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Função para buscar nome do usuário
+  const fetchUserName = async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
@@ -39,108 +75,212 @@ const DashboardPage: React.FC = () => {
   
       // Obter nome diretamente do Supabase Auth
       setUserName(user.user_metadata?.name || user.email || 'User');
-  
-      const now = new Date();
-      const oneWeekAgo = new Date(now);
-      oneWeekAgo.setDate(now.getDate() - 7);
-  
-      // Calcular estatísticas com base nos appointments já carregados
-      const todayAppointments = appointments.filter((apt) => {
-        const aptDate = apt.startTime;
-        return aptDate.toDateString() === now.toDateString();
-      }).length;
-  
-      const completedThisWeek = appointments.filter((apt) => {
-        return apt.status === 'completed' && apt.startTime >= oneWeekAgo;
-      }).length;
-  
-      const cancellations = appointments.filter((apt) => apt.status === 'canceled').length;
-  
-      const { count: clientsCount, error: clientsError } = await supabase
-        .from('clients')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-  
-      if (clientsError) throw clientsError;
-  
-      setStats({
-        todayAppointments,
-        totalClients: clientsCount ?? 0,
-        completedThisWeek,
-        cancellations,
-        todayAppointmentsChange: 12,
-        totalClientsChange: 8,
-        completedChange: 4,
-        cancellationsChange: -2,
-      });
     } catch (error) {
-      console.error('Error fetching additional data:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
+      console.error('Error fetching user name:', error);
     }
-  };  
-
-  // Configurar subscription para atualizações em tempo real
-useEffect(() => {
-  console.log('🔄 Configurando subscription para atualizações em tempo real');
-  
-  const subscription = supabase
-    .channel('appointments_changes')
-    .on('postgres_changes', 
-      { event: 'INSERT', schema: 'public', table: 'appointments' }, 
-      (payload) => {
-        console.log('📥 Novo agendamento inserido:', payload);
-        refetch();
-      }
-    )
-    .on('postgres_changes', 
-      { event: 'UPDATE', schema: 'public', table: 'appointments' }, 
-      (payload) => {
-        console.log('🔄 Agendamento atualizado:', payload);
-        refetch();
-      }
-    )
-    .on('postgres_changes', 
-      { event: 'DELETE', schema: 'public', table: 'appointments' }, 
-      (payload) => {
-        console.log('🗑️ Agendamento excluído:', payload);
-        refetch();
-      }
-    )
-    .subscribe();
-
-  // Polling como fallback
-  const interval = setInterval(() => {
-    console.log('🔍 Polling para novos agendamentos');
-    refetch();
-  }, 300000);
-
-  return () => {
-    console.log('❌ Cancelando subscription e polling');
-    subscription.unsubscribe();
-    clearInterval(interval);
   };
-}, [refetch]);
 
-  // Efeito para atualizar estatísticas quando os appointments mudarem
+  // Função para calcular estatísticas baseada nos appointments
+// Função para calcular estatísticas baseada nos appointments
+const calculateStats = async (appointmentsList: Appointment[]) => {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error('User not authenticated');
+
+    const now = new Date();
+    const oneWeekAgo = new Date(now);
+    oneWeekAgo.setDate(now.getDate() - 7);
+    
+    // Datas para comparação (mês atual vs mês anterior)
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    // Calcular estatísticas atuais
+    const todayAppointments = appointmentsList.filter((apt) => {
+      const aptDate = apt.startTime;
+      return aptDate.toDateString() === now.toDateString();
+    }).length;
+
+    const completedThisWeek = appointmentsList.filter((apt) => {
+      return apt.status === 'completed' && apt.startTime >= oneWeekAgo;
+    }).length;
+
+    const cancellations = appointmentsList.filter((apt) => apt.status === 'canceled').length;
+
+    // Buscar dados do mês anterior para comparação
+    const { data: previousMonthAppointments, error: prevApptError } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('start_time', previousMonthStart.toISOString())
+      .lt('start_time', previousMonthEnd.toISOString());
+
+    if (prevApptError) throw prevApptError;
+
+    // Calcular estatísticas do mês anterior
+    const previousMonthTotal = previousMonthAppointments?.length || 0;
+    const currentMonthTotal = appointmentsList.filter((apt) => 
+      apt.startTime >= currentMonthStart
+    ).length;
+
+    const previousMonthCompleted = previousMonthAppointments?.filter(
+      apt => apt.status === 'completed'
+    ).length || 0;
+    const currentMonthCompleted = appointmentsList.filter((apt) => 
+      apt.status === 'completed' && apt.startTime >= currentMonthStart
+    ).length;
+
+    const previousMonthCanceled = previousMonthAppointments?.filter(
+      apt => apt.status === 'canceled'
+    ).length || 0;
+    const currentMonthCanceled = appointmentsList.filter((apt) => 
+      apt.status === 'canceled' && apt.startTime >= currentMonthStart
+    ).length;
+
+    // Buscar dados de clientes para comparação
+    const { count: currentClientsCount, error: clientsError } = await supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', user.id);
+
+    if (clientsError) throw clientsError;
+
+    const { count: previousClientsCount, error: prevClientsError } = await supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', user.id)
+      .lt('created_at', currentMonthStart.toISOString());
+
+    if (prevClientsError) throw prevClientsError;
+
+    // Calcular mudanças percentuais
+    const calculatePercentageChange = (current: number, previous: number): number => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    const todayAppointmentsChange = calculatePercentageChange(currentMonthTotal, previousMonthTotal);
+    const totalClientsChange = calculatePercentageChange(currentClientsCount ?? 0, previousClientsCount ?? 0);
+    const completedChange = calculatePercentageChange(currentMonthCompleted, previousMonthCompleted);
+    const cancellationsChange = calculatePercentageChange(currentMonthCanceled, previousMonthCanceled);
+
+    // Atualizar estado com dados reais
+    setStats(prevStats => ({
+      todayAppointments,
+      totalClients: currentClientsCount ?? 0,
+      completedThisWeek,
+      cancellations,
+      todayAppointmentsChange,
+      totalClientsChange,
+      completedChange,
+      cancellationsChange,
+    }));
+
+  } catch (error) {
+    console.error('Error calculating stats:', error);
+    toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
+  }
+};
+
+
+  // Carregar nome do usuário uma vez
   useEffect(() => {
-    if (!loading && appointments.length > 0) {
-      fetchAdditionalData();
+    fetchUserName();
+  }, []);
+
+  // Calcular estatísticas sempre que appointments mudarem
+  useEffect(() => {
+    if (!loading && appointments.length >= 0) {
+      calculateStats(appointments);
     }
-  }, [loading, appointments]);
+  }, [appointments, loading]);
 
-  // Configurar subscription para atualizações em tempo real
+  // Configurar subscription para atualizações em tempo real com notificações
   useEffect(() => {
+    console.log('🔄 Configurando subscription para atualizações em tempo real');
+    
     const subscription = supabase
       .channel('appointments_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
-        refetch();
-      })
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'appointments' }, 
+        (payload) => {
+          console.log('📥 Novo agendamento inserido:', payload);
+          
+          // Tocar som de notificação
+          playNotificationSound();
+          
+          // Mostrar toast de notificação
+          toast.success('🎉 Novo agendamento recebido!', {
+            duration: 5000,
+            position: 'top-right',
+            style: {
+              background: '#10B981',
+              color: 'white',
+            },
+          });
+
+          // Mostrar notificação do navegador
+          if (payload.new) {
+            showBrowserNotification(payload.new);
+          }
+          
+          refetch();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'appointments' }, 
+        (payload) => {
+          console.log('🔄 Agendamento atualizado:', payload);
+          refetch();
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'appointments' }, 
+        (payload) => {
+          console.log('🗑️ Agendamento excluído:', payload);
+          refetch();
+        }
+      )
       .subscribe();
 
+    // Polling como fallback
+    const interval = setInterval(() => {
+      console.log('🔍 Polling para novos agendamentos');
+      refetch();
+    }, 300000);
+
     return () => {
+      console.log('❌ Cancelando subscription e polling');
       subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, [refetch]);
+
+  // Efeito para detectar novos agendamentos
+  useEffect(() => {
+    if (!loading && appointments.length > 0) {
+      // Detectar novos agendamentos comparando contagem
+      if (previousAppointmentCount > 0 && appointments.length > previousAppointmentCount) {
+        const latestAppointment = appointments[appointments.length - 1];
+        
+        playNotificationSound();
+        
+        toast.success(
+          `🎉 Novo agendamento: ${latestAppointment.client?.name || 'Cliente'}`,
+          {
+            duration: 5000,
+            position: 'top-right',
+          }
+        );
+
+        showBrowserNotification(latestAppointment);
+      }
+      
+      setPreviousAppointmentCount(appointments.length);
+    }
+  }, [loading, appointments, previousAppointmentCount]);
 
   const handleViewAppointment = (appointment: Appointment) => {
     setEditingAppointment({ ...appointment });
@@ -186,7 +326,7 @@ useEffect(() => {
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
     .slice(0, 3);
 
-  // Definir os cards de estatísticas no estilo do primeiro código
+  // Definir os cards de estatísticas
   const statCards = [
     {
       title: 'Agendamentos do dia',
@@ -242,9 +382,35 @@ useEffect(() => {
   
   return (
     <DashboardLayout>
-      <Toaster />
+      {/* Elemento de áudio para notificação sonora */}
+      <audio
+        ref={audioRef}
+        preload="auto"
+        style={{ display: 'none' }}
+      >
+        <source src="/assets/notificacao.mp3" type="audio/mpeg" />
+        Seu navegador não suporta o elemento de áudio.
+      </audio>
+
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
       
-      {/* Cabeçalho de boas-vindas estilizado como no primeiro código */}
+      {/* Cabeçalho de boas-vindas */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Olá, {userName.split(' ')[0]}!</h1>
@@ -266,7 +432,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Cards de estatísticas estilizados como no primeiro código */}
+      {/* Cards de estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((stat, i) => (
           <Card key={i}>
@@ -314,7 +480,7 @@ useEffect(() => {
         </Card>
       </div>
 
-      {/* Upcoming Appointments no estilo do primeiro código */}
+      {/* Upcoming Appointments */}
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <Card>
           <CardHeader>
@@ -378,7 +544,6 @@ useEffect(() => {
 
       {editingAppointment && (
         <EditAppointmentModal
-          appointment={editingAppointment}
           appointment={editingAppointment}
           onClose={() => setEditingAppointment(null)}
           onSuccess={() => {

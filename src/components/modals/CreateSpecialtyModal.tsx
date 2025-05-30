@@ -64,12 +64,12 @@ const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Add New Specialty</CardTitle>
+          <CardTitle>Criar especialidade</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Specialty Name"
+              label="Especialidade"
               error={errors.name?.message}
               {...register('name', { required: 'Specialty name is required' })}
               disabled={isSubmitting}
@@ -77,7 +77,7 @@ const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
             
             <Input
               type="number"
-              label="Duration (minutes)"
+              label="Duração (minutos)"
               error={errors.duration?.message}
               {...register('duration', {
                 required: 'Duration is required',
@@ -88,7 +88,7 @@ const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
             
             <Input
               type="number"
-              label="Price"
+              label="Preço"
               step="0.01"
               error={errors.price?.message}
               {...register('price', {
@@ -98,7 +98,7 @@ const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
             />
             
             <Input
-              label="Description"
+              label="Descrição"
               {...register('description')}
               disabled={isSubmitting}
             />
@@ -110,14 +110,14 @@ const CreateSpecialtyModal: React.FC<CreateSpecialtyModalProps> = ({
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
               >
-                Add Specialty
+                Adicionar
               </Button>
             </div>
           </form>

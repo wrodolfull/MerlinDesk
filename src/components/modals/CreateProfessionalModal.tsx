@@ -113,7 +113,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Add New Professional</CardTitle>
+          <CardTitle>Criar profissional</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -126,7 +126,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
 
             <Input
               type="email"
-              label="Email"
+              label="E-mail"
               error={errors.email?.message}
               {...register('email', {
                 required: 'Email is required',
@@ -139,7 +139,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
             />
 
             <Input
-              label="Phone"
+              label="Telefone"
               {...register('phone', {
                 pattern: {
                   value: /^[0-9\-\+\(\)\s]+$/,
@@ -157,7 +157,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
               render={({ field }) => (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Specialties
+                    Especialidades
                   </label>
                   <ReactSelect
                     isMulti
@@ -194,14 +194,14 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
                 onClick={onClose}
                 disabled={isSubmitting || loading}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting || loading}
               >
-                Add Professional
+                Adicionar
               </Button>
             </div>
           </form>

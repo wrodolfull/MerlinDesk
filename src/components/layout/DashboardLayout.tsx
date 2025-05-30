@@ -59,7 +59,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     { path: '/specialties', icon: <Building size={20} />, label: 'Especialidades' },
     { path: '/professionals', icon: <UserCircle size={20} />, label: 'Profissionais' },
     { path: '/clients', icon: <Users size={20} />, label: 'Clientes' },
-    { path: '/assistant', icon: <Stars size={20} />, label: 'Assistante Virtual' },
+    //{ path: '/assistant', icon: <Stars size={20} />, label: 'Assistante Virtual' },
     //{ path: '/chat', icon: <MessageCircle size={20} />, label: 'Chat' },
     //{ path: '/ai-training', icon: <Brain size={20} />, label: 'AI Training' },
     { path: '/analytics', icon: <BarChart size={20} />, label: 'Relatório' },
@@ -117,7 +117,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Link to="/" className="flex items-center">
                 <Calendar className="h-8 w-8 text-primary-600" />
                 {sidebarOpen && (
-                  <span className="ml-2 text-xl font-bold text-gray-900">Dohoo</span>
+                  <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
                 )}
               </Link>
             </div>

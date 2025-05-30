@@ -182,7 +182,6 @@ const ProfessionalsPage: React.FC = () => {
                   <option key={specialty} value={specialty}>{specialty}</option>
                 ))}
               </select>
-              {/* Botão de filtro de status removido */}
             </div>
           </div>
 
@@ -234,6 +233,28 @@ const ProfessionalsPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Clock size={14} />}
+                          onClick={async () => {
+                            const confirmed = confirm(`Fechar agenda de ${professional.name}?`);
+                            if (!confirmed) return;
+
+                            const { error } = await supabase.rpc('fechar_agenda_profissional', {
+                              prof_id: professional.id
+                            });
+
+                            if (error) {
+                              toast.error('Erro ao fechar agenda');
+                              console.error(error);
+                            } else {
+                              toast.success('Agenda fechada com sucesso!');
+                            }
+                          }}
+                        >
+                          Fechar agenda
+                        </Button>
                       <Button
                         variant="outline"
                         size="sm"

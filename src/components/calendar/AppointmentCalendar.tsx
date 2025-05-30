@@ -315,14 +315,14 @@ const AppointmentCalendar = ({
         stickyHeaderDates={true}
         scrollTime="08:00:00"
         businessHours={{
-          daysOfWeek: [1, 2, 3, 4, 5, 6],
-          startTime: '08:00',
-          endTime: '18:00',
+          daysOfWeek: [0,1,2,3,4,5,6],
+          startTime: '05:00',
+          endTime: '23:59',
         }}
         weekends={true}
-        dayMaxEvents={3}
+        //dayMaxEvents={3}
         moreLinkText="mais"
-        eventMaxStack={3}
+        //eventMaxStack={3}
         selectConstraint="businessHours"
         eventConstraint="businessHours"
       />

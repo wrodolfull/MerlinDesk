@@ -24,11 +24,19 @@ interface Specialty {
   price?: number;
 }
 
+interface ProfessionalSpecialty {
+  specialty_id: string;
+  specialties: {
+    id: string;
+    name: string;
+  };
+}
+
 interface Professional {
   id: string;
   name: string;
-  specialty_id: string;
   calendar_id: string;
+  professional_specialties: ProfessionalSpecialty[];
 }
 
 interface CreateAppointmentFormData {
@@ -53,7 +61,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
   const [clientsData, setClientsData] = useState<Client[]>([]);
   const [specialtiesData, setSpecialtiesData] = useState<Specialty[]>([]);
   const [professionalsData, setProfessionalsData] = useState<Professional[]>([]);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const {
@@ -70,8 +77,12 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
     },
   });
 
+  // Monitorar mudanças nos campos
   const watchClientId = watch('clientId');
+  const watchSpecialtyId = watch('specialtyId');
+  const watchProfessionalId = watch('professionalId');
 
+  // Atualizar telefone do cliente quando cliente é selecionado
   useEffect(() => {
     if (watchClientId) {
       const selectedClient = clientsData.find((c) => c.id === watchClientId);
@@ -81,8 +92,38 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
     }
   }, [watchClientId, clientsData, setValue]);
 
-  const watchSpecialtyId = watch('specialtyId');
+  // Limpeza automática quando há conflito entre serviço e profissional
+  useEffect(() => {
+    if (watchSpecialtyId && watchProfessionalId) {
+      const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
+      
+      // Verificar se o profissional oferece o serviço selecionado
+      const hasSpecialty = selectedProfessional?.professional_specialties?.some(
+        ps => ps.specialty_id === watchSpecialtyId
+      );
+      
+      if (selectedProfessional && !hasSpecialty) {
+        setValue('professionalId', '');
+      }
+    }
+  }, [watchSpecialtyId, watchProfessionalId, professionalsData, setValue]);
 
+  useEffect(() => {
+    if (watchProfessionalId && watchSpecialtyId) {
+      const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
+      
+      // Verificar se o serviço é oferecido pelo profissional
+      const hasSpecialty = selectedProfessional?.professional_specialties?.some(
+        ps => ps.specialty_id === watchSpecialtyId
+      );
+      
+      if (selectedProfessional && !hasSpecialty) {
+        setValue('specialtyId', '');
+      }
+    }
+  }, [watchProfessionalId, watchSpecialtyId, professionalsData, setValue]);
+
+  // Definir data inicial se fornecida
   useEffect(() => {
     if (initialDate) {
       const iso = initialDate.toISOString().slice(0, 16);
@@ -90,6 +131,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
     }
   }, [initialDate, setValue]);
 
+  // Carregar dados do banco
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -122,9 +164,16 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
         if (specialtiesError) throw specialtiesError;
         setSpecialtiesData(specialties || []);
 
+        // Query modificada para usar professional_specialties
         const { data: professionals, error: professionalsError } = await supabase
           .from('professionals')
-          .select('*')
+          .select(`
+            *,
+            professional_specialties!inner(
+              specialty_id,
+              specialties(id, name)
+            )
+          `)
           .in('calendar_id', calendarIds);
         if (professionalsError) throw professionalsError;
         setProfessionalsData(professionals || []);
@@ -138,10 +187,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
 
     fetchData();
   }, [user]);
-
-  useEffect(() => {
-    setSelectedSpecialty(watchSpecialtyId);
-  }, [watchSpecialtyId]);
 
   const onSubmit = async (data: CreateAppointmentFormData) => {
     try {
@@ -208,16 +253,28 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
     }
   };
 
-  const filteredProfessionals = professionalsData.filter(
-    (p) => !selectedSpecialty || p.specialty_id === selectedSpecialty
-  );
+  // Filtragem bidirecional usando professional_specialties
+  const filteredProfessionals = professionalsData.filter((professional) => {
+    if (!watchSpecialtyId) return true;
+    return professional.professional_specialties?.some(
+      ps => ps.specialty_id === watchSpecialtyId
+    );
+  });
+
+  const filteredSpecialties = specialtiesData.filter((specialty) => {
+    if (!watchProfessionalId) return true;
+    const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
+    return selectedProfessional?.professional_specialties?.some(
+      ps => ps.specialty_id === specialty.id
+    ) || false;
+  });
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>New Appointment</CardTitle>
+          <CardTitle>Novo agendamento</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -227,7 +284,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
               rules={{ required: 'Client is required' }}
               render={({ field }) => (
                 <Select
-                  label="Client"
+                  label="Cliente"
                   options={clientsData.map((client) => ({
                     value: client.id,
                     label: `${client.name} (${client.email}${client.phone ? `, 📱 ${client.phone}` : ''})`,
@@ -242,7 +299,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
 
             <Input
               type="text"
-              label="WhatsApp Number"
+              label="Número WhatsApp"
               {...register('clientPhone')}
               placeholder="e.g. +5511999999999"
               disabled={loading || limitsLoading}
@@ -254,8 +311,8 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
               rules={{ required: 'Specialty is required' }}
               render={({ field }) => (
                 <Select
-                  label="Service"
-                  options={specialtiesData.map((s) => ({
+                  label="Especialidade"
+                  options={filteredSpecialties.map((s) => ({
                     value: s.id,
                     label: `${s.name} (${s.duration}min${s.price ? ` - $${s.price}` : ''})`,
                   }))}
@@ -273,7 +330,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
               rules={{ required: 'Professional is required' }}
               render={({ field }) => (
                 <Select
-                  label="Professional"
+                  label="Profissional"
                   options={filteredProfessionals.map((p) => ({
                     value: p.id,
                     label: p.name,
@@ -288,7 +345,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
 
             <Input
               type="datetime-local"
-              label="Start Time"
+              label="Data e Hora"
               {...register('startTime', { required: 'Start time is required' })}
               error={errors.startTime?.message}
               disabled={loading || limitsLoading}
@@ -315,7 +372,7 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
             />
 
             <Input
-              label="Notes"
+              label="Observação"
               {...register('notes')}
               error={errors.notes?.message}
               disabled={loading || limitsLoading}
@@ -323,10 +380,10 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
 
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting || loading || limitsLoading}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="submit" isLoading={isSubmitting || loading || limitsLoading} disabled={loading || limitsLoading}>
-                Create
+                Criar
               </Button>
             </div>
           </form>

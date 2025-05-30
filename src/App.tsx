@@ -157,6 +157,7 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              {/*
               <Route
                 path="/assistant"
                 element={
@@ -165,6 +166,7 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              */}
               <Route
                 path="/chat"
                 element={

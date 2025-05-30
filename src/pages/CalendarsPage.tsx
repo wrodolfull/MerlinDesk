@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Building, MapPin, Plus, Users, Edit, Trash2, CalendarRange, Loader, Share2 } from 'lucide-react';
+import { Building, MapPin, Plus, Users, Edit, Trash2, CalendarRange, Loader, Share2, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import CreateCalendarModal from '../components/modals/CreateCalendarModal';
@@ -31,6 +31,8 @@ const CalendarsPage = () => {
   const [editingSpecialty, setEditingSpecialty] = useState<Specialty | null>(null);
   const [editingProfessional, setEditingProfessional] = useState<Professional | null>(null);
   const [sharingCalendar, setSharingCalendar] = useState<Calendar | null>(null);
+  const [showCalendarId, setShowCalendarId] = useState(false);
+
 
   const fetchData = async () => {
     try {
@@ -228,6 +230,17 @@ const CalendarsPage = () => {
                     >
                       Deletar
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Eye size={14} />}
+                      onClick={() => {
+                        setSelectedCalendarId(calendar.id);
+                        setShowCalendarId(true);
+                      }}
+                    >
+                      ID
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -247,7 +260,7 @@ const CalendarsPage = () => {
                           setShowCreateSpecialty(true);
                         }}
                       >
-                        Add
+                        Adicionar
                       </Button>
                     </div>
                     <div className="bg-gray-50 rounded-md p-3">
@@ -301,7 +314,7 @@ const CalendarsPage = () => {
                           setShowCreateProfessional(true);
                         }}
                       >
-                        Add
+                        Adicionar
                       </Button>
                     </div>
                     <div className="bg-gray-50 rounded-md p-3">
@@ -414,6 +427,30 @@ const CalendarsPage = () => {
       {sharingCalendar && (
         <ShareCalendarModal calendar={sharingCalendar} onClose={() => setSharingCalendar(null)} />
       )}
+      {showCalendarId && selectedCalendarId && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative">
+            <h2 className="text-lg font-semibold mb-4">ID do Calendário</h2>
+            <p className="text-sm text-gray-600 mb-2">Copie este ID para integrar à API de agendamento:</p>
+            <textarea
+              readOnly
+              className="w-full p-2 border border-gray-300 rounded bg-gray-50 text-sm font-mono"
+              value={selectedCalendarId}
+              rows={3}
+              onFocus={(e) => e.target.select()}
+            />
+            <div className="mt-4 flex justify-end">
+              <button
+                className="text-sm px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+                onClick={() => setShowCalendarId(false)}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </DashboardLayout>
   );
 };

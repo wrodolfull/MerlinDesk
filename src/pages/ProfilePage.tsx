@@ -7,7 +7,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader, AlertTriangle, Trash2 } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Copy, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProfileFormData {
@@ -27,6 +27,8 @@ const ProfilePage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userToken, setUserToken] = useState('');
+  const [tokenLoading, setTokenLoading] = useState(false);
 
   const {
     register,
@@ -37,6 +39,57 @@ const ProfilePage = () => {
   } = useForm<ProfileFormData>();
 
   const newPassword = watch('newPassword');
+
+  // Função para gerar UUID com fallback
+  const generateUUID = () => {
+    // Tentar usar crypto.randomUUID() primeiro
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    
+    // Fallback usando crypto.getRandomValues()
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    
+    // Último recurso usando Math.random()
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
+  const generateUserTokenIfNotExists = async (userId: string) => {
+    try {
+      const { data: existing, error: fetchError } = await supabase
+        .from('user_tokens')
+        .select('token')
+        .eq('user_id', userId)
+        .single();
+
+      if (existing) {
+        return existing.token;
+      }
+
+      const generatedToken = generateUUID(); // Usar nossa função com fallback
+
+      const { error: insertError } = await supabase
+        .from('user_tokens')
+        .insert({ user_id: userId, token: generatedToken });
+
+      if (insertError) throw insertError;
+
+      return generatedToken;
+    } catch (error) {
+      console.error('Erro ao gerar token:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -49,6 +102,12 @@ const ProfilePage = () => {
           email: user.email || '',
           phone: user.user_metadata?.phone || '',
         });
+
+        // Gerar token se não existir
+        if (user.id) {
+          const token = await generateUserTokenIfNotExists(user.id);
+          setUserToken(token);
+        }
       } catch (err) {
         console.error('Erro ao carregar perfil:', err);
         toast.error('Falha ao carregar perfil');
@@ -69,7 +128,7 @@ const ProfilePage = () => {
         data: {
           full_name: data.name,
           name: data.name,
-          phone: data.phone, // Armazenar telefone nos metadados
+          phone: data.phone,
         }
       };
 
@@ -96,7 +155,7 @@ const ProfilePage = () => {
         toast.success('Senha atualizada com sucesso');
       }
 
-      // 3. Atualizar dados do usuário (sem telefone no campo principal)
+      // 3. Atualizar dados do usuário
       const { error: updateError } = await supabase.auth.updateUser(updateData);
 
       if (updateError) throw updateError;
@@ -107,6 +166,39 @@ const ProfilePage = () => {
       toast.error(error.message || 'Falha ao atualizar perfil');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleCopyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(userToken);
+      toast.success('Token copiado para a área de transferência!');
+    } catch (error) {
+      toast.error('Erro ao copiar token');
+    }
+  };
+
+  const handleRegenerateToken = async () => {
+    if (!user?.id) return;
+
+    try {
+      setTokenLoading(true);
+      const newToken = generateUUID(); // Usar nossa função com fallback
+      
+      const { error } = await supabase
+        .from('user_tokens')
+        .update({ token: newToken })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setUserToken(newToken);
+      toast.success('Token regenerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao regenerar token:', error);
+      toast.error('Erro ao regenerar token');
+    } finally {
+      setTokenLoading(false);
     }
   };
 
@@ -262,6 +354,59 @@ const ProfilePage = () => {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Token de API</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Este é seu token de autenticação da API. Use-o para fazer chamadas autenticadas para nossa API.
+            </p>
+
+            {userToken && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Seu Token</label>
+                <textarea
+                  readOnly
+                  value={userToken}
+                  className="w-full text-xs p-3 bg-gray-100 border border-gray-300 rounded-md resize-none font-mono"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyToken}
+                disabled={!userToken}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar Token
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRegenerateToken}
+                disabled={tokenLoading}
+                isLoading={tokenLoading}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {tokenLoading ? 'Regenerando...' : 'Regenerar Token'}
+              </Button>
+            </div>
+
+            <div className="bg-red-50 p-3 rounded-md border border-red-200">
+              <p className="text-xs text-red-600 flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                <strong>Importante:</strong> Não compartilhe este token com ninguém. Ele dá acesso total à sua conta via API.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

@@ -134,7 +134,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Edit Appointment</CardTitle>
+          <CardTitle>Editar agendamento</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -216,7 +216,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
             <Input
               type="datetime-local"
-              label="hora"
+              label="Data e Hora"
               {...register('startTime', { required: 'Start time is required' })}
               error={errors.startTime?.message}
               disabled={loading}
@@ -255,10 +255,10 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
             />
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting || loading}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="submit" isLoading={isSubmitting || loading} disabled={loading}>
-                Save Changes
+                Salvar
               </Button>
             </div>
           </form>

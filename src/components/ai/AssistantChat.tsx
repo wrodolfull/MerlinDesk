@@ -1,6 +1,6 @@
 // AssistantChat.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, Clock, Users, MessageSquare, BarChart3, X, MoreHorizontal, Settings, Trash2 } from 'lucide-react';
+import { Send, Bot, Clock, Users, MessageSquare, BarChart3, X, MoreHorizontal, Settings, Trash2, Sparkles, Stars } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -93,21 +93,13 @@ const AssistantChat: React.FC = () => {
       icon: <BarChart3 className="w-4 h-4" />, 
       category: 'relatorio',
       description: 'Relatório completo de agendamentos'
-    },
-    { 
-      label: 'Status do Bot', 
-      command: 'Verificar status do sistema de agendamentos', 
-      icon: <Bot className="w-4 h-4" />, 
-      category: 'sistema',
-      description: 'Verifica funcionamento geral do sistema'
     }
   ];
 
   const categories = [
   { id: 'all', label: 'Todos', icon: '📋' },
   { id: 'consulta', label: 'Consultas', icon: '🔍' },
-  { id: 'relatorio', label: 'Relatórios', icon: '📊' },
-  { id: 'sistema', label: 'Sistema', icon: '⚙️' }
+  { id: 'relatorio', label: 'Relatórios', icon: '📊' }
   ];
 
   // Carregar configurações do assistente
@@ -301,7 +293,7 @@ const AssistantChat: React.FC = () => {
         className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg z-50 transition-all duration-200 hover:scale-110"
         title={isOpen ? 'Fechar assistente' : 'Abrir assistente'}
       >
-        {isOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
+        {isOpen ? <X className="w-6 h-6" /> : <Stars className="w-6 h-6" />}
       </button>
 
       {/* Chat window */}
@@ -313,7 +305,7 @@ const AssistantChat: React.FC = () => {
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
               <div>
-                <div className="font-bold text-sm">{assistantName}</div>
+                <div className="font-bold text-sm">Merlin</div>
                 <div className="text-xs text-blue-100">
                   {isTyping ? 'Digitando...' : 'Online'}
                 </div>
@@ -336,21 +328,7 @@ const AssistantChat: React.FC = () => {
                   <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
                     <span className="text-sm font-semibold text-gray-700">Comandos Rápidos</span>
                     <div className="flex gap-1">
-                      <button
-                        onClick={() => setShowSettings(true)}
-                        className="p-1 hover:bg-gray-200 rounded"
-                        title="Configurações"
-                      >
-                        <Settings className="w-4 h-4 text-gray-600" />
-                      </button>
-                      <button
-                        onClick={clearMessages}
-                        className="p-1 hover:bg-gray-200 rounded"
-                        title="Limpar conversa"
-                      >
-                        <Trash2 className="w-4 h-4 text-gray-600" />
-                      </button>
-                    </div>
+                      </div>
                   </div>
 
                   {/* Filtros de categoria */}

@@ -82,19 +82,19 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Create New Calendar</CardTitle>
+          <CardTitle>Criar calendário</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Calendar Name"
+              label="Nome do calendário"
               error={errors.name?.message}
               {...register('name', { required: 'Calendar name is required' })}
               disabled={isSubmitting}
             />
 
             <Input
-              label="Location"
+              label="Local"
               error={errors.location?.message}
               {...register('location', { required: 'Location is required' })}
               disabled={isSubmitting}
@@ -102,10 +102,10 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
 
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting}>
-                Create Calendar
+                Criar Calendário
               </Button>
             </div>
           </form>

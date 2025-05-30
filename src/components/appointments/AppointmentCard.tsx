@@ -53,8 +53,8 @@ const handleWhatsApp = () => {
     });
 
     const mensagem = encodeURIComponent(
-      `📅 *Agendamento Confirmado!*\n\n` +
-      `Olá ${nomeCliente}, tudo bem? 😊\n\n` +
+      `*Agendamento Confirmado!*\n\n` +
+      `Olá ${nomeCliente}, tudo bem?\n\n` +
       `*Data/Hora:* ${dataHora}\n` +
       `*Profissional:* ${profissional}\n` +
       `*Especialidade:* ${especialidade}\n` +

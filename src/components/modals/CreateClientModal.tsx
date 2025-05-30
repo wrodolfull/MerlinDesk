@@ -76,12 +76,12 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ calendarId, onClo
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>New Client</CardTitle>
+          <CardTitle>Novo cliente</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Full Name"
+              label="Nome completo"
               {...register('name', { required: 'Name is required' })}
               error={errors.name?.message}
               disabled={isSubmitting}
@@ -89,7 +89,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ calendarId, onClo
 
             <Input
               type="email"
-              label="Email"
+              label="E-mail"
               {...register('email', {
                 required: 'Email is required',
                 pattern: {
@@ -102,7 +102,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ calendarId, onClo
             />
 
             <Input
-              label="Phone"
+              label="Telefone"
               {...register('phone', {
                 pattern: {
                   value: /^[0-9\-\+\(\)\s]+$/,
@@ -120,14 +120,14 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ calendarId, onClo
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
               >
-                Create
+                Adicionar
               </Button>
             </div>
           </form>
