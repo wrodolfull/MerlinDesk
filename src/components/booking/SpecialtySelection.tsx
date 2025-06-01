@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Specialty } from '../../types';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Clock, DollarSign } from 'lucide-react';
 
 interface SpecialtySelectionProps {
@@ -9,35 +8,55 @@ interface SpecialtySelectionProps {
 }
 
 export const SpecialtySelection = ({ specialties, onSelect }: SpecialtySelectionProps) => {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handleSelect = (specialty: Specialty) => {
+    setSelectedId(specialty.id);
+    onSelect(specialty);
+  };
+
   return (
     <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Select a Service</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {specialties.map((specialty) => (
-          <div key={specialty.id} onClick={() => onSelect(specialty)}>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-primary-100">
-            <CardContent className="p-5 cursor-pointer">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{specialty.name}</h3>
-              <div className="flex items-center text-gray-500 mb-2">
-                <Clock size={16} className="mr-2" />
-                <span>{specialty.duration} minutes</span>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">Agendar uma consulta</h2>
+      <p className="text-gray-600 mb-8 text-base">
+        Escolha um horário que funcione melhor para você.
+      </p>
+
+      <div className="space-y-4 max-w-xl">
+        {specialties.map((specialty) => {
+          const isSelected = specialty.id === selectedId;
+          return (
+            <div
+              key={specialty.id}
+              onClick={() => handleSelect(specialty)}
+              className={`p-5 border rounded-lg cursor-pointer transition-all group ${
+                isSelected
+                  ? 'border-[#6D3FC4] bg-[#F6F0FD]'
+                  : 'border-gray-200 hover:border-[#6D3FC4]'
+              }`}
+            >
+              <div className="flex items-center mb-1 text-[#6D3FC4] font-medium text-sm">
+                <Clock className="w-4 h-4 mr-2" />
+                {specialty.name}
               </div>
-              {specialty.price && (
-                <div className="flex items-center text-gray-500">
-                  <DollarSign size={16} className="mr-2" />
-                  <span>${specialty.price}</span>
-                </div>
-              )}
-              {specialty.description && (
-                <p className="mt-2 text-sm text-gray-600">{specialty.description}</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        
-        ))}
+
+              <p className="text-gray-600 text-sm mb-1">
+                {specialty.description || 'Descrição não informada.'}
+              </p>
+
+              <div className="text-sm text-gray-500 flex items-center">
+                <DollarSign className="w-4 h-4 mr-1" />
+                {specialty.price ? `R$ ${specialty.price}` : 'Gratuito'}
+                <span className="ml-4 flex items-center">
+                  <Clock className="w-4 h-4 mr-1" />
+                  {specialty.duration} min
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
+ 

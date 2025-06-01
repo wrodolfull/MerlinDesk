@@ -57,9 +57,9 @@ export const BookingConfirmation = ({
           onClick={onBack}
           className="mr-2"
         >
-          Back
+          Voltar
         </Button>
-        <h2 className="text-2xl font-bold text-gray-900">Confirm Your Appointment</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Confirmar agendamento</h2>
       </div>
 
       <Card className="mb-6">
@@ -70,7 +70,7 @@ export const BookingConfirmation = ({
                 <Calendar className="h-6 w-6 text-primary-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Date</h3>
+                <h3 className="font-medium text-gray-900">Data</h3>
                 <p className="text-gray-600">{formatDate(date)}</p>
               </div>
             </div>
@@ -80,7 +80,7 @@ export const BookingConfirmation = ({
                 <Clock className="h-6 w-6 text-primary-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Time</h3>
+                <h3 className="font-medium text-gray-900">Hora</h3>
                 <p className="text-gray-600">
                   {formatTime(timeSlot.start)} - {formatTime(timeSlot.end)}
                 </p>
@@ -92,7 +92,7 @@ export const BookingConfirmation = ({
                 <User className="h-6 w-6 text-primary-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Professional</h3>
+                <h3 className="font-medium text-gray-900">Profissional</h3>
                 <p className="text-gray-600">{professional.name}</p>
               </div>
             </div>
@@ -102,9 +102,9 @@ export const BookingConfirmation = ({
                 <Check className="h-6 w-6 text-secondary-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Service</h3>
+                <h3 className="font-medium text-gray-900">Serviço</h3>
                 <p className="text-gray-600">{specialty.name}</p>
-                <p className="text-gray-500 text-sm">{specialty.duration} minutes</p>
+                <p className="text-gray-500 text-sm">{specialty.duration} minutos</p>
               </div>
             </div>
             
@@ -114,7 +114,7 @@ export const BookingConfirmation = ({
                   <DollarSign className="h-6 w-6 text-secondary-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-900">Price</h3>
+                  <h3 className="font-medium text-gray-900">Preço</h3>
                   <p className="text-gray-600">${specialty.price}</p>
                 </div>
               </div>
@@ -125,35 +125,24 @@ export const BookingConfirmation = ({
 
       <Card>
         <CardHeader>
-          <CardTitle>Your Information</CardTitle>
+          <CardTitle>Suas Informações</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div>
-              <span className="font-medium">Name:</span> {client.name}
+              <span className="font-medium">Nome:</span> {client.name}
             </div>
             <div>
-              <span className="font-medium">Email:</span> {client.email}
+              <span className="font-medium">E-mail:</span> {client.email}
             </div>
             <div>
-              <span className="font-medium">Phone:</span> {client.phone}
-              {client.phone && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Phone size={14} />}
-                  className="ml-2"
-                  onClick={openWhatsApp}
-                >
-                  Open in WhatsApp
-                </Button>
-              )}
+              <span className="font-medium">Telefone:</span> {client.phone}
             </div>
           </div>
           
           <div className="mt-6 flex justify-end">
             <Button onClick={onConfirm}>
-              Confirm Appointment
+              Confirmar Agendamento
             </Button>
           </div>
         </CardContent>

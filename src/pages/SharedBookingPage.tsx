@@ -129,14 +129,28 @@ const SharedBookingPage = () => {
             <p className="text-gray-600 text-lg mb-6">
               Obrigado por agendar conosco. Você receberá uma confirmação em breve.
             </p>
+
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800 font-medium">
                 ✅ Seu agendamento foi registrado com sucesso
               </p>
-              <p className="text-green-700 text-sm mt-1">
-                Verifique seu email para mais detalhes
-              </p>
             </div>
+
+            {/* Propaganda do Merlin Desk */}
+            <div className="bg-[#F6F0FD] border-l-4 border-[#6D3FC4] p-4 rounded-lg shadow-sm mb-6 text-left text-sm text-gray-700">
+              <strong className="block font-semibold mb-1">🧙‍♂️ Conheça o Merlin Desk</strong>
+              Quer automatizar seus próprios agendamentos e atendimentos no WhatsApp com inteligência artificial?
+              <br />
+              <a
+                href="https://merlindesk.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#6D3FC4] underline hover:text-[#4C2C94]"
+              >
+                Saiba como o Merlin Desk pode ajudar sua empresa →
+              </a>
+            </div>
+
             <button 
               onClick={() => window.location.href = '/'}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"

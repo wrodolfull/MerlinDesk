@@ -258,30 +258,6 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
     };
   }, [refetch]);
 
-  // Efeito para detectar novos agendamentos
-  useEffect(() => {
-    if (!loading && appointments.length > 0) {
-      // Detectar novos agendamentos comparando contagem
-      if (previousAppointmentCount > 0 && appointments.length > previousAppointmentCount) {
-        const latestAppointment = appointments[appointments.length - 1];
-        
-        playNotificationSound();
-        
-        toast.success(
-          `🎉 Novo agendamento: ${latestAppointment.client?.name || 'Cliente'}`,
-          {
-            duration: 5000,
-            position: 'top-right',
-          }
-        );
-
-        showBrowserNotification(latestAppointment);
-      }
-      
-      setPreviousAppointmentCount(appointments.length);
-    }
-  }, [loading, appointments, previousAppointmentCount]);
-
   const handleViewAppointment = (appointment: Appointment) => {
     setEditingAppointment({ ...appointment });
   };

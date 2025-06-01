@@ -28,13 +28,13 @@ export const ProfessionalSelection = ({
           onClick={onBack}
           className="mr-2"
         >
-          Back
+          Voltar
         </Button>
         <h2 className="text-2xl font-bold text-gray-900">
-          Select a Professional
+          Escolha o Profissional
           {specialty && (
             <span className="text-gray-500 text-lg ml-2">
-              for {specialty.name}
+              para {specialty.name}
             </span>
           )}
         </h2>

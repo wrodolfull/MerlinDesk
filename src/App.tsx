@@ -29,6 +29,7 @@ import ChatPage from './pages/ChatPage';
 import AITrainingPage from './pages/AITrainingPage';
 import AssistantSettingsPage from './pages/AssistantSettingsPage';
 import WhatsAppConnect from './pages/WhatsAppConnect';
+import SharedBookingEmbedPage from './pages/SharedBookingEmbedPage';
 
 function App() {
   return (
@@ -106,6 +107,11 @@ function App() {
               <Route
                 path="/c/:calendarId"
                 element={<SharedBookingPage />}
+              />
+
+              <Route
+                path="/booking/embed/:id"
+                element={<SharedBookingEmbedPage />}
               />
 
               {/* Protected Routes */}

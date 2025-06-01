@@ -32,7 +32,7 @@ const CalendarsPage = () => {
   const [editingProfessional, setEditingProfessional] = useState<Professional | null>(null);
   const [sharingCalendar, setSharingCalendar] = useState<Calendar | null>(null);
   const [showCalendarId, setShowCalendarId] = useState(false);
-
+  const [iframeCalendarId, setIframeCalendarId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -241,6 +241,14 @@ const CalendarsPage = () => {
                     >
                       ID
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Share2 size={14} />}
+                      onClick={() => setIframeCalendarId(calendar.id)}
+                    >
+                      Iframe
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -443,6 +451,40 @@ const CalendarsPage = () => {
               <button
                 className="text-sm px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
                 onClick={() => setShowCalendarId(false)}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {iframeCalendarId && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-lg relative">
+            <h2 className="text-lg font-semibold mb-4">Incorpore este calendário</h2>
+            <p className="text-sm text-gray-600 mb-2">Copie e cole o código abaixo no seu site:</p>
+            <textarea
+              readOnly
+              className="w-full p-2 border border-gray-300 rounded bg-gray-50 text-sm font-mono"
+              value={`<iframe src="https://merlindesk.com/booking/embed/${iframeCalendarId}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`}
+              rows={4}
+              onFocus={(e) => e.target.select()}
+            />
+            <div className="mt-4 flex justify-between items-center">
+              <button
+                className="text-sm text-blue-600 underline"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `<iframe src="https://merlindesk.com/booking/embed/${iframeCalendarId}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`
+                  );
+                  toast.success('Código copiado!');
+                }}
+              >
+                Copiar código
+              </button>
+              <button
+                className="text-sm px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+                onClick={() => setIframeCalendarId(null)}
               >
                 Fechar
               </button>

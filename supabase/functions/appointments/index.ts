@@ -41,7 +41,7 @@ serve(async (req) => {
         .from('working_hours')
         .select('*')
         .eq('professional_id', professionalId)
-        .eq('day_of_week', new Date(date).getDay());
+        .eq('day_of_week', new Date(`${date}T00:00:00Z`).getUTCDay());
 
       if (workingHoursError) throw workingHoursError;
 

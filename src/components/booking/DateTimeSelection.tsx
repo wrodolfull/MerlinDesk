@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, isSameDay } from 'date-fns';
 import { Professional, Specialty } from '../../types';
-import { Card, CardContent } from '../ui/Card';
-import Button from '../ui/Button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Button from '../ui/Button';
 
 interface DateTimeSelectionProps {
   professional?: Professional;
@@ -11,6 +10,7 @@ interface DateTimeSelectionProps {
   getTimeSlots: (date: Date) => Promise<{ start: string; end: string }[]>;
   onSelect: (date: Date, timeSlot: { start: string; end: string }) => void;
   onBack: () => void;
+  workingDays: number[];
 }
 
 export const DateTimeSelection = ({
@@ -19,22 +19,32 @@ export const DateTimeSelection = ({
   getTimeSlots,
   onSelect,
   onBack,
+  workingDays,
 }: DateTimeSelectionProps) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
-  const [dateOffset, setDateOffset] = useState(0);
 
-  // Gera os 14 dias disponíveis
   useEffect(() => {
-    const dates = [];
-    for (let i = 0; i < 14; i++) {
-      dates.push(addDays(new Date(), i));
-    }
-    setAvailableDates(dates);
-  }, []);
+  const today = new Date();
+  const validDates: Date[] = [];
 
-  // Atualiza os horários disponíveis para a data selecionada
+  for (let i = 0; i < 35; i++) {
+    const date = addDays(today, i);
+    const dayIndex = date.getDay(); // 0=Dom, 1=Seg, 2=Ter, etc.
+
+    console.log(`Data: ${format(date, 'dd/MM/yyyy')} - Dia: ${dayIndex} - Working Days: ${workingDays}`);
+
+    if (workingDays.includes(dayIndex)) {
+      validDates.push(date);
+    }
+  }
+
+  console.log('Datas válidas encontradas:', validDates.length);
+  setAvailableDates(validDates);
+}, [workingDays]);
+
+
   useEffect(() => {
     const fetchSlots = async () => {
       if (professional && specialty) {
@@ -42,135 +52,100 @@ export const DateTimeSelection = ({
         setTimeSlots(slots);
       }
     };
-  
     fetchSlots();
   }, [selectedDate, professional, specialty]);
 
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const handleTimeSelect = (timeSlot: { start: string; end: string }) => {
-    onSelect(selectedDate, timeSlot);
-  };
-
-  const handlePrevDates = () => {
-    if (dateOffset > 0) {
-      setDateOffset(dateOffset - 7);
-    }
-  };
-
-  const handleNextDates = () => {
-    if (dateOffset + 7 < availableDates.length) {
-      setDateOffset(dateOffset + 7);
-    }
-  };
-
-  const formatDisplayTime = (isoString: string) => {
-    return format(new Date(isoString), 'h:mm a');
-  };
-
-  const visibleDates = availableDates.slice(dateOffset, dateOffset + 7);
+  const handleDateSelect = (date: Date) => setSelectedDate(date);
+  const formatDisplayTime = (isoString: string) => format(new Date(isoString), 'HH:mm');
 
   return (
-    <div className="animate-fade-in">
-      <div className="flex items-center mb-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          leftIcon={<ChevronLeft size={16} />}
-          onClick={onBack}
-          className="mr-2"
-        >
-          Back
-        </Button>
-        <h2 className="text-2xl font-bold text-gray-900">
-          Select Date & Time
-          {professional && (
-            <span className="text-gray-500 text-lg ml-2">
-              with {professional.name}
-            </span>
-          )}
-        </h2>
+    <div className="animate-fade-in flex flex-col-reverse md:flex-row gap-8">
+      {/* CALENDÁRIO */}
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-full md:w-1/2">
+        <div className="flex justify-between items-center mb-4">
+          <h4 className="font-semibold text-gray-900">
+            {format(selectedDate, 'MMMM yyyy')}
+          </h4>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setSelectedDate(addDays(selectedDate, -7))}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setSelectedDate(addDays(selectedDate, 7))}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+            <div key={i} className="text-xs text-gray-500 text-center py-2">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {availableDates.map((date, i) => {
+            const isCurrent = isSameDay(date, selectedDate);
+            const hasSlots = true;
+
+            return (
+              <div
+                key={i}
+                onClick={() => handleDateSelect(date)}
+                className={`text-sm text-center py-2 rounded cursor-pointer transition-all ${
+                  isCurrent
+                    ? 'bg-[#6D3FC4] text-white font-bold'
+                    : hasSlots
+                    ? 'bg-[#F6F0FD] text-[#6D3FC4] hover:bg-[#E8DBFA]'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {format(date, 'd')}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Seletor de datas */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Select Date</h3>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrevDates}
-                disabled={dateOffset === 0}
-              >
-                <ChevronLeft size={16} />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextDates}
-                disabled={dateOffset + 7 >= availableDates.length}
-              >
-                <ChevronRight size={16} />
-              </Button>
-            </div>
-          </div>
+      {/* HORÁRIOS */}
+      <div className="w-full md:w-1/2">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Escolha um horário</h2>
+        <p className="text-gray-600 mb-6">
+          {professional ? `com ${professional.name}` : 'Selecione um profissional'}
+        </p>
 
-          <div className="grid grid-cols-7 gap-2">
-            {visibleDates.map((date) => {
-              const isSelected = isSameDay(date, selectedDate);
-              const dayName = format(date, 'EEE');
-              const dayNumber = format(date, 'd');
-
-              return (
-                <button
-                  key={date.toISOString()}
-                  className={`flex flex-col items-center justify-center p-2 rounded-md focus:outline-none ${
-                    isSelected
-                      ? 'bg-primary-100 text-primary-700 font-medium'
-                      : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => handleDateSelect(date)}
-                >
-                  <span className="text-xs">{dayName}</span>
-                  <span className={`text-sm ${isSelected ? 'font-semibold' : ''}`}>
-                    {dayNumber}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Seletor de horários */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="font-medium mb-3">Select Time</h3>
-
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-800 mb-2">Horários disponíveis</h3>
           {timeSlots.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {timeSlots.map((slot) => (
                 <button
                   key={slot.start}
-                  className="py-2 px-3 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  onClick={() => handleTimeSelect(slot)}
+                  onClick={() => onSelect(selectedDate, slot)}
+                  className="py-2 px-3 rounded border border-gray-200 text-sm hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition"
                 >
                   {formatDisplayTime(slot.start)}
                 </button>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No available time slots for this date.</p>
-              <p className="text-sm text-gray-400 mt-1">Please try another date.</p>
+            <div className="bg-gray-50 text-center p-4 rounded text-gray-500 text-sm">
+              Nenhum horário disponível nesta data.
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        <Button variant="ghost" onClick={onBack}>
+          ← Voltar
+        </Button>
+      </div>
     </div>
   );
 };

@@ -38,16 +38,16 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
           onClick={onBack}
           className="mr-2"
         >
-          Back
+          Voltar
         </Button>
-        <h2 className="text-2xl font-bold text-gray-900">Your Information</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Suas informações</h2>
       </div>
 
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit(processSubmit)} className="space-y-4">
             <Input
-              label="Full Name"
+              label="Nome completo"
               error={errors.name?.message}
               required
               {...register('name', {
@@ -60,7 +60,7 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
             />
             
             <Input
-              label="Email"
+              label="E-mail"
               type="email"
               error={errors.email?.message}
               required
@@ -74,7 +74,7 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
             />
             
             <Input
-              label="Phone"
+              label="Telefone"
               error={errors.phone?.message}
               required
               {...register('phone', {
@@ -84,7 +84,7 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
                   message: 'Invalid phone number',
                 },
               })}
-              helperText="We'll use this to send appointment reminders"
+              helperText="Usaremos estas informações para envio de lembretes"
             />
             
             <div className="flex justify-end pt-4">
@@ -92,7 +92,7 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
                 type="submit"
                 isLoading={isSubmitting}
               >
-                Continue
+                Continuar
               </Button>
             </div>
           </form>

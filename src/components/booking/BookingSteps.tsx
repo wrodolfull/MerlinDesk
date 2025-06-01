@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SpecialtySelection } from './SpecialtySelection';
 import { ProfessionalSelection } from './ProfessionalSelection';
 import { DateTimeSelection } from './DateTimeSelection';
@@ -7,6 +7,7 @@ import { BookingConfirmation } from './BookingConfirmation';
 import { Client, Professional, Specialty } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { Check } from 'lucide-react';
+import { format as formatDate } from 'date-fns';
 
 interface BookingStepsProps {
   calendarId: string;
@@ -15,15 +16,38 @@ interface BookingStepsProps {
   onComplete?: (data: any) => void;
 }
 
-const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComplete }: BookingStepsProps) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [bookingData, setBookingData] = useState<{
-    specialty?: Specialty;
-    professional?: Professional;
-    date?: Date;
-    timeSlot?: { start: string; end: string };
-    client?: Client;
-  }>({});
+  const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComplete }: BookingStepsProps) => {
+    const [currentStep, setCurrentStep] = useState(1);
+    const [bookingData, setBookingData] = useState<{
+      specialty?: Specialty;
+      professional?: Professional;
+      date?: Date;
+      timeSlot?: { start: string; end: string };
+      client?: Client;
+    }>({});
+    const [workingDays, setWorkingDays] = useState<number[]>([]);
+
+  useEffect(() => {
+    const fetchWorkingDays = async () => {
+      if (!bookingData.professional) return;
+
+      const { data, error } = await supabase
+        .from('working_hours')
+        .select('day_of_week')
+        .eq('professional_id', bookingData.professional.id)
+        .eq('is_working_day', true);
+
+      if (error) {
+        console.error('Erro ao buscar dias de trabalho:', error);
+        return;
+      }
+
+      setWorkingDays(data.map((d) => d.day_of_week));
+    };
+
+    fetchWorkingDays();
+  }, [bookingData.professional]);
+
   
   const handleSpecialtySelect = (specialty: Specialty) => {
     console.log('Selected specialty:', specialty);
@@ -168,7 +192,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       const { data, error } = await supabase.rpc('get_available_slots', {
         input_professional_id: bookingData.professional.id,
         input_specialty_id: bookingData.specialty.id,
-        input_date: date.toISOString().split('T')[0],
+        input_date: formatDate(date, 'yyyy-MM-dd'),
       });
   
       if (error) throw error;
@@ -271,6 +295,8 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
             getTimeSlots={getTimeSlots}
             onSelect={handleDateTimeSelect}
             onBack={handleBack}
+            workingDays={workingDays}
+
           />
         )}
         
