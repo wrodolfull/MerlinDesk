@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "backend": "node server/index.js",
-    "deploy": "vite build --outDir=/tmp/merlin_tmp && sudo rsync -av --delete /tmp/merlin_tmp/ /var/www/merlindesk/"
+    "deploy": "vite build && sudo mkdir -p /tmp/well-known-backup && if [ -d /var/www/merlindesk.com/.well-known ]; then sudo mv /var/www/merlindesk.com/.well-known /tmp/well-known-backup; fi && sudo rm -rf /var/www/merlindesk.com && sudo mkdir -p /var/www/merlindesk.com && sudo cp -r dist/* /var/www/merlindesk.com && if [ -d /tmp/well-known-backup/.well-known ]; then sudo mv /tmp/well-known-backup/.well-known /var/www/merlindesk.com/; fi && sudo chown -R www-data:www-data /var/www/merlindesk.com && sudo chmod -R 755 /var/www/merlindesk.com && sudo systemctl restart caddy && sleep 2 && curl -sI https://merlindesk.com | head -n 1 && echo '✅ Deploy concluído com sucesso!'"
   },
   "dependencies": {
     "@eslint/config-array": "^0.20.0",

@@ -8,6 +8,7 @@ import { Client, Professional, Specialty } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { Check } from 'lucide-react';
 import { format as formatDate } from 'date-fns';
+const [loadingDays, setLoadingDays] = useState(false);
 
 interface BookingStepsProps {
   calendarId: string;
@@ -27,27 +28,30 @@ interface BookingStepsProps {
     }>({});
     const [workingDays, setWorkingDays] = useState<number[]>([]);
 
-  useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!bookingData.professional) return;
+    useEffect(() => {
+      const fetchWorkingDays = async () => {
+        if (!bookingData.professional) return;
 
-      const { data, error } = await supabase
-        .from('working_hours')
-        .select('day_of_week')
-        .eq('professional_id', bookingData.professional.id)
-        .eq('is_working_day', true);
+        setLoadingDays(true);
 
-      if (error) {
-        console.error('Erro ao buscar dias de trabalho:', error);
-        return;
-      }
+        const { data, error } = await supabase
+          .from('working_hours')
+          .select('day_of_week')
+          .eq('professional_id', bookingData.professional.id)
+          .eq('is_working_day', true);
 
-      setWorkingDays(data.map((d) => d.day_of_week));
-    };
+        if (error) {
+          console.error('Erro ao buscar dias de trabalho:', error);
+          setWorkingDays([]);
+        } else {
+          setWorkingDays(data.map((d) => d.day_of_week));
+        }
 
-    fetchWorkingDays();
-  }, [bookingData.professional]);
+        setLoadingDays(false);
+      };
 
+      fetchWorkingDays();
+    }, [bookingData.professional]);
   
   const handleSpecialtySelect = (specialty: Specialty) => {
     console.log('Selected specialty:', specialty);
@@ -187,24 +191,27 @@ interface BookingStepsProps {
   // Get available time slots
   const getTimeSlots = async (date: Date) => {
     if (!bookingData.professional || !bookingData.specialty) return [];
-  
+
     try {
       const { data, error } = await supabase.rpc('get_available_slots', {
         input_professional_id: bookingData.professional.id,
         input_specialty_id: bookingData.specialty.id,
         input_date: formatDate(date, 'yyyy-MM-dd'),
       });
-  
-      if (error) throw error;
-  
+
+      if (error) {
+        console.error('Erro ao buscar horários disponíveis:', error);
+        return [];
+      }
+
       return Array.isArray(data)
-        ? data.map((slot) => ({
-            start: new Date(slot.start_time).toISOString(),
-            end: new Date(slot.end_time).toISOString(),
+        ? data.map((slot: { start_time: string; end_time: string }) => ({
+            start: slot.start_time,
+            end: slot.end_time,
           }))
         : [];
-    } catch (error) {
-      console.error('Erro ao buscar horários disponíveis:', error);
+    } catch (err) {
+      console.error('Erro inesperado ao buscar horários disponíveis:', err);
       return [];
     }
   };
@@ -287,19 +294,23 @@ interface BookingStepsProps {
             onBack={handleBack}
           />
         )}
-        
         {currentStep === 3 && (
-          <DateTimeSelection
-            professional={bookingData.professional}
-            specialty={bookingData.specialty}
-            getTimeSlots={getTimeSlots}
-            onSelect={handleDateTimeSelect}
-            onBack={handleBack}
-            workingDays={workingDays}
-
-          />
-        )}
-        
+          loadingDays ? (
+            <div className="text-center text-gray-500 py-10">Carregando dias disponíveis...</div>
+          ) : workingDays.length > 0 ? (
+            <DateTimeSelection
+              professional={bookingData.professional}
+              specialty={bookingData.specialty}
+              onSelect={handleDateTimeSelect}
+              onBack={handleBack}
+              workingDays={workingDays}
+            />
+          ) : (
+            <div className="text-center text-red-500 py-10">
+              Nenhum horário de trabalho configurado para esse profissional.
+            </div>
+          )
+        )}        
         {currentStep === 4 && (
           <ClientInfoForm
             onSubmit={handleClientInfoSubmit}

@@ -9,25 +9,32 @@ import { Dialog } from '@headlessui/react';
 import { Card, CardContent } from '../components/ui/Card';
 import { CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 
+// Interface para dados do cliente
+interface ClientFormData {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
 const SharedBookingEmbedPage: React.FC = () => {
   const { id } = useParams();
   const [calendar, setCalendar] = useState<Calendar | null>(null);
-  const [step, setStep] = useState(1); // 1: Especialidade, 2: Profissional, 3: Data/Hora, 4: Cliente, 5: Confirmação
+  const [step, setStep] = useState(1);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [filteredProfessionals, setFilteredProfessionals] = useState<Professional[]>([]);
   const [professional, setProfessional] = useState<Professional | undefined>();
   const [specialty, setSpecialty] = useState<Specialty | undefined>();
   const [workingDays, setWorkingDays] = useState<number[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<{ start: string; end: string } | null>(null);
-  const [client, setClient] = useState<{ name: string; email: string; phone: string } | null>(null);
+  const [client, setClient] = useState<ClientFormData | null>(null);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [showEmbedModal, setShowEmbedModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // Buscar dados do calendário
+// Buscar dados do calendário
   useEffect(() => {
     if (!id) return;
 
@@ -171,6 +178,7 @@ const SharedBookingEmbedPage: React.FC = () => {
 
       if (!rpcError && rpcData) {
         console.log('Slots encontrados via RPC:', rpcData);
+        // Mapear para o formato esperado pelo componente
         return rpcData.map((slot: any) => ({
           start: slot.start_time,
           end: slot.end_time
@@ -291,7 +299,7 @@ const SharedBookingEmbedPage: React.FC = () => {
         specialty_id: specialty.id,
         client_name: client.name,
         client_email: client.email,
-        client_phone: client.phone ?? '',
+        client_phone: client.phone ?? '', // Usar string vazia se phone for undefined
         start_time: selectedTime.start,
         end_time: selectedTime.end,
         date: selectedDate.toISOString().split('T')[0],
@@ -536,6 +544,7 @@ const SharedBookingEmbedPage: React.FC = () => {
             specialty={specialty}
             workingDays={workingDays}
             getTimeSlots={getTimeSlots}
+            selectedDate={selectedDate}
             onSelect={(date, time) => {
               setSelectedDate(date);
               setSelectedTime(time);

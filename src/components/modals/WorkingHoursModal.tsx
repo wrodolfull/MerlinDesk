@@ -61,8 +61,8 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
           
           const dayData = {
             day_of_week: dayOfWeek,
-            start_time: existingData?.start_time || '09:00',
-            end_time: existingData?.end_time || '17:00',
+            start_time: existingData?.start_time ?? null,
+            end_time: existingData?.end_time ?? null,
             is_working_day: existingData?.is_working_day || false,
             professional_id: professionalId,
             id: existingData?.id,
