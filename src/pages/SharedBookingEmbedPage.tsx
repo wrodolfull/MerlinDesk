@@ -65,7 +65,7 @@ const DateTimeSelection = ({
           const localSlotDate = new Date(slot.start); // UTC
           const localNow = new Date();
 
-          const slotBR = new Date(localSlotDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+          const slotBR = new Date(slot.start).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
           const nowBR = new Date(localNow.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
 
           console.log('⏰ Slot local BR:', slotBR.toISOString(), '| Agora BR:', nowBR.toISOString());
