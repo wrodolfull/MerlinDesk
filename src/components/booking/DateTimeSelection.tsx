@@ -40,16 +40,22 @@ export const DateTimeSelection = ({
       });
 
       if (error) {
-        console.error('❌ ERRO SUPABASE:', error);
+        console.error('Erro ao buscar horários:', error);
         return [];
       }
 
-      return (data || []).map((slot: { start_time: string; end_time: string }) => ({
-        start: slot.start_time,
-        end: slot.end_time,
-      }));
+      const now = new Date();
+      return (data || [])
+        .map((slot: { start_time: string; end_time: string }) => ({
+          start: slot.start_time,
+          end: slot.end_time,
+        }))
+        .filter((slot) => {
+          const slotDate = new Date(slot.start);
+          return isAfter(slotDate, now) || isSameDay(slotDate, now);
+        });
     } catch (err) {
-      console.error('💥 ERRO INESPERADO:', err);
+      console.error('Erro inesperado:', err);
       return [];
     }
   };
