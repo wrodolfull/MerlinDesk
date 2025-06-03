@@ -32,19 +32,34 @@ const DateTimeSelection = ({
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
 
-  const getTimeSlots = async (date: Date, professionalId: string, specialtyId: string) => {
+  const getTimeSlots = async (date: Date) => {
+    if (!professional?.id || !specialty?.id) return [];
+    
     try {
       const { data, error } = await supabase.rpc('get_available_slots', {
-        input_professional_id: professionalId,
-        input_specialty_id: specialtyId,
-        input_date: format(date, 'yyyy-MM-dd'),
+        input_professional_id: professional.id,
+        input_specialty_id: specialty.id,
+        input_date: format(date, 'yyyy-MM-dd')
       });
-      if (error) return [];
-      return (data || []).map((slot: { start_time: string; end_time: string }) => ({
-        start: slot.start_time,
-        end: slot.end_time,
-      }));
+
+      if (error) {
+        console.error('Erro ao buscar horários:', error);
+        return [];
+      }
+
+      const now = new Date();
+      return (data || [])
+        .map((slot: { start_time: string; end_time: string }) => ({
+          start: slot.start_time,
+          end: slot.end_time
+        }))
+        .filter(slot => {
+          const slotDate = new Date(slot.start);
+          return isAfter(slotDate, now) || isSameDay(slotDate, now);
+        });
+        
     } catch (err) {
+      console.error('Erro inesperado:', err);
       return [];
     }
   };
@@ -90,17 +105,42 @@ const DateTimeSelection = ({
     });
   };
 
-  const generateCalendarDays = () => {
-    const year = internalSelectedDate.getFullYear();
-    const month = internalSelectedDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDayOfWeek = firstDay.getDay();
-    const calendarDays: (Date | null)[] = [];
-    for (let i = 0; i < startDayOfWeek; i++) calendarDays.push(null);
-    for (let day = 1; day <= lastDay.getDate(); day++) calendarDays.push(new Date(year, month, day));
-    return calendarDays;
-  };
+    const generateCalendarDays = () => {
+      const year = internalSelectedDate.getFullYear();
+      const month = internalSelectedDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startDayOfWeek = firstDay.getDay(); // Domingo = 0, Segunda = 1, etc.
+      
+      const calendarDays: (Date | null)[] = [];
+      
+      // Preencher dias vazios no início
+      for (let i = 0; i < startDayOfWeek; i++) {
+        calendarDays.push(null);
+      }
+      
+      // Preencher dias do mês
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        calendarDays.push(new Date(year, month, day));
+      }
+      
+      return calendarDays;
+    };
+
+    // Atualizar o useEffect de availableDates para:
+    useEffect(() => {
+      const today = new Date();
+      const validDates: Date[] = [];
+      
+      for (let i = 0; i < 60; i++) {
+        const date = addDays(today, i);
+        if (workingDays.includes(date.getDay())) {
+          validDates.push(date);
+        }
+      }
+      
+      setAvailableDates(validDates);
+    }, [workingDays]);
 
   const calendarDays = generateCalendarDays();
 
@@ -131,14 +171,18 @@ const DateTimeSelection = ({
         <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((date, i) => {
             if (!date) return <div key={i} className="text-sm text-center py-2"></div>;
-            const isAvailable = availableDates.some((available) => isSameDay(available, date));
+            
+            const isAvailable = availableDates.some(available => 
+              isSameDay(available, date)
+            );
             const isCurrent = isSameDay(date, internalSelectedDate);
             const isToday = isSameDay(date, new Date());
-            const isPast = date < new Date() && !isSameDay(date, new Date());
+            const isPast = isBefore(date, new Date()) && !isToday;
+
             return (
               <div
-                key={i}
-                onClick={() => isAvailable && !isPast ? handleDateSelect(date) : undefined}
+                key={date.toISOString()}
+                onClick={() => !isPast && isAvailable && handleDateSelect(date)}
                 className={`text-sm text-center py-2 rounded transition-all ${
                   isCurrent && isAvailable
                     ? 'bg-[#6D3FC4] text-white font-bold cursor-pointer'
@@ -146,9 +190,7 @@ const DateTimeSelection = ({
                     ? 'bg-blue-100 text-blue-800 font-bold border border-blue-300'
                     : isAvailable && !isPast
                     ? 'bg-[#F6F0FD] text-[#6D3FC4] hover:bg-[#E8DBFA] cursor-pointer'
-                    : isPast
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
               >
                 {format(date, 'd')}
@@ -390,11 +432,11 @@ const SharedBookingEmbedPage: React.FC = () => {
   };
 
   const steps = [
-    { id: 1, title: 'Serviço', description: 'Escolha o serviço' },
-    { id: 2, title: 'Profissional', description: 'Escolha o profissional' },
-    { id: 3, title: 'Data & Hora', description: 'Escolha data e horário' },
-    { id: 4, title: 'Seus Dados', description: 'Informe seus dados' },
-    { id: 5, title: 'Confirmação', description: 'Confirme o agendamento' },
+    { id: 1, title: 'Serviço'},
+    { id: 2, title: 'Profissional'},
+    { id: 3, title: 'Data & Hora'},
+    { id: 4, title: 'Seus Dados'},
+    { id: 5, title: 'Confirmação'},
   ];
 
   const ProgressSteps = () => (
