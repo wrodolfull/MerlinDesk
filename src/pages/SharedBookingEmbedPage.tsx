@@ -457,38 +457,75 @@ useEffect(() => {
     if (!professional?.id) return;
     
     setLoadingWorkingDays(true);
-
-    console.log('🔍 Buscando working days para professional:', professional.id);
-    setLoadingWorkingDays(true);
     
     try {
+      // Primeiro, tenta buscar da tabela working_hours
       const { data, error } = await supabase
         .from('working_hours')
         .select('day_of_week')
         .eq('professional_id', professional.id)
         .eq('is_working_day', true);
         
-      if (error) {
-        console.error('❌ Erro ao buscar working days:', error);
-        setWorkingDays([]);
-        return;
-      }
+      if (error) throw error;
       
-      const days = data?.map((d) => d.day_of_week) || [];
-      console.log('✅ Working days encontrados:', days);
-      setWorkingDays(days);
+      if (data && data.length > 0) {
+        // Se encontrou working_hours, usa eles
+        const days = data.map((d) => d.day_of_week);
+        console.log('✅ Working days da tabela working_hours:', days);
+        setWorkingDays(days);
+      } else {
+        // FALLBACK: Se não encontrou working_hours, extrai dos slots disponíveis
+        console.log('⚠️ Nenhum working_hours encontrado, usando fallback...');
+        await extractWorkingDaysFromSlots();
+      }
     } catch (error) {
-      console.error('❌ Erro inesperado ao buscar dias de trabalho:', error);
-      setWorkingDays([]);
+      console.error('❌ Erro ao buscar working days:', error);
+      // Em caso de erro, tenta o fallback
+      await extractWorkingDaysFromSlots();
     } finally {
       setLoadingWorkingDays(false);
     }
   };
   
+  // Função auxiliar para extrair dias dos slots disponíveis
+  const extractWorkingDaysFromSlots = async () => {
+    if (!professional?.id || !specialty?.id) return;
+    
+    try {
+      const uniqueDays = new Set<number>();
+      const today = new Date();
+      
+      // Verifica os próximos 14 dias para encontrar dias com slots
+      for (let i = 0; i < 14; i++) {
+        const checkDate = addDays(today, i);
+        const dateStr = format(checkDate, 'yyyy-MM-dd');
+        
+        const { data, error } = await supabase.rpc('get_available_slots', {
+          input_professional_id: professional.id,
+          input_specialty_id: specialty.id,
+          input_date: dateStr,
+        });
+        
+        if (!error && data && data.length > 0) {
+          uniqueDays.add(checkDate.getDay());
+        }
+      }
+      
+      const extractedDays = Array.from(uniqueDays);
+      console.log('✅ Working days extraídos dos slots:', extractedDays);
+      setWorkingDays(extractedDays);
+      
+    } catch (error) {
+      console.error('❌ Erro ao extrair working days dos slots:', error);
+      // Como último recurso, assume todos os dias úteis
+      setWorkingDays([1, 2, 3, 4, 5]); // Segunda a sexta
+    }
+  };
+  
   fetchWorkingDays();
-}, [professional?.id]);
+}, [professional?.id, specialty?.id]);
 
-  // CORRIGIDO: Função de booking
+
   const handleBooking = async () => {
     if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) {
       console.error('Dados incompletos para o booking');
