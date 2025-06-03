@@ -1,25 +1,270 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { format, addDays, isSameDay } from 'date-fns';
+import { format, addDays, isSameDay, isAfter, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
-import { DateTimeSelection } from '../components/booking/DateTimeSelection';
-import { ClientInfoForm } from '../components/booking/ClientInfoForm';
-import { Dialog } from '@headlessui/react';
+import { Check, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
-import { CheckCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 
-// Interface para dados do cliente
 interface ClientFormData {
   name: string;
   email: string;
   phone?: string;
 }
 
+const DateTimeSelection = ({
+  professional,
+  specialty,
+  onSelect,
+  onBack,
+  workingDays,
+  selectedDate,
+}: {
+  professional?: Professional;
+  specialty?: Specialty;
+  onSelect: (date: Date, timeSlot: { start: string; end: string }) => void;
+  onBack: () => void;
+  workingDays: number[];
+  selectedDate?: Date;
+}) => {
+  const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate || new Date());
+  const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
+
+  const getTimeSlots = async (date: Date, professionalId: string, specialtyId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        input_professional_id: professionalId,
+        input_specialty_id: specialtyId,
+        input_date: format(date, 'yyyy-MM-dd'),
+      });
+      if (error) return [];
+      return (data || []).map((slot: { start_time: string; end_time: string }) => ({
+        start: slot.start_time,
+        end: slot.end_time,
+      }));
+    } catch (err) {
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (selectedDate) setInternalSelectedDate(selectedDate);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const today = new Date();
+    const validDates: Date[] = [];
+    for (let i = 0; i < 60; i++) {
+      const date = addDays(today, i);
+      const dayOfWeek = date.getDay();
+      if (workingDays.includes(dayOfWeek)) validDates.push(date);
+    }
+    setAvailableDates(validDates);
+  }, [workingDays]);
+
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (!professional || !specialty) return;
+      const allSlots = await getTimeSlots(internalSelectedDate, professional.id, specialty.id);
+      const now = new Date();
+      const filtered = allSlots.filter((slot) => {
+        const slotStart = new Date(slot.start);
+        return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
+      });
+      setTimeSlots(filtered);
+    };
+    fetchSlots();
+  }, [internalSelectedDate, professional, specialty]);
+
+  const handleDateSelect = (date: Date) => setInternalSelectedDate(date);
+
+  const formatDisplayTime = (isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+      hour12: false,
+    });
+  };
+
+  const generateCalendarDays = () => {
+    const year = internalSelectedDate.getFullYear();
+    const month = internalSelectedDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDayOfWeek = firstDay.getDay();
+    const calendarDays: (Date | null)[] = [];
+    for (let i = 0; i < startDayOfWeek; i++) calendarDays.push(null);
+    for (let day = 1; day <= lastDay.getDate(); day++) calendarDays.push(new Date(year, month, day));
+    return calendarDays;
+  };
+
+  const calendarDays = generateCalendarDays();
+
+  const goToPreviousMonth = () => setInternalSelectedDate(subMonths(internalSelectedDate, 1));
+  const goToNextMonth = () => setInternalSelectedDate(addMonths(internalSelectedDate, 1));
+
+  return (
+    <div className="animate-fade-in flex flex-col-reverse md:flex-row gap-8">
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-full md:w-1/2">
+        <div className="flex justify-between items-center mb-4">
+          <h4 className="font-semibold text-gray-900">
+            {format(internalSelectedDate, 'MMMM yyyy', { locale: ptBR })}
+          </h4>
+          <div className="flex space-x-2">
+            <button onClick={goToPreviousMonth} className="p-2 hover:bg-gray-100 rounded">
+              <ArrowLeft size={16} />
+            </button>
+            <button onClick={goToNextMonth} className="p-2 hover:bg-gray-100 rounded">
+              <ArrowLeft size={16} className="transform rotate-180" />
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d, i) => (
+            <div key={i} className="text-xs text-gray-500 text-center py-2 font-medium">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {calendarDays.map((date, i) => {
+            if (!date) return <div key={i} className="text-sm text-center py-2"></div>;
+            const isAvailable = availableDates.some((available) => isSameDay(available, date));
+            const isCurrent = isSameDay(date, internalSelectedDate);
+            const isToday = isSameDay(date, new Date());
+            const isPast = date < new Date() && !isSameDay(date, new Date());
+            return (
+              <div
+                key={i}
+                onClick={() => isAvailable && !isPast ? handleDateSelect(date) : undefined}
+                className={`text-sm text-center py-2 rounded transition-all ${
+                  isCurrent && isAvailable
+                    ? 'bg-[#6D3FC4] text-white font-bold cursor-pointer'
+                    : isToday
+                    ? 'bg-blue-100 text-blue-800 font-bold border border-blue-300'
+                    : isAvailable && !isPast
+                    ? 'bg-[#F6F0FD] text-[#6D3FC4] hover:bg-[#E8DBFA] cursor-pointer'
+                    : isPast
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {format(date, 'd')}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="w-full md:w-1/2">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Escolha um horário</h2>
+        <p className="text-gray-600 mb-6">
+          {professional ? `com ${professional.name}` : 'Selecione um profissional'}
+        </p>
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-800 mb-2">
+            Horários disponíveis para {format(internalSelectedDate, "dd 'de' MMMM", { locale: ptBR })}
+          </h3>
+          {timeSlots.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {timeSlots.map((slot, index) => (
+                <button
+                  key={`${slot.start}-${index}`}
+                  onClick={() => onSelect(internalSelectedDate, slot)}
+                  className="py-2 px-3 rounded border border-gray-200 text-sm hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition"
+                >
+                  {formatDisplayTime(slot.start)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 text-center p-4 rounded text-gray-500 text-sm">
+              Nenhum horário disponível nesta data.
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-[#6D3FC4] hover:text-[#5a2d9e]"
+        >
+          ← Voltar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ClientInfoForm = ({
+  onSubmit,
+  onBack,
+}: {
+  onSubmit: (data: ClientFormData) => void;
+  onBack: () => void;
+}) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({ name, email, phone: phone || undefined });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6D3FC4] focus:border-[#6D3FC4]"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6D3FC4] focus:border-[#6D3FC4]"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6D3FC4] focus:border-[#6D3FC4]"
+        />
+      </div>
+      <div className="flex justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-4 py-2 text-[#6D3FC4] hover:text-[#5a2d9e]"
+        >
+          ← Voltar
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-[#6D3FC4] text-white rounded hover:bg-[#5a2d9e]"
+        >
+          Confirmar
+        </button>
+      </div>
+    </form>
+  );
+};
+
 const SharedBookingEmbedPage: React.FC = () => {
   const { id } = useParams();
   const [calendar, setCalendar] = useState<Calendar | null>(null);
-  const [step, setStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(1);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [filteredProfessionals, setFilteredProfessionals] = useState<Professional[]>([]);
@@ -29,15 +274,13 @@ const SharedBookingEmbedPage: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<{ start: string; end: string } | null>(null);
   const [client, setClient] = useState<ClientFormData | null>(null);
   const [bookingComplete, setBookingComplete] = useState(false);
-  const [showEmbedModal, setShowEmbedModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-// Buscar dados do calendário
+  // Buscar dados do calendário
   useEffect(() => {
     if (!id) return;
-
     const fetchCalendar = async () => {
       try {
         setLoading(true);
@@ -46,61 +289,38 @@ const SharedBookingEmbedPage: React.FC = () => {
           .select('*')
           .eq('id', id)
           .single();
-        
         if (error) throw error;
         if (data) setCalendar(data);
       } catch (err) {
-        console.error('Erro ao buscar calendário:', err);
         setError('Calendário não encontrado');
       } finally {
         setLoading(false);
       }
     };
-
     fetchCalendar();
   }, [id]);
 
-  // Buscar profissionais e especialidades do calendário
+  // Buscar profissionais e especialidades
   useEffect(() => {
     if (!calendar?.id) return;
-
     const fetchCalendarData = async () => {
       try {
-        // Buscar especialidades do calendário
         const { data: specialtiesData, error: specError } = await supabase
           .from('specialties')
           .select('*')
           .eq('calendar_id', calendar.id);
-
         if (specError) throw specError;
-
-        // Buscar profissionais do calendário
-        const { data: professionalsData, error: profError } = await supabase
-          .from('professionals')
-          .select(`
-            *,
-            professional_specialties!inner (
-              specialty_id,
-              specialties (
-                id,
-                name,
-                duration,
-                price
-              )
-            )
-          `)
-          .eq('calendar_id', calendar.id);
-
-        if (profError) throw profError;
-
         if (specialtiesData && specialtiesData.length > 0) {
-          const mappedSpecialties = specialtiesData.map((s: any) => ({
+          setSpecialties(specialtiesData.map((s: any) => ({
             ...s,
             calendarId: s.calendar_id,
-          }));
-          setSpecialties(mappedSpecialties);
+          })));
         }
-
+        const { data: professionalsData, error: profError } = await supabase
+          .from('professionals')
+          .select(`*, professional_specialties!inner (specialty_id, specialties (id, name, duration, price))`)
+          .eq('calendar_id', calendar.id);
+        if (profError) throw profError;
         if (professionalsData && professionalsData.length > 0) {
           const mappedProfessionals = professionalsData.map((p: any) => ({
             ...p,
@@ -110,188 +330,45 @@ const SharedBookingEmbedPage: React.FC = () => {
           setProfessionals(mappedProfessionals);
         }
       } catch (error) {
-        console.error('Erro ao buscar dados do calendário:', error);
         setError('Erro ao carregar dados do calendário');
       }
     };
-
     fetchCalendarData();
   }, [calendar?.id]);
 
-  // Filtrar profissionais baseado na especialidade selecionada
+  // Filtrar profissionais
   useEffect(() => {
     if (!specialty || !professionals.length) {
       setFilteredProfessionals([]);
       return;
     }
-
     const filtered = professionals.filter(prof => 
       prof.specialties?.some(spec => spec.id === specialty.id)
     );
     setFilteredProfessionals(filtered);
   }, [specialty, professionals]);
 
-  // Buscar dias de trabalho do profissional
+  // Buscar dias de trabalho
   useEffect(() => {
     const fetchWorkingDays = async () => {
       if (!professional?.id) return;
-      
       try {
         const { data, error } = await supabase
           .from('working_hours')
           .select('day_of_week')
           .eq('professional_id', professional.id)
           .eq('is_working_day', true);
-        
         if (error) throw error;
-        if (data) {
-          const days = data.map((d) => d.day_of_week);
-          console.log('Working days carregados:', days);
-          setWorkingDays(days);
-        }
+        if (data) setWorkingDays(data.map((d) => d.day_of_week));
       } catch (error) {
         console.error('Erro ao buscar dias de trabalho:', error);
       }
     };
-    
     fetchWorkingDays();
   }, [professional?.id]);
 
-  // CORREÇÃO: Função getTimeSlots corrigida
-  const getTimeSlots = async (date: Date) => {
-    if (!professional || !specialty) return [];
-
-    try {
-      console.log('Buscando slots para:', {
-        date: date.toISOString().split('T')[0],
-        professional_id: professional.id,
-        specialty_id: specialty.id
-      });
-
-      // CORREÇÃO: Usar apenas os parâmetros corretos da função SQL
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_available_slots', {
-          input_professional_id: professional.id,
-          input_specialty_id: specialty.id,
-          input_date: date.toISOString().split('T')[0],
-        });
-
-      if (!rpcError && rpcData) {
-        console.log('Slots encontrados via RPC:', rpcData);
-        // Mapear para o formato esperado pelo componente
-        return rpcData.map((slot: any) => ({
-          start: slot.start_time,
-          end: slot.end_time
-        }));
-      }
-
-      console.log('RPC falhou:', rpcError);
-      
-      // Fallback: busca manual
-      const dayOfWeek = date.getDay();
-      const { data: workingHours, error: whError } = await supabase
-        .from('working_hours')
-        .select('start_time, end_time, break_start, break_end')
-        .eq('professional_id', professional.id)
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_working_day', true)
-        .single();
-
-      if (whError || !workingHours) {
-        console.log('Nenhum horário de trabalho encontrado para este dia');
-        return [];
-      }
-
-      const { data: appointments, error: appError } = await supabase
-        .from('appointments')
-        .select('start_time, end_time')
-        .eq('professional_id', professional.id)
-        .eq('date', date.toISOString().split('T')[0])
-        .neq('status', 'cancelled');
-
-      if (appError) {
-        console.error('Erro ao buscar agendamentos:', appError);
-        return [];
-      }
-
-      const slots = generateTimeSlots(
-        workingHours,
-        appointments || [],
-        specialty.duration || 60,
-        date
-      );
-
-      console.log('Slots gerados manualmente:', slots);
-      return slots;
-
-    } catch (error) {
-      console.error('Erro ao buscar horários disponíveis:', error);
-      return [];
-    }
-  };
-
-  // Função auxiliar para gerar slots de tempo
-  const generateTimeSlots = (
-    workingHours: any,
-    appointments: any[],
-    duration: number,
-    date: Date
-  ) => {
-    const slots: { start: string; end: string }[] = [];
-    const dateStr = date.toISOString().split('T')[0];
-    
-    const startMinutes = timeToMinutes(workingHours.start_time);
-    const endMinutes = timeToMinutes(workingHours.end_time);
-    const breakStartMinutes = workingHours.break_start ? timeToMinutes(workingHours.break_start) : null;
-    const breakEndMinutes = workingHours.break_end ? timeToMinutes(workingHours.break_end) : null;
-    
-    for (let minutes = startMinutes; minutes + duration <= endMinutes; minutes += 15) {
-      const slotStart = minutes;
-      const slotEnd = minutes + duration;
-      
-      if (breakStartMinutes && breakEndMinutes) {
-        if (slotStart < breakEndMinutes && slotEnd > breakStartMinutes) {
-          continue;
-        }
-      }
-      
-      const startTime = `${dateStr}T${minutesToTime(slotStart)}:00`;
-      const endTime = `${dateStr}T${minutesToTime(slotEnd)}:00`;
-      
-      const hasConflict = appointments.some(apt => {
-        const aptStart = new Date(apt.start_time).getTime();
-        const aptEnd = new Date(apt.end_time).getTime();
-        const slotStartTime = new Date(startTime).getTime();
-        const slotEndTime = new Date(endTime).getTime();
-        
-        return slotStartTime < aptEnd && slotEndTime > aptStart;
-      });
-      
-      if (!hasConflict) {
-        slots.push({
-          start: startTime,
-          end: endTime
-        });
-      }
-    }
-    
-    return slots;
-  };
-
-  const timeToMinutes = (timeStr: string): number => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return hours * 60 + minutes;
-  };
-
-  const minutesToTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-  };
-
   const handleBooking = async () => {
     if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) return;
-
     try {
       const { error } = await supabase.from('appointments').insert({
         calendar_id: calendar.id,
@@ -299,35 +376,87 @@ const SharedBookingEmbedPage: React.FC = () => {
         specialty_id: specialty.id,
         client_name: client.name,
         client_email: client.email,
-        client_phone: client.phone ?? '', // Usar string vazia se phone for undefined
+        client_phone: client.phone ?? '',
         start_time: selectedTime.start,
         end_time: selectedTime.end,
         date: selectedDate.toISOString().split('T')[0],
         status: 'confirmed'
       });
-
       if (error) throw error;
       setBookingComplete(true);
     } catch (error) {
-      console.error('Erro ao criar agendamento:', error);
       alert('Erro ao confirmar agendamento. Tente novamente.');
     }
   };
 
-  const copyEmbedCode = () => {
-    const embedCode = `<iframe src="https://merlindesk.com/booking/embed/${calendar?.id}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`;
-    navigator.clipboard.writeText(embedCode);
-    alert('Código copiado!');
-  };
+  const steps = [
+    { id: 1, title: 'Serviço', description: 'Escolha o serviço' },
+    { id: 2, title: 'Profissional', description: 'Escolha o profissional' },
+    { id: 3, title: 'Data & Hora', description: 'Escolha data e horário' },
+    { id: 4, title: 'Seus Dados', description: 'Informe seus dados' },
+    { id: 5, title: 'Confirmação', description: 'Confirme o agendamento' },
+  ];
 
-  const nextStep = () => setStep(prev => prev + 1);
-  const prevStep = () => setStep(prev => prev - 1);
+  const ProgressSteps = () => (
+    <div className="mb-12">
+      <div className="flex items-center justify-between relative">
+        <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
+        <div
+          className="absolute top-4 left-0 h-0.5 bg-[#6D3FC4] z-10 transition-all duration-500 ease-out"
+          style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+        ></div>
+        {steps.map((step) => (
+          <div key={step.id} className="flex flex-col items-center relative z-20">
+            <div
+              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
+                currentStep > step.id
+                  ? 'bg-[#6D3FC4] border-[#6D3FC4] text-white'
+                  : currentStep === step.id
+                  ? 'bg-white border-[#6D3FC4] text-[#6D3FC4] shadow-lg ring-4 ring-[#F6F0FD]'
+                  : 'bg-white border-gray-300 text-gray-400'
+              }`}
+            >
+              {currentStep > step.id ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    currentStep === step.id ? 'bg-[#6D3FC4]' : 'bg-gray-400'
+                  }`}
+                />
+              )}
+            </div>
+            <div className="text-center mt-3 max-w-24">
+              <div
+                className={`text-sm font-medium transition-colors ${
+                  currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                }`}
+              >
+                {step.title}
+              </div>
+              <div
+                className={`text-xs mt-1 transition-colors ${
+                  currentStep >= step.id ? 'text-gray-600' : 'text-gray-400'
+                }`}
+              >
+                {step.description}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const handleBack = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#7c45d0]" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#6D3FC4]" />
           <p className="text-gray-600">Carregando calendário...</p>
         </div>
       </div>
@@ -339,9 +468,9 @@ const SharedBookingEmbedPage: React.FC = () => {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Calendário não encontrado'}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-[#7c45d0] text-white rounded hover:bg-[#5a2d9e]"
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-[#6D3FC4] text-white rounded hover:bg-[#5a2d9e]"
           >
             Tentar novamente
           </button>
@@ -367,7 +496,7 @@ const SharedBookingEmbedPage: React.FC = () => {
                 ✅ Seu agendamento foi registrado com sucesso
               </p>
             </div>
-            <div className="bg-[#f3f0fd] border-l-4 border-[#7c45d0] p-4 rounded-lg shadow-sm mb-6 text-left text-sm text-gray-700">
+            <div className="bg-[#F6F0FD] border-l-4 border-[#6D3FC4] p-4 rounded-lg shadow-sm mb-6 text-left text-sm text-gray-700">
               <strong className="block font-semibold mb-1">🧙‍♂️ Conheça o Merlin Desk</strong>
               Quer automatizar seus próprios agendamentos e atendimentos no WhatsApp com inteligência artificial?
               <br />
@@ -375,7 +504,7 @@ const SharedBookingEmbedPage: React.FC = () => {
                 href="https://merlindesk.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#7c45d0] underline hover:text-[#5a2d9e]"
+                className="text-[#6D3FC4] underline hover:text-[#5a2d9e]"
               >
                 Saiba como o Merlin Desk pode ajudar sua empresa →
               </a>
@@ -387,63 +516,10 @@ const SharedBookingEmbedPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 min-h-screen bg-white w-full max-w-3xl mx-auto">
-      {window.self === window.top && (
-        <button
-          onClick={() => setShowEmbedModal(true)}
-          className="text-sm text-[#7c45d0] underline mb-4 hover:text-[#5a2d9e]"
-        >
-          🔗 Código para incorporar
-        </button>
-      )}
+    <div className="p-4 min-h-screen bg-white w-full max-w-4xl mx-auto">
+      <ProgressSteps />
 
-      <div className="mb-6">
-        <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-          <span className={step >= 1 ? 'text-[#7c45d0] font-medium' : ''}>Especialidade</span>
-          <span className={step >= 2 ? 'text-[#7c45d0] font-medium' : ''}>Profissional</span>
-          <span className={step >= 3 ? 'text-[#7c45d0] font-medium' : ''}>Data & Hora</span>
-          <span className={step >= 4 ? 'text-[#7c45d0] font-medium' : ''}>Seus Dados</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-[#7c45d0] h-2 rounded-full transition-all duration-300"
-            style={{ width: `${(step / 4) * 100}%` }}
-          ></div>
-        </div>
-      </div>
-
-      <Dialog open={showEmbedModal} onClose={() => setShowEmbedModal(false)} className="fixed z-50 inset-0 overflow-y-auto">
-        <div className="flex items-center justify-center min-h-screen px-4 bg-black bg-opacity-50">
-          <Dialog.Panel className="bg-white max-w-lg w-full rounded-lg p-6 shadow-xl">
-            <Dialog.Title className="text-lg font-semibold mb-4">Incorpore este calendário no seu site</Dialog.Title>
-            <p className="text-sm text-gray-700 mb-2">
-              Copie e cole o código abaixo no seu site:
-            </p>
-            <textarea
-              className="w-full text-sm p-3 border rounded bg-gray-50 font-mono"
-              rows={5}
-              readOnly
-              value={`<iframe src="https://merlindesk.com/booking/embed/${calendar.id}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`}
-            />
-            <div className="flex gap-2 mt-3">
-              <button
-                className="px-4 py-2 bg-[#7c45d0] text-white rounded hover:bg-[#5a2d9e]"
-                onClick={copyEmbedCode}
-              >
-                Copiar código
-              </button>
-              <button
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-                onClick={() => setShowEmbedModal(false)}
-              >
-                Fechar
-              </button>
-            </div>
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-
-      {step === 1 && (
+      {currentStep === 1 && (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Escolha o serviço</h2>
           {specialties.length > 0 ? (
@@ -453,9 +529,9 @@ const SharedBookingEmbedPage: React.FC = () => {
                   key={spec.id}
                   onClick={() => {
                     setSpecialty(spec);
-                    nextStep();
+                    setCurrentStep(2);
                   }}
-                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#7c45d0] hover:bg-[#f3f0fd] transition-all"
+                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition-all"
                 >
                   <div className="font-semibold text-gray-900">{spec.name}</div>
                   <div className="text-sm text-gray-600 mt-1">
@@ -475,23 +551,21 @@ const SharedBookingEmbedPage: React.FC = () => {
         </div>
       )}
 
-      {step === 2 && (
+      {currentStep === 2 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-6">
-            <button onClick={prevStep} className="p-2 hover:bg-gray-100 rounded">
+            <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h2 className="text-2xl font-bold text-gray-900">Escolha o profissional</h2>
           </div>
-          
           {specialty && (
-            <div className="bg-[#f3f0fd] p-3 rounded-lg mb-4">
-              <p className="text-sm text-[#7c45d0]">
+            <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4">
+              <p className="text-sm text-[#6D3FC4]">
                 <strong>Serviço selecionado:</strong> {specialty.name}
               </p>
             </div>
           )}
-
           {filteredProfessionals.length > 0 ? (
             <div className="grid gap-3">
               {filteredProfessionals.map((prof) => (
@@ -499,9 +573,9 @@ const SharedBookingEmbedPage: React.FC = () => {
                   key={prof.id}
                   onClick={() => {
                     setProfessional(prof);
-                    nextStep();
+                    setCurrentStep(3);
                   }}
-                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#7c45d0] hover:bg-[#f3f0fd] transition-all"
+                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition-all"
                 >
                   <div className="font-semibold text-gray-900">{prof.name}</div>
                   {prof.title && (
@@ -521,71 +595,108 @@ const SharedBookingEmbedPage: React.FC = () => {
         </div>
       )}
 
-      {step === 3 && professional && specialty && (
+      {currentStep === 3 && professional && specialty && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-6">
-            <button onClick={prevStep} className="p-2 hover:bg-gray-100 rounded">
+            <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h2 className="text-2xl font-bold text-gray-900">Escolha data e horário</h2>
           </div>
-
-          <div className="bg-[#f3f0fd] p-3 rounded-lg mb-4 space-y-1">
-            <p className="text-sm text-[#7c45d0]">
+          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
+            <p className="text-sm text-[#6D3FC4]">
               <strong>Serviço:</strong> {specialty.name}
             </p>
-            <p className="text-sm text-[#7c45d0]">
+            <p className="text-sm text-[#6D3FC4]">
               <strong>Profissional:</strong> {professional.name}
             </p>
           </div>
-
           <DateTimeSelection
             professional={professional}
             specialty={specialty}
-            workingDays={workingDays}
-            getTimeSlots={getTimeSlots}
-            selectedDate={selectedDate}
-            onSelect={(date, time) => {
+            onSelect={(date, timeSlot) => {
               setSelectedDate(date);
-              setSelectedTime(time);
-              nextStep();
+              setSelectedTime(timeSlot);
+              setCurrentStep(4);
             }}
-            onBack={prevStep}
+            onBack={handleBack}
+            workingDays={workingDays}
+            selectedDate={selectedDate}
           />
         </div>
       )}
 
-      {step === 4 && (
+      {currentStep === 4 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-6">
-            <button onClick={prevStep} className="p-2 hover:bg-gray-100 rounded">
+            <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h2 className="text-2xl font-bold text-gray-900">Seus dados</h2>
           </div>
-
-          <div className="bg-[#f3f0fd] p-3 rounded-lg mb-4 space-y-1">
-            <p className="text-sm text-[#7c45d0]">
+          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
+            <p className="text-sm text-[#6D3FC4]">
               <strong>Serviço:</strong> {specialty?.name}
             </p>
-            <p className="text-sm text-[#7c45d0]">
+            <p className="text-sm text-[#6D3FC4]">
               <strong>Profissional:</strong> {professional?.name}
             </p>
-            <p className="text-sm text-[#7c45d0]">
-              <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             </p>
-            <p className="text-sm text-[#7c45d0]">
+            <p className="text-sm text-[#6D3FC4]">
               <strong>Horário:</strong> {selectedTime?.start} - {selectedTime?.end}
             </p>
           </div>
-
           <ClientInfoForm
-            onBack={prevStep}
+            onBack={handleBack}
             onSubmit={(data) => {
               setClient(data);
-              handleBooking();
+              setCurrentStep(5);
             }}
           />
+        </div>
+      )}
+
+      {currentStep === 5 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-6">
+            <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-2xl font-bold text-gray-900">Confirmação</h2>
+          </div>
+          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Serviço:</strong> {specialty?.name}
+            </p>
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Profissional:</strong> {professional?.name}
+            </p>
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+            </p>
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Horário:</strong> {selectedTime?.start} - {selectedTime?.end}
+            </p>
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>Nome:</strong> {client?.name}
+            </p>
+            <p className="text-sm text-[#6D3FC4]">
+              <strong>E-mail:</strong> {client?.email}
+            </p>
+            {client?.phone && (
+              <p className="text-sm text-[#6D3FC4]">
+                <strong>Telefone:</strong> {client?.phone}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handleBooking}
+            className="px-4 py-3 bg-[#6D3FC4] text-white rounded hover:bg-[#5a2d9e] w-full"
+          >
+            Confirmar agendamento
+          </button>
         </div>
       )}
     </div>
