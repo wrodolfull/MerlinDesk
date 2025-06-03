@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
 import { Check, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
-import { DateTimeSelection } from '../components/DateTimeSelection/DateTimeSelection';
+import { DateTimeSelection } from '../components/booking/DateTimeSelection';
 
 interface ClientFormData {
   name: string;
