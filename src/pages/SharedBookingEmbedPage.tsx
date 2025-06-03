@@ -1,301 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { format, addDays, isSameDay, isAfter, addMonths, subMonths } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
-import { Check, ArrowLeft, CheckCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
+import { DateTimeSelection } from '../components/DateTimeSelection/DateTimeSelection';
 
 interface ClientFormData {
   name: string;
   email: string;
   phone?: string;
 }
-
-const DateTimeSelection = ({
-  professional,
-  specialty,
-  onSelect,
-  onBack,
-  workingDays,
-  selectedDate,
-}: {
-  professional?: Professional;
-  specialty?: Specialty;
-  onSelect: (date: Date, timeSlot: { start: string; end: string }) => void;
-  onBack: () => void;
-  workingDays: number[];
-  selectedDate?: Date;
-}) => {
-  const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate || new Date());
-  const [availableDates, setAvailableDates] = useState<Date[]>([]);
-  const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
-  const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
-
-  const getTimeSlots = async (
-    date: Date,
-    professionalId: string,
-    specialtyId: string
-  ): Promise<{ start: string; end: string }[]> => {
-    try {
-      const { data, error } = await supabase.rpc('get_available_slots', {
-        input_professional_id: professionalId,
-        input_specialty_id: specialtyId,
-        input_date: format(date, 'yyyy-MM-dd'),
-      });
-
-      if (error) {
-        console.error('Erro ao buscar horários:', error);
-        return [];
-      }
-
-      const now = new Date();
-      return (data || [])
-        .map((slot: { start_time: string; end_time: string }) => ({
-          start: slot.start_time,
-          end: slot.end_time,
-        }))
-        .filter((slot) => {
-          const slotDate = new Date(slot.start);
-          return isAfter(slotDate, now) || isSameDay(slotDate, now);
-        });
-    } catch (err) {
-      console.error('Erro inesperado:', err);
-      return [];
-    }
-  };
-
-  useEffect(() => {
-    if (selectedDate) setInternalSelectedDate(selectedDate);
-  }, [selectedDate]);
-
-  // CORRIGIDO: Remover duplicação e usar lógica correta
-  useEffect(() => {
-    console.log('📅 GERANDO DATAS VÁLIDAS:');
-    console.log('  🗓️ Working Days recebidos:', workingDays);
-    
-    const today = new Date();
-    console.log('  📍 Hoje:', format(today, 'yyyy-MM-dd EEEE', { locale: ptBR }));
-    console.log('  📍 Hoje (getDay):', today.getDay());
-    
-    const validDates: Date[] = [];
-
-    for (let i = 0; i < 60; i++) {
-      const date = addDays(today, i);
-      const dayOfWeek = date.getDay();
-      
-      console.log(`  📆 ${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - dayOfWeek: ${dayOfWeek}`);
-      
-      if (workingDays.includes(dayOfWeek)) {
-        console.log('    ✅ Incluída como válida');
-        validDates.push(date);
-      } else {
-        console.log('    ❌ Não é dia de trabalho');
-      }
-    }
-
-    console.log('📋 Total de datas válidas:', validDates.length);
-    setAvailableDates(validDates);
-  }, [workingDays]);
-
-  useEffect(() => {
-    const fetchSlots = async () => {
-      if (!professional || !specialty) return;
-
-      const allSlots = await getTimeSlots(
-        internalSelectedDate,
-        professional.id,
-        specialty.id
-      );
-
-      const now = new Date();
-      const filtered = allSlots.filter((slot) => {
-        const slotStart = new Date(slot.start);
-        return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
-      });
-
-      setTimeSlots(filtered);
-    };
-
-    fetchSlots();
-  }, [internalSelectedDate, professional, specialty]);
-
-  const handleDateSelect = (date: Date) => {
-    console.log('📅 DATA SELECIONADA:', format(date, 'yyyy-MM-dd EEEE', { locale: ptBR }));
-    setInternalSelectedDate(date);
-  };
-
-  const formatDisplayTime = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Sao_Paulo',
-      hour12: false,
-    });
-  };
-
-  // CORRIGIDO: Função para gerar calendário corretamente
-  const generateCalendarDays = () => {
-    const year = internalSelectedDate.getFullYear();
-    const month = internalSelectedDate.getMonth();
-    
-    // Primeiro dia do mês
-    const firstDay = new Date(year, month, 1);
-    // Último dia do mês
-    const lastDay = new Date(year, month + 1, 0);
-    
-    console.log('📅 GERANDO CALENDÁRIO:');
-    console.log('  📆 Primeiro dia do mês:', format(firstDay, 'yyyy-MM-dd EEEE', { locale: ptBR }));
-    console.log('  📆 getDay() do primeiro dia:', firstDay.getDay());
-    console.log('  📆 Último dia do mês:', format(lastDay, 'yyyy-MM-dd EEEE', { locale: ptBR }));
-    
-    // Quantos dias vazios no início (0 = domingo, 1 = segunda, etc.)
-    const startDayOfWeek = firstDay.getDay();
-    
-    const calendarDays: (Date | null)[] = [];
-    
-    // Adicionar dias vazios no início
-    for (let i = 0; i < startDayOfWeek; i++) {
-      calendarDays.push(null);
-    }
-    
-    // Adicionar todos os dias do mês
-    for (let day = 1; day <= lastDay.getDate(); day++) {
-      const date = new Date(year, month, day);
-      calendarDays.push(date);
-      
-      if (day <= 7) {
-        console.log(`  📆 Dia ${day}: ${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - getDay: ${date.getDay()}`);
-      }
-    }
-    
-    console.log('  📊 Total de células:', calendarDays.length);
-    console.log('  📊 Dias vazios no início:', startDayOfWeek);
-    
-    return calendarDays;
-  };
-
-  const calendarDays = generateCalendarDays();
-
-  // CORRIGIDO: Navegação de mês
-  const goToPreviousMonth = () => {
-    setInternalSelectedDate(subMonths(internalSelectedDate, 1));
-  };
-
-  const goToNextMonth = () => {
-    setInternalSelectedDate(addMonths(internalSelectedDate, 1));
-  };
-
-  return (
-    <div className="animate-fade-in flex flex-col-reverse md:flex-row gap-8">
-      {/* CALENDÁRIO */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-full md:w-1/2">
-        <div className="flex justify-between items-center mb-4">
-          <h4 className="font-semibold text-gray-900">
-            {format(internalSelectedDate, 'MMMM yyyy', { locale: ptBR })}
-          </h4>
-          <div className="flex space-x-2">
-            <button
-              onClick={goToPreviousMonth}
-              className="p-2 hover:bg-gray-100 rounded"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={goToNextMonth}
-              className="p-2 hover:bg-gray-100 rounded"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* CABEÇALHO DOS DIAS DA SEMANA */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d, i) => (
-            <div key={i} className="text-xs text-gray-500 text-center py-2 font-medium">{d}</div>
-          ))}
-        </div>
-
-        {/* GRID DO CALENDÁRIO */}
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((date, i) => {
-            if (!date) {
-              return <div key={i} className="text-sm text-center py-2"></div>;
-            }
-
-            const isAvailable = availableDates.some((available) => isSameDay(available, date));
-            const isCurrent = isSameDay(date, internalSelectedDate);
-            const isToday = isSameDay(date, new Date());
-            const isPast = date < new Date() && !isSameDay(date, new Date());
-
-            return (
-              <div
-                key={i}
-                onClick={() => isAvailable && !isPast ? handleDateSelect(date) : undefined}
-                className={`text-sm text-center py-2 rounded transition-all ${
-                  isCurrent && isAvailable
-                    ? 'bg-[#6D3FC4] text-white font-bold cursor-pointer'
-                    : isToday
-                    ? 'bg-blue-100 text-blue-800 font-bold border border-blue-300'
-                    : isAvailable && !isPast
-                    ? 'bg-[#F6F0FD] text-[#6D3FC4] hover:bg-[#E8DBFA] cursor-pointer'
-                    : isPast
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-400 cursor-not-allowed'
-                }`}
-                title={`${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - Day: ${date.getDay()}`}
-              >
-                {format(date, 'd')}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* HORÁRIOS */}
-      <div className="w-full md:w-1/2">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Escolha um horário</h2>
-        <p className="text-gray-600 mb-6">
-          {professional ? `com ${professional.name}` : 'Selecione um profissional'}
-        </p>
-
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-800 mb-2">
-            Horários disponíveis para {format(internalSelectedDate, "dd 'de' MMMM", { locale: ptBR })}
-          </h3>
-          
-          {timeSlots.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {timeSlots.map((slot, index) => (
-                <button
-                  key={`${slot.start}-${index}`}
-                  onClick={() => onSelect(internalSelectedDate, slot)}
-                  className="py-2 px-3 rounded border border-gray-200 text-sm hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition"
-                >
-                  {formatDisplayTime(slot.start)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 text-center p-4 rounded text-gray-500 text-sm">
-              Nenhum horário disponível nesta data.
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={onBack}
-          className="px-4 py-2 text-[#6D3FC4] hover:text-[#5a2d9e]"
-        >
-          ← Voltar
-        </button>
-      </div>
-    </div>
-  );
-};
 
 const ClientInfoForm = ({
   onSubmit,
@@ -363,8 +80,26 @@ const ClientInfoForm = ({
   );
 };
 
-const SharedBookingEmbedPage: React.FC = () => {
-  const { id } = useParams();
+interface SharedBookingEmbedPageProps {
+  calendarId?: string;
+  onBookingComplete?: (bookingData: any) => void;
+  customStyles?: {
+    primaryColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  };
+  showBranding?: boolean;
+}
+
+const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
+  calendarId: propCalendarId,
+  onBookingComplete,
+  customStyles = {},
+  showBranding = true
+}) => {
+  const { id: paramId } = useParams();
+  const calendarId = propCalendarId || paramId;
+  
   const [calendar, setCalendar] = useState<Calendar | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -381,49 +116,72 @@ const SharedBookingEmbedPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
   
+  // Aplicar estilos customizados
+  const primaryColor = customStyles.primaryColor || '#6D3FC4';
+  const backgroundColor = customStyles.backgroundColor || 'white';
+  const textColor = customStyles.textColor || '#1f2937';
+
   // Buscar dados do calendário
   useEffect(() => {
-    if (!id) return;
+    if (!calendarId) return;
+    
     const fetchCalendar = async () => {
       try {
         setLoading(true);
         const { data, error } = await supabase
           .from('calendars')
           .select('*')
-          .eq('id', id)
+          .eq('id', calendarId)
           .single();
+          
         if (error) throw error;
         if (data) setCalendar(data);
       } catch (err) {
+        console.error('Erro ao buscar calendário:', err);
         setError('Calendário não encontrado');
       } finally {
         setLoading(false);
       }
     };
+    
     fetchCalendar();
-  }, [id]);
+  }, [calendarId]);
 
   // Buscar profissionais e especialidades
   useEffect(() => {
     if (!calendar?.id) return;
+    
     const fetchCalendarData = async () => {
       try {
+        // Buscar especialidades
         const { data: specialtiesData, error: specError } = await supabase
           .from('specialties')
           .select('*')
           .eq('calendar_id', calendar.id);
+          
         if (specError) throw specError;
+        
         if (specialtiesData && specialtiesData.length > 0) {
           setSpecialties(specialtiesData.map((s: any) => ({
             ...s,
             calendarId: s.calendar_id,
           })));
         }
+
+        // Buscar profissionais com especialidades
         const { data: professionalsData, error: profError } = await supabase
           .from('professionals')
-          .select(`*, professional_specialties!inner (specialty_id, specialties (id, name, duration, price))`)
+          .select(`
+            *, 
+            professional_specialties!inner (
+              specialty_id, 
+              specialties (id, name, duration, price)
+            )
+          `)
           .eq('calendar_id', calendar.id);
+          
         if (profError) throw profError;
+        
         if (professionalsData && professionalsData.length > 0) {
           const mappedProfessionals = professionalsData.map((p: any) => ({
             ...p,
@@ -433,98 +191,106 @@ const SharedBookingEmbedPage: React.FC = () => {
           setProfessionals(mappedProfessionals);
         }
       } catch (error) {
+        console.error('Erro ao carregar dados do calendário:', error);
         setError('Erro ao carregar dados do calendário');
       }
     };
+    
     fetchCalendarData();
   }, [calendar?.id]);
 
-  // Filtrar profissionais
+  // Filtrar profissionais por especialidade
   useEffect(() => {
     if (!specialty || !professionals.length) {
       setFilteredProfessionals([]);
       return;
     }
+    
     const filtered = professionals.filter(prof => 
       prof.specialties?.some(spec => spec.id === specialty.id)
     );
     setFilteredProfessionals(filtered);
   }, [specialty, professionals]);
 
-  // Buscar dias de trabalho - CORRIGIDO
-useEffect(() => {
-  const fetchWorkingDays = async () => {
-    if (!professional?.id) return;
-    
-    setLoadingWorkingDays(true);
-    
-    try {
-      // Primeiro, tenta buscar da tabela working_hours
-      const { data, error } = await supabase
-        .from('working_hours')
-        .select('day_of_week')
-        .eq('professional_id', professional.id)
-        .eq('is_working_day', true);
-        
-      if (error) throw error;
+  // Buscar dias de trabalho com fallback inteligente
+  useEffect(() => {
+    const fetchWorkingDays = async () => {
+      if (!professional?.id) return;
       
-      if (data && data.length > 0) {
-        // Se encontrou working_hours, usa eles
-        const days = data.map((d) => d.day_of_week);
-        console.log('✅ Working days da tabela working_hours:', days);
-        setWorkingDays(days);
-      } else {
-        // FALLBACK: Se não encontrou working_hours, extrai dos slots disponíveis
-        console.log('⚠️ Nenhum working_hours encontrado, usando fallback...');
-        await extractWorkingDaysFromSlots();
-      }
-    } catch (error) {
-      console.error('❌ Erro ao buscar working days:', error);
-      // Em caso de erro, tenta o fallback
-      await extractWorkingDaysFromSlots();
-    } finally {
-      setLoadingWorkingDays(false);
-    }
-  };
-  
-  // Função auxiliar para extrair dias dos slots disponíveis
-  const extractWorkingDaysFromSlots = async () => {
-    if (!professional?.id || !specialty?.id) return;
-    
-    try {
-      const uniqueDays = new Set<number>();
-      const today = new Date();
+      setLoadingWorkingDays(true);
       
-      // Verifica os próximos 14 dias para encontrar dias com slots
-      for (let i = 0; i < 14; i++) {
-        const checkDate = addDays(today, i);
-        const dateStr = format(checkDate, 'yyyy-MM-dd');
+      try {
+        console.log('🔍 Buscando working days para profissional:', professional.id);
         
-        const { data, error } = await supabase.rpc('get_available_slots', {
-          input_professional_id: professional.id,
-          input_specialty_id: specialty.id,
-          input_date: dateStr,
-        });
+        // Primeiro, tenta buscar da tabela working_hours
+        const { data, error } = await supabase
+          .from('working_hours')
+          .select('day_of_week')
+          .eq('professional_id', professional.id)
+          .eq('is_working_day', true);
+          
+        if (error) throw error;
         
-        if (!error && data && data.length > 0) {
-          uniqueDays.add(checkDate.getDay());
+        if (data && data.length > 0) {
+          const days = data.map((d) => d.day_of_week);
+          console.log('✅ Working days da tabela working_hours:', days);
+          setWorkingDays(days);
+        } else {
+          console.log('⚠️ Nenhum working_hours encontrado, usando fallback...');
+          await extractWorkingDaysFromSlots();
         }
+      } catch (error) {
+        console.error('❌ Erro ao buscar working days:', error);
+        await extractWorkingDaysFromSlots();
+      } finally {
+        setLoadingWorkingDays(false);
       }
+    };
+    
+    // Função auxiliar para extrair dias dos slots disponíveis
+    const extractWorkingDaysFromSlots = async () => {
+      if (!professional?.id || !specialty?.id) return;
       
-      const extractedDays = Array.from(uniqueDays);
-      console.log('✅ Working days extraídos dos slots:', extractedDays);
-      setWorkingDays(extractedDays);
-      
-    } catch (error) {
-      console.error('❌ Erro ao extrair working days dos slots:', error);
-      // Como último recurso, assume todos os dias úteis
-      setWorkingDays([1, 2, 3, 4, 5]); // Segunda a sexta
-    }
-  };
-  
-  fetchWorkingDays();
-}, [professional?.id, specialty?.id]);
-
+      try {
+        const uniqueDays = new Set<number>();
+        const today = new Date();
+        
+        // Verifica os próximos 14 dias para encontrar dias com slots
+        for (let i = 0; i < 14; i++) {
+          const checkDate = addDays(today, i);
+          const dateStr = format(checkDate, 'yyyy-MM-dd');
+          
+          const { data, error } = await supabase.rpc('get_available_slots', {
+            input_professional_id: professional.id,
+            input_specialty_id: specialty.id,
+            input_date: dateStr,
+          });
+          
+          if (!error && data && data.length > 0) {
+            uniqueDays.add(checkDate.getDay());
+          }
+        }
+        
+        const extractedDays = Array.from(uniqueDays);
+        console.log('✅ Working days extraídos dos slots:', extractedDays);
+        
+        if (extractedDays.length > 0) {
+          setWorkingDays(extractedDays);
+        } else {
+          // Como último recurso, assume todos os dias úteis
+          console.log('⚠️ Usando fallback final: dias úteis');
+          setWorkingDays([1, 2, 3, 4, 5]); // Segunda a sexta
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao extrair working days dos slots:', error);
+        // Como último recurso, assume todos os dias úteis
+        setWorkingDays([1, 2, 3, 4, 5]);
+      }
+    };
+    
+    fetchWorkingDays();
+  }, [professional?.id, specialty?.id]);
 
   const handleBooking = async () => {
     if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) {
@@ -617,10 +383,24 @@ useEffect(() => {
       console.log('✅ Agendamento criado com sucesso:', appointment);
       setBookingComplete(true);
       
-      // Aguarda 5 segundos e abre merlindesk.com em nova aba
-      setTimeout(() => {
-        window.open('https://merlindesk.com', '_blank');
-      }, 5000);
+      // Callback personalizado se fornecido
+      if (onBookingComplete) {
+        onBookingComplete({
+          appointment,
+          client,
+          professional,
+          specialty,
+          selectedDate,
+          selectedTime
+        });
+      }
+      
+      // Aguarda 5 segundos e abre merlindesk.com em nova aba (apenas se showBranding for true)
+      if (showBranding) {
+        setTimeout(() => {
+          window.open('https://merlindesk.com', '_blank');
+        }, 5000);
+      }
       
     } catch (error) {
       console.error('❌ Erro ao criar agendamento:', error);
@@ -641,27 +421,37 @@ useEffect(() => {
       <div className="flex items-center justify-between relative">
         <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
         <div
-          className="absolute top-4 left-0 h-0.5 bg-[#6D3FC4] z-10 transition-all duration-500 ease-out"
-          style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+          className="absolute top-4 left-0 h-0.5 z-10 transition-all duration-500 ease-out"
+          style={{ 
+            backgroundColor: primaryColor,
+            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` 
+          }}
         ></div>
         {steps.map((step) => (
           <div key={step.id} className="flex flex-col items-center relative z-20">
             <div
               className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
                 currentStep > step.id
-                  ? 'bg-[#6D3FC4] border-[#6D3FC4] text-white'
+                  ? `text-white`
                   : currentStep === step.id
-                  ? 'bg-white border-[#6D3FC4] text-[#6D3FC4] shadow-lg ring-4 ring-[#F6F0FD]'
+                  ? `bg-white text-white shadow-lg ring-4`
                   : 'bg-white border-gray-300 text-gray-400'
               }`}
+              style={{
+                backgroundColor: currentStep > step.id ? primaryColor : currentStep === step.id ? 'white' : 'white',
+                borderColor: currentStep >= step.id ? primaryColor : '#d1d5db',
+                color: currentStep > step.id ? 'white' : currentStep === step.id ? primaryColor : '#9ca3af',
+                ringColor: currentStep === step.id ? `${primaryColor}20` : 'transparent'
+              }}
             >
               {currentStep > step.id ? (
                 <Check className="w-4 h-4" />
               ) : (
                 <div
-                  className={`w-2 h-2 rounded-full ${
-                    currentStep === step.id ? 'bg-[#6D3FC4]' : 'bg-gray-400'
-                  }`}
+                  className={`w-2 h-2 rounded-full`}
+                  style={{
+                    backgroundColor: currentStep === step.id ? primaryColor : '#9ca3af'
+                  }}
                 />
               )}
             </div>
@@ -686,9 +476,9 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor }}>
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#6D3FC4]" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: primaryColor }} />
           <p className="text-gray-600">Carregando calendário...</p>
         </div>
       </div>
@@ -697,12 +487,13 @@ useEffect(() => {
 
   if (error || !calendar) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor }}>
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Calendário não encontrado'}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-[#6D3FC4] text-white rounded hover:bg-[#5a2d9e]"
+            className="px-4 py-2 text-white rounded hover:opacity-90"
+            style={{ backgroundColor: primaryColor }}
           >
             Tentar novamente
           </button>
@@ -728,19 +519,26 @@ useEffect(() => {
                 ✅ Seu agendamento foi registrado com sucesso
               </p>
             </div>
-            <div className="bg-[#F6F0FD] border-l-4 border-[#6D3FC4] p-4 rounded-lg shadow-sm mb-6 text-left text-sm text-gray-700">
-              <strong className="block font-semibold mb-1">🧙‍♂️ Conheça o Merlin Desk</strong>
-              Quer automatizar seus próprios agendamentos e atendimentos no WhatsApp com inteligência artificial?
-              <br />
-              <a
-                href="https://merlindesk.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#6D3FC4] underline hover:text-[#5a2d9e]"
-              >
-                Saiba como o Merlin Desk pode ajudar sua empresa →
-              </a>
-            </div>
+            {showBranding && (
+              <div className="border-l-4 p-4 rounded-lg shadow-sm mb-6 text-left text-sm text-gray-700"
+                   style={{ 
+                     backgroundColor: `${primaryColor}10`, 
+                     borderColor: primaryColor 
+                   }}>
+                <strong className="block font-semibold mb-1">🧙‍♂️ Conheça o Merlin Desk</strong>
+                Quer automatizar seus próprios agendamentos e atendimentos no WhatsApp com inteligência artificial?
+                <br />
+                <a
+                  href="https://merlindesk.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:opacity-80"
+                  style={{ color: primaryColor }}
+                >
+                  Saiba como o Merlin Desk pode ajudar sua empresa →
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -748,12 +546,12 @@ useEffect(() => {
   }
 
   return (
-    <div className="p-4 min-h-screen bg-white w-full max-w-4xl mx-auto">
+    <div className="p-4 min-h-screen w-full max-w-4xl mx-auto" style={{ backgroundColor, color: textColor }}>
       <ProgressSteps />
 
       {currentStep === 1 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Escolha o serviço</h2>
+          <h2 className="text-2xl font-bold mb-6" style={{ color: textColor }}>Escolha o serviço</h2>
           {specialties.length > 0 ? (
             <div className="grid gap-3">
               {specialties.map((spec) => (
@@ -763,7 +561,19 @@ useEffect(() => {
                     setSpecialty(spec);
                     setCurrentStep(2);
                   }}
-                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition-all"
+                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-opacity-80 transition-all"
+                  style={{
+                    borderColor: `${primaryColor}40`,
+                    backgroundColor: 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = primaryColor;
+                    e.currentTarget.style.backgroundColor = `${primaryColor}10`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${primaryColor}40`;
+                    e.currentTarget.style.backgroundColor = 'white';
+                  }}
                 >
                   <div className="font-semibold text-gray-900">{spec.name}</div>
                   <div className="text-sm text-gray-600 mt-1">
@@ -789,11 +599,11 @@ useEffect(() => {
             <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-2xl font-bold text-gray-900">Escolha o profissional</h2>
+            <h2 className="text-2xl font-bold" style={{ color: textColor }}>Escolha o profissional</h2>
           </div>
           {specialty && (
-            <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4">
-              <p className="text-sm text-[#6D3FC4]">
+            <div className="p-3 rounded-lg mb-4" style={{ backgroundColor: `${primaryColor}10` }}>
+              <p className="text-sm" style={{ color: primaryColor }}>
                 <strong>Serviço selecionado:</strong> {specialty.name}
               </p>
             </div>
@@ -807,7 +617,19 @@ useEffect(() => {
                     setProfessional(prof);
                     setCurrentStep(3);
                   }}
-                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-[#6D3FC4] hover:bg-[#F6F0FD] transition-all"
+                  className="p-4 text-left rounded-lg border border-gray-200 hover:border-opacity-80 transition-all"
+                  style={{
+                    borderColor: `${primaryColor}40`,
+                    backgroundColor: 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = primaryColor;
+                    e.currentTarget.style.backgroundColor = `${primaryColor}10`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${primaryColor}40`;
+                    e.currentTarget.style.backgroundColor = 'white';
+                  }}
                 >
                   <div className="font-semibold text-gray-900">{prof.name}</div>
                   {prof.title && (
@@ -833,13 +655,13 @@ useEffect(() => {
             <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-2xl font-bold text-gray-900">Escolha data e horário</h2>
+            <h2 className="text-2xl font-bold" style={{ color: textColor }}>Escolha data e horário</h2>
           </div>
-          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
-            <p className="text-sm text-[#6D3FC4]">
+          <div className="p-3 rounded-lg mb-4 space-y-1" style={{ backgroundColor: `${primaryColor}10` }}>
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Serviço:</strong> {specialty.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Profissional:</strong> {professional.name}
             </p>
           </div>
@@ -880,19 +702,19 @@ useEffect(() => {
             <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-2xl font-bold text-gray-900">Seus dados</h2>
+            <h2 className="text-2xl font-bold" style={{ color: textColor }}>Seus dados</h2>
           </div>
-          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
-            <p className="text-sm text-[#6D3FC4]">
+          <div className="p-3 rounded-lg mb-4 space-y-1" style={{ backgroundColor: `${primaryColor}10` }}>
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Serviço:</strong> {specialty?.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Profissional:</strong> {professional?.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Horário:</strong> {selectedTime && `${new Date(selectedTime.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(selectedTime.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
           </div>
@@ -912,36 +734,37 @@ useEffect(() => {
             <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-2xl font-bold text-gray-900">Confirmação</h2>
+            <h2 className="text-2xl font-bold" style={{ color: textColor }}>Confirmação</h2>
           </div>
-          <div className="bg-[#F6F0FD] p-3 rounded-lg mb-4 space-y-1">
-            <p className="text-sm text-[#6D3FC4]">
+          <div className="p-3 rounded-lg mb-4 space-y-1" style={{ backgroundColor: `${primaryColor}10` }}>
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Serviço:</strong> {specialty?.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Profissional:</strong> {professional?.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Horário:</strong> {selectedTime && `${new Date(selectedTime.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(selectedTime.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>Nome:</strong> {client?.name}
             </p>
-            <p className="text-sm text-[#6D3FC4]">
+            <p className="text-sm" style={{ color: primaryColor }}>
               <strong>E-mail:</strong> {client?.email}
             </p>
             {client?.phone && (
-              <p className="text-sm text-[#6D3FC4]">
+              <p className="text-sm" style={{ color: primaryColor }}>
                 <strong>Telefone:</strong> {client?.phone}
               </p>
             )}
           </div>
           <button
             onClick={handleBooking}
-            className="px-4 py-3 bg-[#6D3FC4] text-white rounded hover:bg-[#5a2d9e] w-full"
+            className="px-4 py-3 text-white rounded hover:opacity-90 w-full transition-opacity"
+            style={{ backgroundColor: primaryColor }}
           >
             Confirmar agendamento
           </button>
