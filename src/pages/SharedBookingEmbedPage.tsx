@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
