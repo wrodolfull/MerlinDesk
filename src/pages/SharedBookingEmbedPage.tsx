@@ -31,6 +31,7 @@ const DateTimeSelection = ({
   const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate || new Date());
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
+  const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
 
   const getTimeSlots = async (
     date: Date,
@@ -377,8 +378,9 @@ const SharedBookingEmbedPage: React.FC = () => {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
+  
   // Buscar dados do calendário
   useEffect(() => {
     if (!id) return;
@@ -450,36 +452,41 @@ const SharedBookingEmbedPage: React.FC = () => {
   }, [specialty, professionals]);
 
   // Buscar dias de trabalho - CORRIGIDO
-  useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!professional?.id) return;
-      
-      console.log('🔍 Buscando working days para professional:', professional.id);
-      
-      try {
-        const { data, error } = await supabase
-          .from('working_hours')
-          .select('day_of_week')
-          .eq('professional_id', professional.id)
-          .eq('is_working_day', true);
-          
-        if (error) {
-          console.error('❌ Erro ao buscar working days:', error);
-          setWorkingDays([]);
-          return;
-        }
-        
-        const days = data?.map((d) => d.day_of_week) || [];
-        console.log('✅ Working days encontrados:', days);
-        setWorkingDays(days);
-      } catch (error) {
-        console.error('❌ Erro inesperado ao buscar dias de trabalho:', error);
-        setWorkingDays([]);
-      }
-    };
+useEffect(() => {
+  const fetchWorkingDays = async () => {
+    if (!professional?.id) return;
     
-    fetchWorkingDays();
-  }, [professional?.id]);
+    setLoadingWorkingDays(true);
+
+    console.log('🔍 Buscando working days para professional:', professional.id);
+    setLoadingWorkingDays(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('working_hours')
+        .select('day_of_week')
+        .eq('professional_id', professional.id)
+        .eq('is_working_day', true);
+        
+      if (error) {
+        console.error('❌ Erro ao buscar working days:', error);
+        setWorkingDays([]);
+        return;
+      }
+      
+      const days = data?.map((d) => d.day_of_week) || [];
+      console.log('✅ Working days encontrados:', days);
+      setWorkingDays(days);
+    } catch (error) {
+      console.error('❌ Erro inesperado ao buscar dias de trabalho:', error);
+      setWorkingDays([]);
+    } finally {
+      setLoadingWorkingDays(false);
+    }
+  };
+  
+  fetchWorkingDays();
+}, [professional?.id]);
 
   // CORRIGIDO: Função de booking
   const handleBooking = async () => {
@@ -799,7 +806,13 @@ const SharedBookingEmbedPage: React.FC = () => {
               <strong>Profissional:</strong> {professional.name}
             </p>
           </div>
-          {workingDays.length > 0 ? (
+
+          {loadingWorkingDays ? (
+            <div className="text-center text-gray-500 py-10">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              Carregando dias disponíveis...
+            </div>
+          ) : workingDays.length > 0 ? (
             <DateTimeSelection
               professional={professional}
               specialty={specialty}
@@ -815,6 +828,10 @@ const SharedBookingEmbedPage: React.FC = () => {
           ) : (
             <div className="text-center text-red-500 py-10">
               Nenhum horário de trabalho configurado para esse profissional.
+              <br />
+              <small className="text-gray-500 mt-2 block">
+                Configure os horários de trabalho no painel administrativo.
+              </small>
             </div>
           )}
         </div>
