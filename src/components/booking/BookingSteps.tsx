@@ -27,7 +27,7 @@ interface BookingStepsProps {
     }>({});
     const [workingDays, setWorkingDays] = useState<number[]>([]);
     const [loadingDays, setLoadingDays] = useState(false);
-    
+
     useEffect(() => {
       const fetchWorkingDays = async () => {
         if (!bookingData.professional) return;
@@ -167,6 +167,11 @@ interface BookingStepsProps {
       if (onComplete) {
         onComplete(appointment);
       }
+
+      // Aguarda 5 segundos e abre merlindesk.com em nova aba
+      setTimeout(() => {
+        window.open('https://merlindesk.com', '_blank');
+      }, 5000);
       
     } catch (error) {
       console.error('❌ Erro ao criar agendamento:', error);
