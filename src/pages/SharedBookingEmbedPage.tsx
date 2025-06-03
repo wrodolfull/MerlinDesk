@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { format, addDays, isSameDay, isAfter, addMonths, subMonths } from 'date-fns';
+import { format, addDays, isSameDay, isAfter, isBefore, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
@@ -68,16 +68,20 @@ const DateTimeSelection = ({
     if (selectedDate) setInternalSelectedDate(selectedDate);
   }, [selectedDate]);
 
-  useEffect(() => {
-    const today = new Date();
-    const validDates: Date[] = [];
-    for (let i = 0; i < 60; i++) {
-      const date = addDays(today, i);
-      const dayOfWeek = date.getDay();
-      if (workingDays.includes(dayOfWeek)) validDates.push(date);
-    }
-    setAvailableDates(validDates);
-  }, [workingDays]);
+    useEffect(() => {
+      const today = new Date();
+      const validDates: Date[] = [];
+      
+      // Gerar 60 dias a partir de hoje incluindo o dia atual
+      for (let i = 0; i < 60; i++) {
+        const date = addDays(today, i);
+        if (workingDays.includes(date.getDay())) {
+          validDates.push(date);
+        }
+      }
+      
+      setAvailableDates(validDates);
+    }, [workingDays]);
 
   useEffect(() => {
     const fetchSlots = async () => {
@@ -110,16 +114,13 @@ const DateTimeSelection = ({
       const month = internalSelectedDate.getMonth();
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
-      const startDayOfWeek = firstDay.getDay(); // Domingo = 0, Segunda = 1, etc.
       
       const calendarDays: (Date | null)[] = [];
       
-      // Preencher dias vazios no início
-      for (let i = 0; i < startDayOfWeek; i++) {
+      for (let i = 0; i < firstDay.getDay(); i++) {
         calendarDays.push(null);
       }
       
-      // Preencher dias do mês
       for (let day = 1; day <= lastDay.getDate(); day++) {
         calendarDays.push(new Date(year, month, day));
       }
@@ -127,7 +128,6 @@ const DateTimeSelection = ({
       return calendarDays;
     };
 
-    // Atualizar o useEffect de availableDates para:
     useEffect(() => {
       const today = new Date();
       const validDates: Date[] = [];
