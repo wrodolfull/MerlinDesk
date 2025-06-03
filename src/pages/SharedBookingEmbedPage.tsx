@@ -61,14 +61,19 @@ const DateTimeSelection = ({
           start: slot.start_time,
           end: slot.end_time,
         }))
-        .filter(slot => {
-          const slotDate = new Date(slot.start);
-          const válido = isAfter(slotDate, now) || isSameDay(slotDate, now);
-          console.log(`🕓 Avaliando horário: ${slot.start} → ${válido ? '✔️ válido' : '❌ inválido'}`);
-          return válido;
+        .filter((slot: { start: string; end: string }) => {
+          const localSlotDate = new Date(slot.start); // UTC
+          const localNow = new Date();
+
+          const slotBR = new Date(localSlotDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+          const nowBR = new Date(localNow.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+
+          console.log('⏰ Slot local BR:', slotBR.toISOString(), '| Agora BR:', nowBR.toISOString());
+
+          return isAfter(slotBR, nowBR) || isSameDay(slotBR, nowBR);
         });
 
-      console.log('🧾 Horários válidos finais:', slots);
+      console.log('📊 Horários válidos finais:', slots);
       return slots;
     } catch (err) {
       console.error('❌ Erro inesperado:', err);
