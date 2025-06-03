@@ -33,38 +33,48 @@ const DateTimeSelection = ({
   const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
 
   const getTimeSlots = async (
-  date: Date,
-  professionalId: string,
-  specialtyId: string
-): Promise<{ start: string; end: string }[]> => {
-  try {
-    const { data, error } = await supabase.rpc('get_available_slots', {
-      input_professional_id: professionalId,
-      input_specialty_id: specialtyId,
-      input_date: format(date, 'yyyy-MM-dd')
-    });
+    date: Date,
+    professionalId: string,
+    specialtyId: string
+  ): Promise<{ start: string; end: string }[]> => {
+    console.log('📅 Buscando horários para:', format(date, 'yyyy-MM-dd'));
+    console.log('👤 Profissional ID:', professionalId);
+    console.log('🛠️ Especialidade ID:', specialtyId);
 
-    if (error) {
-      console.error('Erro ao buscar horários:', error);
-      return [];
-    }
-
-    const now = new Date();
-    return (data || [])
-      .map((slot: { start_time: string; end_time: string }) => ({
-        start: slot.start_time,
-        end: slot.end_time
-      }))
-      .filter(slot => {
-        const slotDate = new Date(slot.start);
-        return isAfter(slotDate, now) || isSameDay(slotDate, now);
+    try {
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        input_professional_id: professionalId,
+        input_specialty_id: specialtyId,
+        input_date: format(date, 'yyyy-MM-dd'),
       });
 
-  } catch (err) {
-    console.error('Erro inesperado:', err);
-    return [];
-  }
-};
+      if (error) {
+        console.error('❌ Erro no Supabase RPC:', error);
+        return [];
+      }
+
+      console.log('✅ Dados brutos recebidos:', data);
+
+      const now = new Date();
+      const slots = (data || [])
+        .map((slot: { start_time: string; end_time: string }) => ({
+          start: slot.start_time,
+          end: slot.end_time,
+        }))
+        .filter(slot => {
+          const slotDate = new Date(slot.start);
+          const válido = isAfter(slotDate, now) || isSameDay(slotDate, now);
+          console.log(`🕓 Avaliando horário: ${slot.start} → ${válido ? '✔️ válido' : '❌ inválido'}`);
+          return válido;
+        });
+
+      console.log('🧾 Horários válidos finais:', slots);
+      return slots;
+    } catch (err) {
+      console.error('❌ Erro inesperado:', err);
+      return [];
+    }
+  };
 
   useEffect(() => {
     if (selectedDate) setInternalSelectedDate(selectedDate);
@@ -95,6 +105,7 @@ const DateTimeSelection = ({
         return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
       });
       setTimeSlots(filtered);
+      console.log('📊 Final: Horários aplicados ao estado:', filtered);
     };
     fetchSlots();
   }, [internalSelectedDate, professional, specialty]);
