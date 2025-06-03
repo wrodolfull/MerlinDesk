@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { format, addDays, isSameDay, isAfter, isBefore, addMonths, subMonths } from 'date-fns';
+import { format, addDays, isSameDay, isAfter, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { Professional, Specialty, Calendar } from '../types';
-import { Check, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
+import { Check, ArrowLeft, CheckCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 
 interface ClientFormData {
@@ -37,10 +37,6 @@ const DateTimeSelection = ({
     professionalId: string,
     specialtyId: string
   ): Promise<{ start: string; end: string }[]> => {
-    console.log('📅 Buscando horários para:', format(date, 'yyyy-MM-dd'));
-    console.log('👤 Profissional ID:', professionalId);
-    console.log('🛠️ Especialidade ID:', specialtyId);
-
     try {
       const { data, error } = await supabase.rpc('get_available_slots', {
         input_professional_id: professionalId,
@@ -49,34 +45,22 @@ const DateTimeSelection = ({
       });
 
       if (error) {
-        console.error('❌ Erro no Supabase RPC:', error);
+        console.error('Erro ao buscar horários:', error);
         return [];
       }
 
-      console.log('✅ Dados brutos recebidos:', data);
-
       const now = new Date();
-      const slots = (data || [])
+      return (data || [])
         .map((slot: { start_time: string; end_time: string }) => ({
           start: slot.start_time,
           end: slot.end_time,
         }))
-        .filter((slot: { start: string; end: string }) => {
-          const localSlotDate = new Date(slot.start); // UTC
-          const localNow = new Date();
-
-          const slotBR = new Date(slot.start).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-          const nowBR = new Date(localNow.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-
-          console.log('⏰ Slot local BR:', slotBR.toISOString(), '| Agora BR:', nowBR.toISOString());
-
-          return isAfter(slotBR, nowBR) || isSameDay(slotBR, nowBR);
+        .filter((slot) => {
+          const slotDate = new Date(slot.start);
+          return isAfter(slotDate, now) || isSameDay(slotDate, now);
         });
-
-      console.log('📊 Horários válidos finais:', slots);
-      return slots;
     } catch (err) {
-      console.error('❌ Erro inesperado:', err);
+      console.error('Erro inesperado:', err);
       return [];
     }
   };
@@ -85,37 +69,61 @@ const DateTimeSelection = ({
     if (selectedDate) setInternalSelectedDate(selectedDate);
   }, [selectedDate]);
 
-    useEffect(() => {
-      const today = new Date();
-      const validDates: Date[] = [];
+  // CORRIGIDO: Remover duplicação e usar lógica correta
+  useEffect(() => {
+    console.log('📅 GERANDO DATAS VÁLIDAS:');
+    console.log('  🗓️ Working Days recebidos:', workingDays);
+    
+    const today = new Date();
+    console.log('  📍 Hoje:', format(today, 'yyyy-MM-dd EEEE', { locale: ptBR }));
+    console.log('  📍 Hoje (getDay):', today.getDay());
+    
+    const validDates: Date[] = [];
+
+    for (let i = 0; i < 60; i++) {
+      const date = addDays(today, i);
+      const dayOfWeek = date.getDay();
       
-      // Gerar 60 dias a partir de hoje incluindo o dia atual
-      for (let i = 0; i < 60; i++) {
-        const date = addDays(today, i);
-        if (workingDays.includes(date.getDay())) {
-          validDates.push(date);
-        }
+      console.log(`  📆 ${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - dayOfWeek: ${dayOfWeek}`);
+      
+      if (workingDays.includes(dayOfWeek)) {
+        console.log('    ✅ Incluída como válida');
+        validDates.push(date);
+      } else {
+        console.log('    ❌ Não é dia de trabalho');
       }
-       
-      setAvailableDates(validDates);
-    }, [workingDays]);
+    }
+
+    console.log('📋 Total de datas válidas:', validDates.length);
+    setAvailableDates(validDates);
+  }, [workingDays]);
 
   useEffect(() => {
     const fetchSlots = async () => {
       if (!professional || !specialty) return;
-      const allSlots = await getTimeSlots(internalSelectedDate, professional.id, specialty.id);
+
+      const allSlots = await getTimeSlots(
+        internalSelectedDate,
+        professional.id,
+        specialty.id
+      );
+
       const now = new Date();
       const filtered = allSlots.filter((slot) => {
         const slotStart = new Date(slot.start);
         return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
       });
+
       setTimeSlots(filtered);
-      console.log('📊 Final: Horários aplicados ao estado:', filtered);
     };
+
     fetchSlots();
   }, [internalSelectedDate, professional, specialty]);
 
-  const handleDateSelect = (date: Date) => setInternalSelectedDate(date);
+  const handleDateSelect = (date: Date) => {
+    console.log('📅 DATA SELECIONADA:', format(date, 'yyyy-MM-dd EEEE', { locale: ptBR }));
+    setInternalSelectedDate(date);
+  };
 
   const formatDisplayTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -127,80 +135,105 @@ const DateTimeSelection = ({
     });
   };
 
-    const generateCalendarDays = () => {
-      const year = internalSelectedDate.getFullYear();
-      const month = internalSelectedDate.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
+  // CORRIGIDO: Função para gerar calendário corretamente
+  const generateCalendarDays = () => {
+    const year = internalSelectedDate.getFullYear();
+    const month = internalSelectedDate.getMonth();
+    
+    // Primeiro dia do mês
+    const firstDay = new Date(year, month, 1);
+    // Último dia do mês
+    const lastDay = new Date(year, month + 1, 0);
+    
+    console.log('📅 GERANDO CALENDÁRIO:');
+    console.log('  📆 Primeiro dia do mês:', format(firstDay, 'yyyy-MM-dd EEEE', { locale: ptBR }));
+    console.log('  📆 getDay() do primeiro dia:', firstDay.getDay());
+    console.log('  📆 Último dia do mês:', format(lastDay, 'yyyy-MM-dd EEEE', { locale: ptBR }));
+    
+    // Quantos dias vazios no início (0 = domingo, 1 = segunda, etc.)
+    const startDayOfWeek = firstDay.getDay();
+    
+    const calendarDays: (Date | null)[] = [];
+    
+    // Adicionar dias vazios no início
+    for (let i = 0; i < startDayOfWeek; i++) {
+      calendarDays.push(null);
+    }
+    
+    // Adicionar todos os dias do mês
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      const date = new Date(year, month, day);
+      calendarDays.push(date);
       
-      const calendarDays: (Date | null)[] = [];
-      
-      for (let i = 0; i < firstDay.getDay(); i++) {
-        calendarDays.push(null);
+      if (day <= 7) {
+        console.log(`  📆 Dia ${day}: ${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - getDay: ${date.getDay()}`);
       }
-      
-      for (let day = 1; day <= lastDay.getDate(); day++) {
-        calendarDays.push(new Date(year, month, day));
-      }
-      
-      return calendarDays;
-    };
-
-    useEffect(() => {
-      const today = new Date();
-      const validDates: Date[] = [];
-      
-      for (let i = 0; i < 60; i++) {
-        const date = addDays(today, i);
-        if (workingDays.includes(date.getDay())) {
-          validDates.push(date);
-        }
-      }
-      
-      setAvailableDates(validDates);
-    }, [workingDays]);
+    }
+    
+    console.log('  📊 Total de células:', calendarDays.length);
+    console.log('  📊 Dias vazios no início:', startDayOfWeek);
+    
+    return calendarDays;
+  };
 
   const calendarDays = generateCalendarDays();
 
-  const goToPreviousMonth = () => setInternalSelectedDate(subMonths(internalSelectedDate, 1));
-  const goToNextMonth = () => setInternalSelectedDate(addMonths(internalSelectedDate, 1));
+  // CORRIGIDO: Navegação de mês
+  const goToPreviousMonth = () => {
+    setInternalSelectedDate(subMonths(internalSelectedDate, 1));
+  };
+
+  const goToNextMonth = () => {
+    setInternalSelectedDate(addMonths(internalSelectedDate, 1));
+  };
 
   return (
     <div className="animate-fade-in flex flex-col-reverse md:flex-row gap-8">
+      {/* CALENDÁRIO */}
       <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-full md:w-1/2">
         <div className="flex justify-between items-center mb-4">
           <h4 className="font-semibold text-gray-900">
             {format(internalSelectedDate, 'MMMM yyyy', { locale: ptBR })}
           </h4>
           <div className="flex space-x-2">
-            <button onClick={goToPreviousMonth} className="p-2 hover:bg-gray-100 rounded">
-              <ArrowLeft size={16} />
+            <button
+              onClick={goToPreviousMonth}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronLeft size={16} />
             </button>
-            <button onClick={goToNextMonth} className="p-2 hover:bg-gray-100 rounded">
-              <ArrowLeft size={16} className="transform rotate-180" />
+            <button
+              onClick={goToNextMonth}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>
+
+        {/* CABEÇALHO DOS DIAS DA SEMANA */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d, i) => (
             <div key={i} className="text-xs text-gray-500 text-center py-2 font-medium">{d}</div>
           ))}
         </div>
+
+        {/* GRID DO CALENDÁRIO */}
         <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((date, i) => {
-            if (!date) return <div key={i} className="text-sm text-center py-2"></div>;
-            
-            const isAvailable = availableDates.some(available => 
-              isSameDay(available, date)
-            );
+            if (!date) {
+              return <div key={i} className="text-sm text-center py-2"></div>;
+            }
+
+            const isAvailable = availableDates.some((available) => isSameDay(available, date));
             const isCurrent = isSameDay(date, internalSelectedDate);
             const isToday = isSameDay(date, new Date());
-            const isPast = isBefore(date, new Date()) && !isToday;
+            const isPast = date < new Date() && !isSameDay(date, new Date());
 
             return (
               <div
-                key={date.toISOString()}
-                onClick={() => !isPast && isAvailable && handleDateSelect(date)}
+                key={i}
+                onClick={() => isAvailable && !isPast ? handleDateSelect(date) : undefined}
                 className={`text-sm text-center py-2 rounded transition-all ${
                   isCurrent && isAvailable
                     ? 'bg-[#6D3FC4] text-white font-bold cursor-pointer'
@@ -208,8 +241,11 @@ const DateTimeSelection = ({
                     ? 'bg-blue-100 text-blue-800 font-bold border border-blue-300'
                     : isAvailable && !isPast
                     ? 'bg-[#F6F0FD] text-[#6D3FC4] hover:bg-[#E8DBFA] cursor-pointer'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isPast
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-400 cursor-not-allowed'
                 }`}
+                title={`${format(date, 'yyyy-MM-dd EEEE', { locale: ptBR })} - Day: ${date.getDay()}`}
               >
                 {format(date, 'd')}
               </div>
@@ -217,15 +253,19 @@ const DateTimeSelection = ({
           })}
         </div>
       </div>
+
+      {/* HORÁRIOS */}
       <div className="w-full md:w-1/2">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Escolha um horário</h2>
         <p className="text-gray-600 mb-6">
           {professional ? `com ${professional.name}` : 'Selecione um profissional'}
         </p>
+
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-800 mb-2">
             Horários disponíveis para {format(internalSelectedDate, "dd 'de' MMMM", { locale: ptBR })}
           </h3>
+          
           {timeSlots.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {timeSlots.map((slot, index) => (
@@ -244,6 +284,7 @@ const DateTimeSelection = ({
             </div>
           )}
         </div>
+
         <button
           onClick={onBack}
           className="px-4 py-2 text-[#6D3FC4] hover:text-[#5a2d9e]"
@@ -408,43 +449,137 @@ const SharedBookingEmbedPage: React.FC = () => {
     setFilteredProfessionals(filtered);
   }, [specialty, professionals]);
 
-  // Buscar dias de trabalho
+  // Buscar dias de trabalho - CORRIGIDO
   useEffect(() => {
     const fetchWorkingDays = async () => {
       if (!professional?.id) return;
+      
+      console.log('🔍 Buscando working days para professional:', professional.id);
+      
       try {
         const { data, error } = await supabase
           .from('working_hours')
           .select('day_of_week')
           .eq('professional_id', professional.id)
           .eq('is_working_day', true);
-        if (error) throw error;
-        if (data) setWorkingDays(data.map((d) => d.day_of_week));
+          
+        if (error) {
+          console.error('❌ Erro ao buscar working days:', error);
+          setWorkingDays([]);
+          return;
+        }
+        
+        const days = data?.map((d) => d.day_of_week) || [];
+        console.log('✅ Working days encontrados:', days);
+        setWorkingDays(days);
       } catch (error) {
-        console.error('Erro ao buscar dias de trabalho:', error);
+        console.error('❌ Erro inesperado ao buscar dias de trabalho:', error);
+        setWorkingDays([]);
       }
     };
+    
     fetchWorkingDays();
   }, [professional?.id]);
 
+  // CORRIGIDO: Função de booking
   const handleBooking = async () => {
-    if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) return;
+    if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) {
+      console.error('Dados incompletos para o booking');
+      return;
+    }
+    
     try {
-      const { error } = await supabase.from('appointments').insert({
-        calendar_id: calendar.id,
+      console.log('📋 Iniciando processo de booking...');
+      
+      // Obter o owner_id do calendário
+      const { data: calendarData, error: calendarError } = await supabase
+        .from('calendars')
+        .select('owner_id')
+        .eq('id', calendar.id)
+        .single();
+        
+      if (calendarError) throw calendarError;
+      
+      const owner_id = calendarData.owner_id;
+      
+      if (!owner_id) {
+        throw new Error('Não foi possível determinar o proprietário do calendário');
+      }
+      
+      // Verificar se o cliente já existe pelo email
+      let clientId;
+      
+      const { data: existingClient, error: clientCheckError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('email', client.email)
+        .eq('owner_id', owner_id)
+        .maybeSingle();
+        
+      if (clientCheckError && clientCheckError.code !== 'PGRST116') {
+        throw new Error(`Erro ao verificar cliente: ${clientCheckError.message}`);
+      }
+      
+      if (existingClient) {
+        console.log('Cliente já existe, usando ID existente:', existingClient.id);
+        clientId = existingClient.id;
+      } else {
+        console.log('Criando novo cliente com email:', client.email);
+        const { data: newClient, error: createClientError } = await supabase
+          .from('clients')
+          .insert({
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            owner_id: owner_id
+          })
+          .select('id')
+          .single();
+          
+        if (createClientError) {
+          throw new Error(`Erro ao criar cliente: ${createClientError.message}`);
+        }
+        
+        clientId = newClient.id;
+        console.log('Novo cliente criado com ID:', clientId);
+      }
+      
+      // Preparar os dados do agendamento
+      const startTime = new Date(selectedTime.start);
+      const endTime = new Date(selectedTime.end);
+      
+      const appointmentData = {
+        client_id: clientId,
         professional_id: professional.id,
         specialty_id: specialty.id,
-        client_name: client.name,
-        client_email: client.email,
-        client_phone: client.phone ?? '',
-        start_time: selectedTime.start,
-        end_time: selectedTime.end,
-        date: selectedDate.toISOString().split('T')[0],
-        status: 'confirmed'
-      });
-      if (error) throw error;
+        calendar_id: calendar.id,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: 'pending',
+        notes: ''
+      };
+      
+      console.log('📦 Dados sendo enviados ao Supabase:', appointmentData);
+      
+      // Salvar o agendamento
+      const { data: appointment, error } = await supabase
+        .from('appointments')
+        .insert(appointmentData)
+        .select()
+        .single();
+        
+      if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+      
+      console.log('✅ Agendamento criado com sucesso:', appointment);
       setBookingComplete(true);
+      
+      // Aguarda 5 segundos e abre merlindesk.com em nova aba
+      setTimeout(() => {
+        window.open('https://merlindesk.com', '_blank');
+      }, 5000);
+      
     } catch (error) {
+      console.error('❌ Erro ao criar agendamento:', error);
       alert('Erro ao confirmar agendamento. Tente novamente.');
     }
   };
@@ -493,13 +628,6 @@ const SharedBookingEmbedPage: React.FC = () => {
                 }`}
               >
                 {step.title}
-              </div>
-              <div
-                className={`text-xs mt-1 transition-colors ${
-                  currentStep >= step.id ? 'text-gray-600' : 'text-gray-400'
-                }`}
-              >
-                {step.description}
               </div>
             </div>
           </div>
@@ -671,18 +799,24 @@ const SharedBookingEmbedPage: React.FC = () => {
               <strong>Profissional:</strong> {professional.name}
             </p>
           </div>
-          <DateTimeSelection
-            professional={professional}
-            specialty={specialty}
-            onSelect={(date, timeSlot) => {
-              setSelectedDate(date);
-              setSelectedTime(timeSlot);
-              setCurrentStep(4);
-            }}
-            onBack={handleBack}
-            workingDays={workingDays}
-            selectedDate={selectedDate}
-          />
+          {workingDays.length > 0 ? (
+            <DateTimeSelection
+              professional={professional}
+              specialty={specialty}
+              onSelect={(date, timeSlot) => {
+                setSelectedDate(date);
+                setSelectedTime(timeSlot);
+                setCurrentStep(4);
+              }}
+              onBack={handleBack}
+              workingDays={workingDays}
+              selectedDate={selectedDate}
+            />
+          ) : (
+            <div className="text-center text-red-500 py-10">
+              Nenhum horário de trabalho configurado para esse profissional.
+            </div>
+          )}
         </div>
       )}
 
@@ -705,7 +839,7 @@ const SharedBookingEmbedPage: React.FC = () => {
               <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             </p>
             <p className="text-sm text-[#6D3FC4]">
-              <strong>Horário:</strong> {selectedTime?.start} - {selectedTime?.end}
+              <strong>Horário:</strong> {selectedTime && `${new Date(selectedTime.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(selectedTime.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
           </div>
           <ClientInfoForm
@@ -737,7 +871,7 @@ const SharedBookingEmbedPage: React.FC = () => {
               <strong>Data:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             </p>
             <p className="text-sm text-[#6D3FC4]">
-              <strong>Horário:</strong> {selectedTime?.start} - {selectedTime?.end}
+              <strong>Horário:</strong> {selectedTime && `${new Date(selectedTime.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(selectedTime.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
             <p className="text-sm text-[#6D3FC4]">
               <strong>Nome:</strong> {client?.name}
