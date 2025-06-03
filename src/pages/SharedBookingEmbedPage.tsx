@@ -32,37 +32,39 @@ const DateTimeSelection = ({
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<{ start: string; end: string }[]>([]);
 
-  const getTimeSlots = async (date: Date) => {
-    if (!professional?.id || !specialty?.id) return [];
-    
-    try {
-      const { data, error } = await supabase.rpc('get_available_slots', {
-        input_professional_id: professional.id,
-        input_specialty_id: specialty.id,
-        input_date: format(date, 'yyyy-MM-dd')
-      });
+  const getTimeSlots = async (
+  date: Date,
+  professionalId: string,
+  specialtyId: string
+): Promise<{ start: string; end: string }[]> => {
+  try {
+    const { data, error } = await supabase.rpc('get_available_slots', {
+      input_professional_id: professionalId,
+      input_specialty_id: specialtyId,
+      input_date: format(date, 'yyyy-MM-dd')
+    });
 
-      if (error) {
-        console.error('Erro ao buscar horários:', error);
-        return [];
-      }
-
-      const now = new Date();
-      return (data || [])
-        .map((slot: { start_time: string; end_time: string }) => ({
-          start: slot.start_time,
-          end: slot.end_time
-        }))
-        .filter(slot => {
-          const slotDate = new Date(slot.start);
-          return isAfter(slotDate, now) || isSameDay(slotDate, now);
-        });
-        
-    } catch (err) {
-      console.error('Erro inesperado:', err);
+    if (error) {
+      console.error('Erro ao buscar horários:', error);
       return [];
     }
-  };
+
+    const now = new Date();
+    return (data || [])
+      .map((slot: { start_time: string; end_time: string }) => ({
+        start: slot.start_time,
+        end: slot.end_time
+      }))
+      .filter(slot => {
+        const slotDate = new Date(slot.start);
+        return isAfter(slotDate, now) || isSameDay(slotDate, now);
+      });
+
+  } catch (err) {
+    console.error('Erro inesperado:', err);
+    return [];
+  }
+};
 
   useEffect(() => {
     if (selectedDate) setInternalSelectedDate(selectedDate);
@@ -79,7 +81,7 @@ const DateTimeSelection = ({
           validDates.push(date);
         }
       }
-      
+       
       setAvailableDates(validDates);
     }, [workingDays]);
 
