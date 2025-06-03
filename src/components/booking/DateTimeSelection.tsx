@@ -92,23 +92,27 @@ export const DateTimeSelection = ({
     setAvailableDates(validDates);
   }, [workingDays]);
 
-  useEffect(() => {
-    const fetchSlots = async () => {
-      if (!professional || !specialty) return;
+    useEffect(() => {
+      const fetchSlots = async () => {
+        if (!professional || !specialty) return;
 
-      const allSlots = await getTimeSlots(internalSelectedDate, professional.id, specialty.id);
+        const allSlots = await getTimeSlots(
+          internalSelectedDate,
+          professional.id,
+          specialty.id
+        );
 
-      const now = new Date();
-      const filtered = allSlots.filter((slot) => {
-        const slotStart = new Date(slot.start);
-        return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
-      });
+        const now = new Date();
+        const filtered = allSlots.filter((slot) => {
+          const slotStart = new Date(slot.start);
+          return !isSameDay(slotStart, internalSelectedDate) || isAfter(slotStart, now);
+        });
 
-      setTimeSlots(filtered);
-    };
+        setTimeSlots(filtered);
+      };
 
-    fetchSlots();
-  }, [internalSelectedDate, professional, specialty]);
+      fetchSlots();
+    }, [internalSelectedDate, professional, specialty]);
 
   const handleDateSelect = (date: Date) => {
     console.log('📅 DATA SELECIONADA:', format(date, 'yyyy-MM-dd EEEE', { locale: ptBR }));
