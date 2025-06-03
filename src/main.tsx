@@ -1,3 +1,5 @@
+console.log('🚀 Iniciando aplicação React...');
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';

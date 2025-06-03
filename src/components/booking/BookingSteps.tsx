@@ -8,7 +8,6 @@ import { Client, Professional, Specialty } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { Check } from 'lucide-react';
 import { format as formatDate } from 'date-fns';
-const [loadingDays, setLoadingDays] = useState(false);
 
 interface BookingStepsProps {
   calendarId: string;
@@ -27,7 +26,8 @@ interface BookingStepsProps {
       client?: Client;
     }>({});
     const [workingDays, setWorkingDays] = useState<number[]>([]);
-
+    const [loadingDays, setLoadingDays] = useState(false);
+    
     useEffect(() => {
       const fetchWorkingDays = async () => {
         if (!bookingData.professional) return;
