@@ -107,14 +107,12 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
   const [filteredProfessionals, setFilteredProfessionals] = useState<Professional[]>([]);
   const [professional, setProfessional] = useState<Professional | undefined>();
   const [specialty, setSpecialty] = useState<Specialty | undefined>();
-  const [workingDays, setWorkingDays] = useState<number[]>([]);
   const [selectedTime, setSelectedTime] = useState<{ start: string; end: string } | null>(null);
   const [client, setClient] = useState<ClientFormData | null>(null);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
   
   // Aplicar estilos customizados
   const primaryColor = customStyles.primaryColor || '#6D3FC4';
@@ -211,86 +209,6 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
     );
     setFilteredProfessionals(filtered);
   }, [specialty, professionals]);
-
-  // Buscar dias de trabalho com fallback inteligente
-  useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!professional?.id) return;
-      
-      setLoadingWorkingDays(true);
-      
-      try {
-        console.log('🔍 Buscando working days para profissional:', professional.id);
-        
-        // Primeiro, tenta buscar da tabela working_hours
-        const { data, error } = await supabase
-          .from('working_hours')
-          .select('day_of_week')
-          .eq('professional_id', professional.id)
-          .eq('is_working_day', true);
-          
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const days = data.map((d) => d.day_of_week);
-          console.log('✅ Working days da tabela working_hours:', days);
-          setWorkingDays(days);
-        } else {
-          console.log('⚠️ Nenhum working_hours encontrado, usando fallback...');
-          await extractWorkingDaysFromSlots();
-        }
-      } catch (error) {
-        console.error('❌ Erro ao buscar working days:', error);
-        await extractWorkingDaysFromSlots();
-      } finally {
-        setLoadingWorkingDays(false);
-      }
-    };
-    
-    // Função auxiliar para extrair dias dos slots disponíveis
-    const extractWorkingDaysFromSlots = async () => {
-      if (!professional?.id || !specialty?.id) return;
-      
-      try {
-        const uniqueDays = new Set<number>();
-        const today = new Date();
-        
-        // Verifica os próximos 14 dias para encontrar dias com slots
-        for (let i = 0; i < 14; i++) {
-          const checkDate = addDays(today, i);
-          const dateStr = format(checkDate, 'yyyy-MM-dd');
-          
-          const { data, error } = await supabase.rpc('get_available_slots', {
-            input_professional_id: professional.id,
-            input_specialty_id: specialty.id,
-            input_date: dateStr,
-          });
-          
-          if (!error && data && data.length > 0) {
-            uniqueDays.add(checkDate.getDay());
-          }
-        }
-        
-        const extractedDays = Array.from(uniqueDays);
-        console.log('✅ Working days extraídos dos slots:', extractedDays);
-        
-        if (extractedDays.length > 0) {
-          setWorkingDays(extractedDays);
-        } else {
-          // Como último recurso, assume todos os dias úteis
-          console.log('⚠️ Usando fallback final: dias úteis');
-          setWorkingDays([1, 2, 3, 4, 5]); // Segunda a sexta
-        }
-        
-      } catch (error) {
-        console.error('❌ Erro ao extrair working days dos slots:', error);
-        // Como último recurso, assume todos os dias úteis
-        setWorkingDays([1, 2, 3, 4, 5]);
-      }
-    };
-    
-    fetchWorkingDays();
-  }, [professional?.id, specialty?.id]);
 
   const handleBooking = async () => {
     if (!client || !selectedDate || !selectedTime || !calendar || !professional || !specialty) {
@@ -672,18 +590,40 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
               Carregando dias disponíveis...
             </div>
           ) : workingDays.length > 0 ? (
-            <DateTimeSelection
-              professional={professional}
-              specialty={specialty}
-              onSelect={(date, timeSlot) => {
-                setSelectedDate(date);
-                setSelectedTime(timeSlot);
-                setCurrentStep(4);
-              }}
-              onBack={handleBack}
-              workingDays={workingDays}
-              selectedDate={selectedDate}
-            />
+          <DateTimeSelection
+            professional={professional}
+            specialty={specialty}
+            onSelect={(date, timeSlot) => {
+              setSelectedDate(date);
+              setSelectedTime(timeSlot);
+              setCurrentStep(4);
+            }}
+            onBack={handleBack}
+            getTimeSlots={async (date) => {
+              try {
+                const { data, error } = await supabase.rpc('get_available_slots', {
+                  input_professional_id: professional.id,
+                  input_specialty_id: specialty.id,
+                  input_date: format(date, 'yyyy-MM-dd'),
+                });
+                if (error) {
+                  console.error('Erro ao buscar horários:', error);
+                  return [];
+                }
+
+                return Array.isArray(data)
+                  ? data.map((slot: any) => ({
+                      start: slot.start_time,
+                      end: slot.end_time,
+                    }))
+                  : [];
+              } catch (err) {
+                console.error('Erro inesperado:', err);
+                return [];
+              }
+            }}
+            selectedDate={selectedDate}
+          />
           ) : (
             <div className="text-center text-red-500 py-10">
               Nenhum horário de trabalho configurado para esse profissional.
