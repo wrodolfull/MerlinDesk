@@ -26,9 +26,9 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
-  useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!bookingData.professional) return;
+useEffect(() => {
+  const fetchWorkingDays = async () => {
+    if (!bookingData.professional) return;
 
     const { data, error } = await supabase
       .from('working_hours')
@@ -36,23 +36,22 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       .eq('professional_id', bookingData.professional.id)
       .eq('is_working_day', true);
 
-      if (error) {
-        console.error('❌ Erro ao buscar working_hours:', error);
-        return;
-      }
+    if (error) {
+      console.error('❌ Erro ao buscar working_hours:', error);
+      return;
+    }
 
-      console.log('🔍 Raw working_hours recebidos:', data);
+    console.log('🟡 Resultado Supabase:', data);
 
-      const diasValidos = data
-        .filter((d) => d.is_working_day === true || d.is_working_day === 'true') // inclui proteção contra string
-        .map((d) => d.day_of_week);
+    const diasValidos = data.map((d) => d.day_of_week);
+    console.log('📅 Dias trabalhados filtrados:', diasValidos);
+    setWorkingDays(diasValidos);
+    console.log('✅ workingDays state setado como:', diasValidos);
+  };
 
-      console.log('📅 Dias trabalhados filtrados:', diasValidos);
-      setWorkingDays(diasValidos);
-    };
+  fetchWorkingDays();
+}, [bookingData.professional]);
 
-    fetchWorkingDays();
-  }, [bookingData.professional]);
 
   const handleSpecialtySelect = (specialty: Specialty) => {
     setBookingData(prev => ({ ...prev, specialty, professional: undefined }));

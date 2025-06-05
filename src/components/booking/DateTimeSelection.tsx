@@ -22,7 +22,7 @@ export const DateTimeSelection = ({
   onBack,
   getTimeSlots,
   selectedDate,
-  workingDays = [0, 1, 2, 3, 4, 5, 6], // padrão: todos os dias
+  workingDays = []
 }: DateTimeSelectionProps) => {
   const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate || new Date());
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
