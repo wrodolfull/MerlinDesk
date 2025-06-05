@@ -30,10 +30,11 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     const fetchWorkingDays = async () => {
       if (!bookingData.professional) return;
 
-      const { data, error } = await supabase
-        .from('working_hours')
-        .select('day_of_week, is_working_day')
-        .eq('professional_id', bookingData.professional.id);
+    const { data, error } = await supabase
+      .from('working_hours')
+      .select('day_of_week, is_working_day')
+      .eq('professional_id', bookingData.professional.id)
+      .eq('is_working_day', true);
 
       if (error) {
         console.error('❌ Erro ao buscar working_hours:', error);
