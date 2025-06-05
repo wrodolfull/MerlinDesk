@@ -188,7 +188,7 @@ export const DateTimeSelection = ({
         <div><strong>Debug Info:</strong></div>
         <div>Hoje: {format(new Date(), 'yyyy-MM-dd EEEE', { locale: ptBR })}</div>
         <div>Hoje (getDay): {new Date().getDay()}</div>
-        <div>Working Days: [{workingDays.join(',')}]</div>
+        <div>Working Days: [{Array.isArray(workingDays) ? workingDays.join(',') : 'N/A'}]</div>
         <div>Mês atual: {format(internalSelectedDate, 'MMMM yyyy', { locale: ptBR })}</div>
         <div>Primeiro dia getDay: {new Date(internalSelectedDate.getFullYear(), internalSelectedDate.getMonth(), 1).getDay()}</div>
       </div>
