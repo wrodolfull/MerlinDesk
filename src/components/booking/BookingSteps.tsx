@@ -26,24 +26,27 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
-  // ✅ HOOK correto para buscar dias trabalhados
   useEffect(() => {
     const fetchWorkingDays = async () => {
       if (!bookingData.professional) return;
 
       const { data, error } = await supabase
         .from('working_hours')
-        .select('day_of_week')
-        .eq('professional_id', bookingData.professional.id)
-        .eq('is_working_day', true);
+        .select('day_of_week, is_working_day')
+        .eq('professional_id', bookingData.professional.id);
 
       if (error) {
-        console.error('Erro ao buscar working_days:', error);
+        console.error('❌ Erro ao buscar working_hours:', error);
         return;
       }
 
-      const diasValidos = data.map((d) => d.day_of_week);
-      console.log('📅 Dias trabalhados:', diasValidos);
+      console.log('🔍 Raw working_hours recebidos:', data);
+
+      const diasValidos = data
+        .filter((d) => d.is_working_day === true || d.is_working_day === 'true') // inclui proteção contra string
+        .map((d) => d.day_of_week);
+
+      console.log('📅 Dias trabalhados filtrados:', diasValidos);
       setWorkingDays(diasValidos);
     };
 
