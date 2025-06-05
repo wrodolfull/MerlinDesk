@@ -26,7 +26,8 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
-    useEffect(() => {
+  // ✅ HOOK correto para buscar dias trabalhados
+  useEffect(() => {
     const fetchWorkingDays = async () => {
       if (!bookingData.professional) return;
 
@@ -50,13 +51,11 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
   }, [bookingData.professional]);
 
   const handleSpecialtySelect = (specialty: Specialty) => {
-    console.log('Selected specialty:', specialty);
     setBookingData(prev => ({ ...prev, specialty, professional: undefined }));
     setCurrentStep(2);
   };
 
   const handleProfessionalSelect = (professional: Professional) => {
-    console.log('Selected professional:', professional);
     setBookingData(prev => ({ ...prev, professional }));
     setCurrentStep(3);
   };
@@ -73,8 +72,6 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
 
   const handleConfirmBooking = async () => {
     try {
-      console.log('📋 bookingData recebido:', bookingData);
-
       if (!bookingData.client || !bookingData.professional || !bookingData.specialty || !bookingData.timeSlot || !bookingData.date) {
         console.error('Dados de agendamento incompletos');
         return;
@@ -92,16 +89,12 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       if (!owner_id) throw new Error('Não foi possível determinar o proprietário do calendário');
 
       let clientId;
-      const { data: existingClient, error: clientCheckError } = await supabase
+      const { data: existingClient } = await supabase
         .from('clients')
         .select('id')
         .eq('email', bookingData.client.email)
         .eq('owner_id', owner_id)
         .maybeSingle();
-
-      if (clientCheckError && clientCheckError.code !== 'PGRST116') {
-        throw new Error(`Erro ao verificar cliente: ${clientCheckError.message}`);
-      }
 
       if (existingClient) {
         clientId = existingClient.id;
@@ -112,7 +105,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
             name: bookingData.client.name,
             email: bookingData.client.email,
             phone: bookingData.client.phone,
-            owner_id: owner_id
+            owner_id
           })
           .select('id')
           .single();
@@ -121,36 +114,31 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
         clientId = newClient.id;
       }
 
-      const startTime = new Date(bookingData.timeSlot.start);
-      const endTime = new Date(bookingData.timeSlot.end);
-
       const appointmentData = {
         client_id: clientId,
         professional_id: bookingData.professional.id,
         specialty_id: bookingData.specialty.id,
         calendar_id: calendarId,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
+        start_time: new Date(bookingData.timeSlot.start).toISOString(),
+        end_time: new Date(bookingData.timeSlot.end).toISOString(),
         status: 'pending',
         notes: ''
       };
 
-      const { data: appointment, error } = await supabase
+      const { error } = await supabase
         .from('appointments')
         .insert(appointmentData)
-        .select()
         .single();
 
       if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
 
       if (onComplete) {
-        onComplete(appointment);
+        onComplete(appointmentData);
       }
 
       setTimeout(() => {
         window.open('https://merlindesk.com', '_blank');
       }, 5000);
-
     } catch (error) {
       console.error('❌ Erro ao criar agendamento:', error);
     }
@@ -193,16 +181,11 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     }
   };
 
-  const steps = [
-    { id: 1, title: '' },
-    { id: 2, title: '' },
-    { id: 3, title: '' },
-    { id: 4, title: '' },
-    { id: 5, title: '' },
-  ];
+  const steps = [1, 2, 3, 4, 5];
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Etapas Visuais */}
       <div className="mb-12">
         <div className="flex items-center justify-between relative">
           <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
@@ -210,24 +193,23 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
             className="absolute top-4 left-0 h-0.5 bg-blue-600 z-10 transition-all duration-500 ease-out"
             style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
           ></div>
-
           {steps.map((step) => (
-            <div key={step.id} className="flex flex-col items-center relative z-20">
+            <div key={step} className="flex flex-col items-center relative z-20">
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
-                  currentStep > step.id
+                  currentStep > step
                     ? 'bg-blue-600 border-blue-600 text-white'
-                    : currentStep === step.id
+                    : currentStep === step
                     ? 'bg-white border-blue-600 text-blue-600 shadow-lg ring-4 ring-blue-100'
                     : 'bg-white border-gray-300 text-gray-400'
                 }`}
               >
-                {currentStep > step.id ? (
+                {currentStep > step ? (
                   <Check className="w-4 h-4" />
                 ) : (
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      currentStep === step.id ? 'bg-blue-600' : 'bg-gray-400'
+                      currentStep === step ? 'bg-blue-600' : 'bg-gray-400'
                     }`}
                   />
                 )}
@@ -237,6 +219,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
         </div>
       </div>
 
+      {/* Conteúdo de cada etapa */}
       <div className="animate-fade-in">
         {currentStep === 1 && (
           <SpecialtySelection specialties={specialties} onSelect={handleSpecialtySelect} />
