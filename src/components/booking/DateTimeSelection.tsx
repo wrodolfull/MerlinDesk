@@ -33,52 +33,24 @@ export const DateTimeSelection = ({
   }, [selectedDate]);
 
 useEffect(() => {
-  const validateAvailableDates = async () => {
-    console.log('🔄 Validando datas disponíveis');
-    console.log('👤 Professional:', professional?.name);
-    console.log('📅 Working days recebidos:', workingDays);
+  if (!professional || workingDays.length === 0) {
+    setAvailableDates([]);
+    return;
+  }
 
-    if (!professional || workingDays.length === 0) {
-      console.log('⚠️ Sem profissional ou working days vazios');
-      setAvailableDates([]);
-      return;
+  const today = new Date();
+  const validDates: Date[] = [];
+
+  for (let i = 0; i < 60; i++) {
+    const date = addDays(today, i);
+    const dayOfWeek = date.getDay();
+    if (workingDays.includes(dayOfWeek)) {
+      validDates.push(date);
     }
+  }
 
-    const today = new Date();
-    const validDates: Date[] = [];
-
-    // ⚠️ MUDANÇA PRINCIPAL: Validar slots reais para cada data
-    for (let i = 0; i < 60; i++) {
-      const date = addDays(today, i);
-      const dayOfWeek = date.getDay();
-      
-      // Primeira validação: verificar se é dia de trabalho
-      if (workingDays.includes(dayOfWeek)) {
-        try {
-          // Segunda validação: verificar se há slots disponíveis
-          const slots = await getTimeSlots(date);
-          console.log(`🔍 Data: ${date.toDateString()}, Slots: ${slots.length}`);
-          
-          if (slots.length > 0) {
-            validDates.push(date);
-            console.log(`✅ Data válida: ${date.toDateString()}`);
-          } else {
-            console.log(`❌ Data sem slots: ${date.toDateString()}`);
-          }
-        } catch (error) {
-          console.error('❌ Erro ao verificar slots para', date, error);
-        }
-      } else {
-        console.log(`⭕ Não é dia de trabalho: ${date.toDateString()} (dia ${dayOfWeek})`);
-      }
-    }
-
-    console.log(`📊 Total de datas válidas: ${validDates.length}`);
-    setAvailableDates(validDates);
-  };
-
-  validateAvailableDates();
-}, [workingDays, professional, getTimeSlots]);
+  setAvailableDates(validDates);
+}, [workingDays, professional]);
 
   useEffect(() => {
     const fetchSlots = async () => {

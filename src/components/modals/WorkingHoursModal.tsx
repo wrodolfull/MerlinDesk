@@ -84,74 +84,42 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
     fetchWorkingHours();
   }, [professionalId]);
 
-  const handleToggleDay = async (dayOfWeek: number) => {
-    try {
-      setSaving(true);
-      
-      console.log(`🔄 Alterando ${DAYS[dayOfWeek]} (day_of_week: ${dayOfWeek})`);
+const handleToggleDay = async (dayOfWeek: number) => {
+  try {
+    setSaving(true);
+    
+    const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
+    if (!currentDay) return;
 
-      const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
-      if (!currentDay) {
-        console.error('❌ Dia não encontrado no estado');
-        return;
-      }
-
-      const newIsWorkingDay = !currentDay.is_working_day;
-      console.log(`📝 ${DAYS[dayOfWeek]}: ${currentDay.is_working_day} → ${newIsWorkingDay}`);
-      
-      // ⚠️ ALTERAÇÃO PRINCIPAL: Preparar dados com estratégia diferente
-      const upsertData = {
-        professional_id: professionalId,
-        day_of_week: dayOfWeek,
-        start_time: newIsWorkingDay ? (currentDay.start_time || '08:00:00') : null,
-        end_time: newIsWorkingDay ? (currentDay.end_time || '17:00:00') : null,
+    const newIsWorkingDay = !currentDay.is_working_day;
+    
+    // ⚠️ CORREÇÃO: Fazer UPDATE direto em vez de UPSERT
+    const { error } = await supabase
+      .from('working_hours')
+      .update({ 
         is_working_day: newIsWorkingDay,
-      };
+        start_time: newIsWorkingDay ? (currentDay.start_time || '08:00:00') : null,
+        end_time: newIsWorkingDay ? (currentDay.end_time || '17:00:00') : null
+      })
+      .eq('professional_id', professionalId)
+      .eq('day_of_week', dayOfWeek);
 
-      console.log('💾 Dados para salvar:', upsertData);
+    if (error) throw error;
 
-      // ⚠️ MUDANÇA: Usar delete + insert em vez de upsert
-      if (currentDay.id) {
-        const { error: deleteError } = await supabase
-          .from('working_hours')
-          .delete()
-          .eq('id', currentDay.id);
-        
-        if (deleteError) throw deleteError;
-      }
-
-      const { data, error } = await supabase
-        .from('working_hours')
-        .insert(upsertData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro no banco:', error);
-        throw error;
-      }
-
-      console.log('✅ Dados salvos:', data);
-
-      // Atualizar o estado local
-      setWorkingHours(prev =>
-        prev.map(wh => (wh.day_of_week === dayOfWeek ? { ...wh, ...data } : wh))
-      );
-      
-      toast.success(`${DAYS[dayOfWeek]} ${newIsWorkingDay ? 'habilitado' : 'desabilitado'}`);
-      
-      // ⚠️ NOVO: Sinalizar mudança para o componente pai
-      if (onSuccess) {
-        onSuccess(); // Isso vai forçar refresh no BookingSteps
-      }
-      
-    } catch (error: any) {
-      console.error('Error updating day:', error);
-      toast.error(error.message || 'Erro ao atualizar dia de trabalho');
-    } finally {
-      setSaving(false);
-    }
-  };
+    // Atualizar estado local
+    setWorkingHours(prev =>
+      prev.map(wh => (wh.day_of_week === dayOfWeek ? 
+        { ...wh, is_working_day: newIsWorkingDay } : wh))
+    );
+    
+    toast.success(`${DAYS[dayOfWeek]} ${newIsWorkingDay ? 'habilitado' : 'desabilitado'}`);
+  } catch (error: any) {
+    console.error('Error updating day:', error);
+    toast.error('Erro ao atualizar dia');
+  } finally {
+    setSaving(false);
+  }
+};
   
   const handleTimeChange = async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
     try {
@@ -279,7 +247,7 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
           <div className="flex justify-end mt-6 gap-2">
             <Button 
               onClick={() => {
-                // ⚠️ DISPARAR evento global para avisar que mudou
+                // Disparar evento para atualizar calendar
                 window.dispatchEvent(new CustomEvent('workingHoursChanged', {
                   detail: { professionalId }
                 }));
