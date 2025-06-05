@@ -120,6 +120,29 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
   const backgroundColor = customStyles.backgroundColor || 'white';
   const textColor = customStyles.textColor || '#1f2937';
 
+  useEffect(() => {
+  const fetchWorkingDays = async () => {
+    if (!professional) return;
+
+    const { data, error } = await supabase
+      .from('working_hours')
+      .select('day_of_week')
+      .eq('professional_id', professional.id)
+      .eq('is_working_day', true);
+
+    if (error) {
+      console.error('Erro ao buscar dias trabalhados:', error);
+      return;
+    }
+
+    const dias = data.map((d) => d.day_of_week);
+    console.log('📅 Dias trabalhados:', dias);
+    setWorkingDays(dias);
+  };
+
+  fetchWorkingDays();
+}, [professional]);
+
   // Buscar dados do calendário
   useEffect(() => {
     if (!calendarId) return;
@@ -605,7 +628,6 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
           <DateTimeSelection
             professional={professional}
             specialty={specialty}
-            workingDays={workingDays}
             onSelect={(date, timeSlot) => {
               setSelectedDate(date);
               setSelectedTime(timeSlot);
@@ -636,6 +658,7 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
                 return [];
               }
             }}
+            workingDays={workingDays}
             selectedDate={selectedDate}
           />
         </div>
