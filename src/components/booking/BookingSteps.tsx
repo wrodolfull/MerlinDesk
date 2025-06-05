@@ -27,42 +27,38 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
-  useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!bookingData.professional?.id) {
-        setWorkingDays([]);
-        return;
-      }
+useEffect(() => {
+  const fetchWorkingDays = async () => {
+    if (!bookingData.professional?.id) {
+      setWorkingDays([]);
+      return;
+    }
 
-      console.log('🔍 Carregando working_hours para:', bookingData.professional.id);
+    console.log('🔍 Carregando working_hours para:', bookingData.professional.id);
 
-      try {
-        const { data, error } = await supabase
-          .from('working_hours')
-          .select('day_of_week, is_working_day')
-          .eq('professional_id', bookingData.professional.id)
-          .eq('is_working_day', true); // ⚠️ APENAS dias marcados como true
+    const { data, error } = await supabase
+      .from('working_hours')
+      .select('day_of_week, is_working_day')
+      .eq('professional_id', bookingData.professional.id)
+      .eq('is_working_day', true); // ⚠️ APENAS dias true
 
-        if (error) {
-          console.error('❌ Erro ao buscar working_hours:', error);
-          setWorkingDays([]);
-          return;
-        }
+    if (error) {
+      console.error('❌ Erro ao buscar working_hours:', error);
+      setWorkingDays([]);
+      return;
+    }
 
-        console.log('🟡 Resultado Supabase:', data);
+    console.log('🟡 Resultado Supabase:', data);
 
-        const diasValidos = data.map((d) => d.day_of_week);
-        console.log('📅 Dias trabalhados filtrados:', diasValidos);
-        setWorkingDays(diasValidos);
-        console.log('✅ workingDays state setado como:', diasValidos);
-      } catch (error) {
-        console.error('❌ Erro na busca:', error);
-        setWorkingDays([]);
-      }
-    };
+    const diasValidos = data.map((d) => d.day_of_week);
+    console.log('📅 Dias trabalhados filtrados:', diasValidos);
+    setWorkingDays(diasValidos);
+    console.log('✅ workingDays state setado como:', diasValidos);
+  };
 
-    fetchWorkingDays();
-  }, [bookingData.professional?.id, refreshWorkingDays]); // ⚠️ Adicionar refreshWorkingDays
+  fetchWorkingDays();
+}, [bookingData.professional?.id]); // ⚠️ CORRIGIDO: usar .id em vez do objeto completo
+
   const handleWorkingHoursChange = () => {
     console.log('🔄 Forçando refresh dos workingDays');
     setRefreshWorkingDays(prev => prev + 1);
@@ -193,29 +189,46 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
       )
     : [];
 
-  const getTimeSlots = async (date: Date) => {
-    if (!bookingData.professional || !bookingData.specialty) return [];
+const getTimeSlots = async (date: Date) => {
+  if (!bookingData.professional || !bookingData.specialty) {
+    console.log('⚠️ getTimeSlots: Profissional ou especialidade não selecionados');
+    return [];
+  }
 
-    try {
-      const { data, error } = await supabase.rpc('get_available_slots', {
-        input_professional_id: bookingData.professional.id,
-        input_specialty_id: bookingData.specialty.id,
-        input_date: date.toISOString().split('T')[0],
-      });
+  const dateString = date.toISOString().split('T')[0];
+  console.log('🔍 getTimeSlots: Buscando slots para:', dateString);
 
-      if (error) throw error;
+  try {
+    const { data, error } = await supabase.rpc('get_available_slots', {
+      input_professional_id: bookingData.professional.id,
+      input_specialty_id: bookingData.specialty.id,
+      input_date: dateString,
+    });
 
-      return Array.isArray(data)
-        ? data.map((slot) => ({
-            start: new Date(slot.start_time).toISOString(),
-            end: new Date(slot.end_time).toISOString(),
-          }))
-        : [];
-    } catch (error) {
-      console.error('Erro ao buscar horários disponíveis:', error);
+    if (error) {
+      console.error('❌ getTimeSlots: Erro na função RPC:', error);
       return [];
     }
-  };
+
+    console.log('🟡 getTimeSlots: Resultado RPC para', dateString, ':', data);
+
+    if (!Array.isArray(data)) {
+      console.log('⚠️ getTimeSlots: Resultado não é array');
+      return [];
+    }
+
+    const slots = data.map((slot) => ({
+      start: new Date(slot.start_time).toISOString(),
+      end: new Date(slot.end_time).toISOString(),
+    }));
+
+    console.log(`✅ getTimeSlots: ${slots.length} slots encontrados para ${dateString}`);
+    return slots;
+  } catch (error) {
+    console.error('❌ getTimeSlots: Erro geral:', error);
+    return [];
+  }
+};
 
   const steps = [1, 2, 3, 4, 5];
 
