@@ -120,28 +120,24 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
   const backgroundColor = customStyles.backgroundColor || 'white';
   const textColor = customStyles.textColor || '#1f2937';
 
-  useEffect(() => {
-  const fetchWorkingDays = async () => {
-    if (!professional) return;
+    useEffect(() => {
+      const fetchWorkingDays = async () => {
+        if (!professional) return;
 
-    const { data, error } = await supabase
-      .from('working_hours')
-      .select('day_of_week')
-      .eq('professional_id', professional.id)
-      .eq('is_working_day', true);
+        const { data, error } = await supabase
+          .from('working_hours')
+          .select('day_of_week')
+          .eq('professional_id', professional.id)
+          .eq('is_working_day', true);
 
-    if (error) {
-      console.error('Erro ao buscar dias trabalhados:', error);
-      return;
-    }
+        if (!error && data) {
+          const diasValidos = data.map((d) => d.day_of_week);
+          setWorkingDays(diasValidos);
+        }
+      };
 
-    const dias = data.map((d) => d.day_of_week);
-    console.log('📅 Dias trabalhados:', dias);
-    setWorkingDays(dias);
-  };
-
-  fetchWorkingDays();
-}, [professional]);
+      fetchWorkingDays();
+    }, [professional]);
 
   // Buscar dados do calendário
   useEffect(() => {
