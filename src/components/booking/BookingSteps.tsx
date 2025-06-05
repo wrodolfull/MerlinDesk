@@ -239,7 +239,7 @@ const getTimeSlots = async (date: Date) => {
         <div className="flex items-center justify-between relative">
           <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
           <div
-            className="absolute top-4 left-0 h-0.5 bg-blue-600 z-10 transition-all duration-500 ease-out"
+            className="absolute top-4 left-0 h-0.5 bg-[#7C45D0] z-10 transition-all duration-500 ease-out"
             style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
           ></div>
           {steps.map((step) => (
@@ -247,9 +247,9 @@ const getTimeSlots = async (date: Date) => {
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
                   currentStep > step
-                    ? 'bg-blue-600 border-blue-600 text-white'
+                    ? 'bg-[#7C45D0] border-[#7C45D0] text-white'
                     : currentStep === step
-                    ? 'bg-white border-blue-600 text-blue-600 shadow-lg ring-4 ring-blue-100'
+                    ? 'bg-white border-[#7C45D0] text-[#7C45D0] shadow-lg ring-4 ring-[#7C45D0]/20'
                     : 'bg-white border-gray-300 text-gray-400'
                 }`}
               >
@@ -258,7 +258,7 @@ const getTimeSlots = async (date: Date) => {
                 ) : (
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      currentStep === step ? 'bg-blue-600' : 'bg-gray-400'
+                      currentStep === step ? 'bg-[#7C45D0]' : 'bg-gray-400'
                     }`}
                   />
                 )}
