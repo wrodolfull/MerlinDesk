@@ -584,12 +584,6 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
             </p>
           </div>
 
-          {loadingWorkingDays ? (
-            <div className="text-center text-gray-500 py-10">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-              Carregando dias disponíveis...
-            </div>
-          ) : workingDays.length > 0 ? (
           <DateTimeSelection
             professional={professional}
             specialty={specialty}
@@ -624,18 +618,8 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
             }}
             selectedDate={selectedDate}
           />
-          ) : (
-            <div className="text-center text-red-500 py-10">
-              Nenhum horário de trabalho configurado para esse profissional.
-              <br />
-              <small className="text-gray-500 mt-2 block">
-                Configure os horários de trabalho no painel administrativo.
-              </small>
-            </div>
-          )}
         </div>
       )}
-
       {currentStep === 4 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-6">
