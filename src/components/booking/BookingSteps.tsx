@@ -28,7 +28,7 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
 
 useEffect(() => {
   const fetchWorkingDays = async () => {
-    if (!bookingData.professional) return;
+    if (!bookingData.professional?.id) return;
 
     const { data, error } = await supabase
       .from('working_hours')
@@ -40,6 +40,8 @@ useEffect(() => {
       console.error('❌ Erro ao buscar working_hours:', error);
       return;
     }
+
+    console.log('🔍 Buscando working_hours para profissional:', bookingData.professional.id);
 
     console.log('🟡 Resultado Supabase:', data);
 
@@ -59,6 +61,7 @@ useEffect(() => {
   };
 
   const handleProfessionalSelect = (professional: Professional) => {
+    setWorkingDays([]);
     setBookingData(prev => ({ ...prev, professional }));
     setCurrentStep(3);
   };
