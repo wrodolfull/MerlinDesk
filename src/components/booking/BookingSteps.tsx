@@ -130,16 +130,19 @@ useEffect(() => {
         notes: ''
       };
 
-      const { error } = await supabase
-        .from('appointments')
-        .insert(appointmentData)
-        .single();
+    const { data: createdAppointment, error } = await supabase
+      .from('appointments')
+      .insert(appointmentData)
+      .select()
+      .single();
 
-      if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+    if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
 
-      if (onComplete) {
-        onComplete(appointmentData);
-      }
+    console.log('📋 Agendamento criado com sucesso:', createdAppointment);
+
+    if (onComplete) {
+      onComplete(createdAppointment); // ✅ dado real salvo no Supabase
+    }
 
       setTimeout(() => {
         window.open('https://merlindesk.com', '_blank');
