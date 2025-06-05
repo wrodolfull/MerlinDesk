@@ -61,7 +61,6 @@ useEffect(() => {
   };
 
   const handleProfessionalSelect = (professional: Professional) => {
-    setWorkingDays([]);
     setBookingData(prev => ({ ...prev, professional }));
     setCurrentStep(3);
   };
