@@ -63,7 +63,25 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
 
     fetchWorkingDays();
   }, [bookingData.professional?.id, refreshWorkingDays]); // ⚠️ Adicionar refreshWorkingDays
+  const handleWorkingHoursChange = () => {
+    console.log('🔄 Forçando refresh dos workingDays');
+    setRefreshWorkingDays(prev => prev + 1);
+  };
 
+  useEffect(() => {
+  const handleWorkingHoursChanged = (event: any) => {
+    if (event.detail.professionalId === bookingData.professional?.id) {
+      console.log('🔄 Horários alterados, forçando refresh');
+      handleWorkingHoursChange();
+    }
+  };
+
+  window.addEventListener('workingHoursChanged', handleWorkingHoursChanged);
+  
+  return () => {
+    window.removeEventListener('workingHoursChanged', handleWorkingHoursChanged);
+  };
+}, [bookingData.professional?.id]);
 
   const handleSpecialtySelect = (specialty: Specialty) => {
     setBookingData(prev => ({ ...prev, specialty, professional: undefined }));

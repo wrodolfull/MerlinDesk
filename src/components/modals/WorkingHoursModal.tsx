@@ -277,10 +277,16 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
           })}
 
           <div className="flex justify-end mt-6 gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving}>
-              Fechar
-            </Button>
-            <Button onClick={onSuccess} disabled={saving}>
+            <Button 
+              onClick={() => {
+                // ⚠️ DISPARAR evento global para avisar que mudou
+                window.dispatchEvent(new CustomEvent('workingHoursChanged', {
+                  detail: { professionalId }
+                }));
+                onSuccess();
+              }} 
+              disabled={saving}
+            >
               {saving ? 'Salvando...' : 'Concluído'}
             </Button>
           </div>

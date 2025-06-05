@@ -32,20 +32,44 @@ export const DateTimeSelection = ({
     if (selectedDate) setInternalSelectedDate(selectedDate);
   }, [selectedDate]);
 
-  useEffect(() => {
+useEffect(() => {
+  const validateAvailableDates = async () => {
+    console.log('🔄 Validando datas disponíveis');
+    console.log('👤 Professional:', professional?.name);
+    console.log('📅 Working days recebidos:', workingDays);
+
+    if (!professional || workingDays.length === 0) {
+      console.log('⚠️ Sem profissional ou working days vazios');
+      setAvailableDates([]);
+      return;
+    }
+
     const today = new Date();
     const validDates: Date[] = [];
 
+    // ⚠️ Validar cada data com slots reais
     for (let i = 0; i < 60; i++) {
       const date = addDays(today, i);
       const dayOfWeek = date.getDay();
+      
       if (workingDays.includes(dayOfWeek)) {
-        validDates.push(date);
+        try {
+          const slots = await getTimeSlots(date);
+          if (slots.length > 0) {
+            validDates.push(date);
+          }
+        } catch (error) {
+          console.error('❌ Erro ao verificar slots para', date, error);
+        }
       }
     }
 
+    console.log(`📊 Total de datas válidas: ${validDates.length}`);
     setAvailableDates(validDates);
-  }, [workingDays]);
+  };
+
+  validateAvailableDates();
+}, [workingDays, professional, getTimeSlots]);
 
   useEffect(() => {
     const fetchSlots = async () => {
