@@ -113,6 +113,7 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [workingDays, setWorkingDays] = useState<number[]>([]);
   
   // Aplicar estilos customizados
   const primaryColor = customStyles.primaryColor || '#6D3FC4';
@@ -531,9 +532,26 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
               {filteredProfessionals.map((prof) => (
                 <button
                   key={prof.id}
-                  onClick={() => {
+                  onClick={async () => {
                     setProfessional(prof);
                     setCurrentStep(3);
+
+                    try {
+                      const { data, error } = await supabase
+                        .from('working_hours')
+                        .select('day_of_week')
+                        .eq('professional_id', prof.id)
+                        .eq('is_working_day', true);
+
+                      if (error) throw error;
+
+                      const days = data.map((d: any) => d.day_of_week);
+                      setWorkingDays(days);
+                      console.log('📅 Dias trabalhados:', days);
+                    } catch (err) {
+                      console.error('Erro ao buscar dias de trabalho:', err);
+                      setWorkingDays([]); // fallback seguro
+                    }
                   }}
                   className="p-4 text-left rounded-lg border border-gray-200 hover:border-opacity-80 transition-all"
                   style={{
@@ -587,10 +605,12 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
           <DateTimeSelection
             professional={professional}
             specialty={specialty}
+            workingDays={workingDays}
             onSelect={(date, timeSlot) => {
               setSelectedDate(date);
               setSelectedTime(timeSlot);
               setCurrentStep(4);
+              
             }}
             onBack={handleBack}
             getTimeSlots={async (date) => {
