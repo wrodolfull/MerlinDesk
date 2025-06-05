@@ -89,8 +89,7 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
       setSaving(true);
       
       console.log(`🔄 Alterando ${DAYS[dayOfWeek]} (day_of_week: ${dayOfWeek})`);
-  
-      // Encontrar o dia específico no estado atual
+
       const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
       if (!currentDay) {
         console.error('❌ Dia não encontrado no estado');
@@ -100,37 +99,52 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
       const newIsWorkingDay = !currentDay.is_working_day;
       console.log(`📝 ${DAYS[dayOfWeek]}: ${currentDay.is_working_day} → ${newIsWorkingDay}`);
       
-      // Preparar dados para upsert
+      // ⚠️ ALTERAÇÃO PRINCIPAL: Preparar dados com estratégia diferente
       const upsertData = {
         professional_id: professionalId,
         day_of_week: dayOfWeek,
-        start_time: newIsWorkingDay ? (currentDay.start_time || '08:00') : null,
-        end_time: newIsWorkingDay ? (currentDay.end_time || '17:00') : null,
+        start_time: newIsWorkingDay ? (currentDay.start_time || '08:00:00') : null,
+        end_time: newIsWorkingDay ? (currentDay.end_time || '17:00:00') : null,
         is_working_day: newIsWorkingDay,
       };
 
       console.log('💾 Dados para salvar:', upsertData);
-  
-      // Fazer upsert no banco de dados
+
+      // ⚠️ MUDANÇA: Usar delete + insert em vez de upsert
+      if (currentDay.id) {
+        const { error: deleteError } = await supabase
+          .from('working_hours')
+          .delete()
+          .eq('id', currentDay.id);
+        
+        if (deleteError) throw deleteError;
+      }
+
       const { data, error } = await supabase
         .from('working_hours')
-        .upsert(upsertData, { onConflict: 'professional_id,day_of_week' })
+        .insert(upsertData)
         .select()
         .single();
-  
+
       if (error) {
         console.error('❌ Erro no banco:', error);
         throw error;
       }
 
       console.log('✅ Dados salvos:', data);
-  
+
       // Atualizar o estado local
       setWorkingHours(prev =>
         prev.map(wh => (wh.day_of_week === dayOfWeek ? { ...wh, ...data } : wh))
       );
       
       toast.success(`${DAYS[dayOfWeek]} ${newIsWorkingDay ? 'habilitado' : 'desabilitado'}`);
+      
+      // ⚠️ NOVO: Sinalizar mudança para o componente pai
+      if (onSuccess) {
+        onSuccess(); // Isso vai forçar refresh no BookingSteps
+      }
+      
     } catch (error: any) {
       console.error('Error updating day:', error);
       toast.error(error.message || 'Erro ao atualizar dia de trabalho');

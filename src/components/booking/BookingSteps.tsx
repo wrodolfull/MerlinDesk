@@ -17,6 +17,7 @@ interface BookingStepsProps {
 
 const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComplete }: BookingStepsProps) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [refreshWorkingDays, setRefreshWorkingDays] = useState(0);
   const [workingDays, setWorkingDays] = useState<number[]>([]);
   const [bookingData, setBookingData] = useState<{
     specialty?: Specialty;
@@ -26,33 +27,42 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
-useEffect(() => {
-  const fetchWorkingDays = async () => {
-    if (!bookingData.professional?.id) return;
+  useEffect(() => {
+    const fetchWorkingDays = async () => {
+      if (!bookingData.professional?.id) {
+        setWorkingDays([]);
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from('working_hours')
-      .select('day_of_week, is_working_day')
-      .eq('professional_id', bookingData.professional.id)
-      .eq('is_working_day', true);
+      console.log('🔍 Carregando working_hours para:', bookingData.professional.id);
 
-    if (error) {
-      console.error('❌ Erro ao buscar working_hours:', error);
-      return;
-    }
+      try {
+        const { data, error } = await supabase
+          .from('working_hours')
+          .select('day_of_week, is_working_day')
+          .eq('professional_id', bookingData.professional.id)
+          .eq('is_working_day', true); // ⚠️ APENAS dias marcados como true
 
-    console.log('🔍 Buscando working_hours para profissional:', bookingData.professional.id);
+        if (error) {
+          console.error('❌ Erro ao buscar working_hours:', error);
+          setWorkingDays([]);
+          return;
+        }
 
-    console.log('🟡 Resultado Supabase:', data);
+        console.log('🟡 Resultado Supabase:', data);
 
-    const diasValidos = data.map((d) => d.day_of_week);
-    console.log('📅 Dias trabalhados filtrados:', diasValidos);
-    setWorkingDays(diasValidos);
-    console.log('✅ workingDays state setado como:', diasValidos);
-  };
+        const diasValidos = data.map((d) => d.day_of_week);
+        console.log('📅 Dias trabalhados filtrados:', diasValidos);
+        setWorkingDays(diasValidos);
+        console.log('✅ workingDays state setado como:', diasValidos);
+      } catch (error) {
+        console.error('❌ Erro na busca:', error);
+        setWorkingDays([]);
+      }
+    };
 
-  fetchWorkingDays();
-}, [bookingData.professional]);
+    fetchWorkingDays();
+  }, [bookingData.professional?.id, refreshWorkingDays]); // ⚠️ Adicionar refreshWorkingDays
 
 
   const handleSpecialtySelect = (specialty: Specialty) => {
