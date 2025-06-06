@@ -65,13 +65,12 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
             {/* Botões de ação */}
             <div className="space-y-3 pt-4">
               <Button
-                className="bg-[#7C45D0] hover:bg-[#6D3FC4] text-white w-full"
                 onClick={() => copyToClipboard(embedCode, 'Código de incorporação copiado!')}
-                leftIcon={<ClipboardCopy size={16} />}
+                className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-md px-4 py-2 text-sm"
               >
+                <ClipboardCopy size={16} className="text-gray-600" />
                 Incorporar no site
               </Button>
-
               <Button
                 className="bg-[#7C45D0] hover:bg-[#6D3FC4] text-white w-full"
                 onClick={() => copyToClipboard(bookingUrl, 'Link copiado!')}
