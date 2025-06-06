@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
 import { Calendar } from '../../types';
-import { Copy, Share2, X } from 'lucide-react';
+import { ClipboardCopy, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface ShareCalendarModalProps {
@@ -12,26 +12,16 @@ interface ShareCalendarModalProps {
 
 const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClose }) => {
   const bookingUrl = `${window.location.origin}/booking/${calendar.id}`;
+  const embedCode = `<iframe src="${window.location.origin}/booking/embed/${calendar.id}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`;
 
-  const copyToClipboard = async () => {
+  const copyToClipboard = async (text: string, successMsg = 'Copiado!') => {
     try {
-      await navigator.clipboard.writeText(bookingUrl);
-      toast.success('Link copiado para a área de transferência');
+      await navigator.clipboard.writeText(text);
+      toast.success(successMsg);
     } catch (err) {
       console.error('Falha ao copiar:', err);
-      toast.error('Erro ao copiar o link');
+      toast.error('Erro ao copiar');
     }
-  };
-
-  const shareToWhatsApp = () => {
-    const message = encodeURIComponent(`Agende um horário com ${calendar.name}: ${bookingUrl}`);
-    window.open(`https://wa.me/?text=${message}`, '_blank', 'noopener,noreferrer');
-    toast('Abrindo WhatsApp...', { icon: '📤' });
-  };
-
-  const copyAndShare = async () => {
-    await copyToClipboard();
-    shareToWhatsApp();
   };
 
   return (
@@ -50,6 +40,7 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Link direto */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Link de agendamento</label>
               <div className="flex items-center space-x-2">
@@ -63,30 +54,33 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={copyToClipboard}
-                  leftIcon={<Copy size={14} />}
+                  onClick={() => copyToClipboard(bookingUrl, 'Link copiado!')}
+                  leftIcon={<ClipboardCopy size={14} />}
                 >
                   Copiar
                 </Button>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center pt-4 space-y-2 sm:space-y-0 sm:space-x-2">
+            {/* Botões de ação */}
+            <div className="space-y-3 pt-4">
               <Button
-                className="bg-green-500 hover:bg-green-600 text-white"
-                onClick={shareToWhatsApp}
-                leftIcon={<Share2 size={14} />}
+                className="bg-[#7C45D0] hover:bg-[#6D3FC4] text-white w-full"
+                onClick={() => copyToClipboard(embedCode, 'Código de incorporação copiado!')}
+                leftIcon={<ClipboardCopy size={16} />}
               >
-                WhatsApp
+                Incorporar no site
               </Button>
+
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={copyAndShare}
-                leftIcon={<Copy size={14} />}
+                className="bg-[#7C45D0] hover:bg-[#6D3FC4] text-white w-full"
+                onClick={() => copyToClipboard(bookingUrl, 'Link copiado!')}
+                leftIcon={<ClipboardCopy size={16} />}
               >
-                Copiar & Enviar
+                Copiar link
               </Button>
-              <Button variant="ghost" onClick={onClose}>
+
+              <Button variant="ghost" onClick={onClose} className="w-full">
                 Fechar
               </Button>
             </div>
