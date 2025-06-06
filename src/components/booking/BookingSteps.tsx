@@ -27,34 +27,57 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
     client?: Client;
   }>({});
 
+useEffect(() => {
+  const fetchWorkingDays = async () => {
+    if (!bookingData.professional?.id) {
+      setWorkingDays([]);
+      return;
+    }
+
+    console.log('🔍 Carregando working_hours para:', bookingData.professional.id);
+
+    const { data, error } = await supabase
+      .from('working_hours')
+      .select('day_of_week, is_working_day')
+      .eq('professional_id', bookingData.professional.id)
+      .eq('is_working_day', true); // ⚠️ APENAS dias true
+
+    if (error) {
+      console.error('❌ Erro ao buscar working_hours:', error);
+      setWorkingDays([]);
+      return;
+    }
+
+    console.log('🟡 Resultado Supabase:', data);
+
+    const diasValidos = data.map((d) => d.day_of_week);
+    console.log('📅 Dias trabalhados filtrados:', diasValidos);
+    setWorkingDays(diasValidos);
+    console.log('✅ workingDays state setado como:', diasValidos);
+  };
+
+  fetchWorkingDays();
+}, [bookingData.professional?.id]); // ⚠️ CORRIGIDO: usar .id em vez do objeto completo
+
+  const handleWorkingHoursChange = () => {
+    console.log('🔄 Forçando refresh dos workingDays');
+    setRefreshWorkingDays(prev => prev + 1);
+  };
+
   useEffect(() => {
-    const fetchWorkingDays = async () => {
-      if (!bookingData.professional?.id) return setWorkingDays([]);
+  const handleWorkingHoursChanged = (event: any) => {
+    if (event.detail.professionalId === bookingData.professional?.id) {
+      console.log('🔄 Horários alterados, forçando refresh');
+      handleWorkingHoursChange();
+    }
+  };
 
-      const { data, error } = await supabase
-        .from('working_hours')
-        .select('day_of_week, is_working_day')
-        .eq('professional_id', bookingData.professional.id)
-        .eq('is_working_day', true);
-
-      if (error) return console.error('Erro:', error);
-
-      setWorkingDays(data.map((d) => d.day_of_week));
-    };
-
-    fetchWorkingDays();
-  }, [bookingData.professional?.id]);
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      if (e.detail.professionalId === bookingData.professional?.id) {
-        setRefreshWorkingDays((prev) => prev + 1);
-      }
-    };
-
-    window.addEventListener('workingHoursChanged', handler);
-    return () => window.removeEventListener('workingHoursChanged', handler);
-  }, [bookingData.professional?.id]);
+  window.addEventListener('workingHoursChanged', handleWorkingHoursChanged);
+  
+  return () => {
+    window.removeEventListener('workingHoursChanged', handleWorkingHoursChanged);
+  };
+}, [bookingData.professional?.id]);
 
   const handleSpecialtySelect = (specialty: Specialty) => {
     setBookingData(prev => ({ ...prev, specialty, professional: undefined }));
@@ -78,8 +101,10 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
 
   const handleConfirmBooking = async () => {
     try {
-      const { specialty, professional, client, date, timeSlot } = bookingData;
-      if (!specialty || !professional || !client || !date || !timeSlot) return;
+      if (!bookingData.client || !bookingData.professional || !bookingData.specialty || !bookingData.timeSlot || !bookingData.date) {
+        console.error('Dados de agendamento incompletos');
+        return;
+      }
 
       const { data: calendarData, error: calendarError } = await supabase
         .from('calendars')
@@ -88,97 +113,130 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
         .single();
 
       if (calendarError) throw calendarError;
+
       const owner_id = calendarData.owner_id;
+      if (!owner_id) throw new Error('Não foi possível determinar o proprietário do calendário');
 
       let clientId;
       const { data: existingClient } = await supabase
         .from('clients')
         .select('id')
-        .eq('email', client.email)
+        .eq('email', bookingData.client.email)
         .eq('owner_id', owner_id)
         .maybeSingle();
 
       if (existingClient) {
         clientId = existingClient.id;
       } else {
-        const { data: newClient } = await supabase
+        const { data: newClient, error: createClientError } = await supabase
           .from('clients')
-          .insert({ name: client.name, email: client.email, phone: client.phone, owner_id })
+          .insert({
+            name: bookingData.client.name,
+            email: bookingData.client.email,
+            phone: bookingData.client.phone,
+            owner_id
+          })
           .select('id')
           .single();
 
+        if (createClientError) throw new Error(`Erro ao criar cliente: ${createClientError.message}`);
         clientId = newClient.id;
       }
 
       const appointmentData = {
         client_id: clientId,
-        professional_id: professional.id,
-        specialty_id: specialty.id,
+        professional_id: bookingData.professional.id,
+        specialty_id: bookingData.specialty.id,
         calendar_id: calendarId,
-        start_time: new Date(timeSlot.start).toISOString(),
-        end_time: new Date(timeSlot.end).toISOString(),
+        start_time: new Date(bookingData.timeSlot.start).toISOString(),
+        end_time: new Date(bookingData.timeSlot.end).toISOString(),
         status: 'pending',
         notes: ''
       };
 
-      const { data: createdAppointment } = await supabase
-        .from('appointments')
-        .insert(appointmentData)
-        .select()
-        .single();
+    const { data: createdAppointment, error } = await supabase
+      .from('appointments')
+      .insert(appointmentData)
+      .select()
+      .single();
 
-      if (onComplete) onComplete(createdAppointment);
+    if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+
+    console.log('📋 Agendamento criado com sucesso:', createdAppointment);
+
+    if (onComplete) {
+      onComplete(createdAppointment); // ✅ dado real salvo no Supabase
+    }
 
       setTimeout(() => {
         window.open('https://merlindesk.com', '_blank');
       }, 5000);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error('❌ Erro ao criar agendamento:', error);
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
   };
 
   const availableProfessionals = bookingData.specialty
-    ? professionals.filter(p =>
+    ? professionals.filter((p) =>
         Array.isArray(p.specialties) &&
         p.specialties.some((s: any) => s?.id === bookingData.specialty?.id)
       )
     : [];
 
-  const getTimeSlots = async (date: Date) => {
-    if (!bookingData.professional || !bookingData.specialty) return [];
+const getTimeSlots = async (date: Date) => {
+  if (!bookingData.professional || !bookingData.specialty) {
+    console.log('⚠️ getTimeSlots: Profissional ou especialidade não selecionados');
+    return [];
+  }
 
-    const dateString = date.toISOString().split('T')[0];
+  const dateString = date.toISOString().split('T')[0];
+  console.log('🔍 getTimeSlots: Buscando slots para:', dateString);
 
-    try {
-      const { data, error } = await supabase.rpc('get_available_slots', {
-        input_professional_id: bookingData.professional.id,
-        input_specialty_id: bookingData.specialty.id,
-        input_date: dateString,
-      });
+  try {
+    const { data, error } = await supabase.rpc('get_available_slots', {
+      input_professional_id: bookingData.professional.id,
+      input_specialty_id: bookingData.specialty.id,
+      input_date: dateString,
+    });
 
-      if (error || !Array.isArray(data)) return [];
-
-      return data.map((slot) => ({
-        start: new Date(slot.start_time).toISOString(),
-        end: new Date(slot.end_time).toISOString(),
-      }));
-    } catch (error) {
-      console.error(error);
+    if (error) {
+      console.error('❌ getTimeSlots: Erro na função RPC:', error);
       return [];
     }
-  };
+
+    console.log('🟡 getTimeSlots: Resultado RPC para', dateString, ':', data);
+
+    if (!Array.isArray(data)) {
+      console.log('⚠️ getTimeSlots: Resultado não é array');
+      return [];
+    }
+
+    const slots = data.map((slot) => ({
+      start: new Date(slot.start_time).toISOString(),
+      end: new Date(slot.end_time).toISOString(),
+    }));
+
+    console.log(`✅ getTimeSlots: ${slots.length} slots encontrados para ${dateString}`);
+    return slots;
+  } catch (error) {
+    console.error('❌ getTimeSlots: Erro geral:', error);
+    return [];
+  }
+};
 
   const steps = [1, 2, 3, 4, 5];
 
   return (
-    <div className="w-full min-h-screen overflow-x-hidden bg-white text-gray-900 px-4 py-6">
-      {/* Barra de progresso */}
-      <div className="w-full max-w-5xl mx-auto mb-6">
-        <div className="relative flex justify-between items-center">
+    <div className="w-full min-h-screen overflow-x-hidden bg-white text-gray-900">
+      {/* Etapas Visuais */}
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between relative">
           <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
           <div
             className="absolute top-4 left-0 h-0.5 bg-[#7C45D0] z-10 transition-all duration-500 ease-out"
@@ -198,7 +256,11 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
                 {currentStep > step ? (
                   <Check className="w-4 h-4" />
                 ) : (
-                  <div className={`w-2 h-2 rounded-full ${currentStep === step ? 'bg-[#7C45D0]' : 'bg-gray-400'}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      currentStep === step ? 'bg-[#7C45D0]' : 'bg-gray-400'
+                    }`}
+                  />
                 )}
               </div>
             </div>
@@ -206,8 +268,8 @@ const BookingSteps = ({ calendarId, specialties = [], professionals = [], onComp
         </div>
       </div>
 
-      {/* Etapas */}
-      <div className="w-full max-w-4xl mx-auto">
+      {/* Conteúdo de cada etapa */}
+      <div className="animate-fade-in">
         {currentStep === 1 && (
           <SpecialtySelection specialties={specialties} onSelect={handleSpecialtySelect} />
         )}
