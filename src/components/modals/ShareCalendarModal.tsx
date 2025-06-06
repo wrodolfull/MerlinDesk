@@ -51,14 +51,6 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   onFocus={(e) => e.target.select()}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyToClipboard(bookingUrl, 'Link copiado!')}
-                  leftIcon={<ClipboardCopy size={14} />}
-                >
-                  Copiar
-                </Button>
               </div>
             </div>
 
@@ -76,7 +68,7 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
                 onClick={() => copyToClipboard(bookingUrl, 'Link copiado!')}
                 leftIcon={<ClipboardCopy size={16} />}
               >
-                Copiar link
+                Copiar
               </Button>
 
               <Button variant="ghost" onClick={onClose} className="w-full">
