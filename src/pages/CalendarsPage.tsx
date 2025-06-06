@@ -242,14 +242,6 @@ const CalendarsPage = () => {
                     >
                       ID
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      leftIcon={<Share2 size={14} />}
-                      onClick={() => setIframeCalendarId(calendar.id)}
-                    >
-                      Iframe
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
