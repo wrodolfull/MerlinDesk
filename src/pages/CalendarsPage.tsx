@@ -208,9 +208,9 @@ const CalendarsPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      leftIcon={<Share2 size={14} />}
+                      leftIcon={<Share2 size={14} color="white" />}
                       onClick={() => setSharingCalendar(calendar)}
-                      style={{ borderColor: '#7C45D0', color: '#7C45D0' }}
+                      className="bg-[#7C45D0] text-white border-[#7C45D0] hover:bg-[#6D3FC4]"
                     >
                       Compartilhar
                     </Button>
@@ -220,6 +220,7 @@ const CalendarsPage = () => {
                       leftIcon={<Edit size={14} />}
                       onClick={() => setEditingCalendar(calendar)}
                     >
+                      Editar
                     </Button>
                     <Button
                       variant="outline"
