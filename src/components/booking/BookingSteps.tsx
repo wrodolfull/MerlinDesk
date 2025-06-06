@@ -233,9 +233,9 @@ const getTimeSlots = async (date: Date) => {
   const steps = [1, 2, 3, 4, 5];
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full min-h-screen overflow-x-hidden bg-white text-gray-900">
       {/* Etapas Visuais */}
-      <div className="mb-12">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between relative">
           <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
           <div
