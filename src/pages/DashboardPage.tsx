@@ -197,66 +197,66 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
     }
   }, [appointments, loading]);
 
-  // Configurar subscription para atualizações em tempo real com notificações
-  useEffect(() => {
-    console.log('🔄 Configurando subscription para atualizações em tempo real');
+  // // Configurar subscription para atualizações em tempo real com notificações
+  // useEffect(() => {
+  //   console.log('🔄 Configurando subscription para atualizações em tempo real');
     
-    const subscription = supabase
-      .channel('appointments_changes')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'appointments' }, 
-        (payload) => {
-          console.log('📥 Novo agendamento inserido:', payload);
+  //   const subscription = supabase
+  //     .channel('appointments_changes')
+  //     .on('postgres_changes', 
+  //       { event: 'INSERT', schema: 'public', table: 'appointments' }, 
+  //       (payload) => {
+  //         console.log('📥 Novo agendamento inserido:', payload);
           
-          // Tocar som de notificação
-          playNotificationSound();
+  //         // Tocar som de notificação
+  //         playNotificationSound();
           
-          // Mostrar toast de notificação
-          toast.success('🎉 Novo agendamento recebido!', {
-            duration: 5000,
-            position: 'top-right',
-            style: {
-              background: '#10B981',
-              color: 'white',
-            },
-          });
+  //         // Mostrar toast de notificação
+  //         toast.success('🎉 Novo agendamento recebido!', {
+  //           duration: 5000,
+  //           position: 'top-right',
+  //           style: {
+  //             background: '#10B981',
+  //             color: 'white',
+  //           },
+  //         });
 
-          // Mostrar notificação do navegador
-          if (payload.new) {
-            showBrowserNotification(payload.new);
-          }
+  //         // Mostrar notificação do navegador
+  //         if (payload.new) {
+  //           showBrowserNotification(payload.new);
+  //         }
           
-          refetch();
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'appointments' }, 
-        (payload) => {
-          console.log('🔄 Agendamento atualizado:', payload);
-          refetch();
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'DELETE', schema: 'public', table: 'appointments' }, 
-        (payload) => {
-          console.log('🗑️ Agendamento excluído:', payload);
-          refetch();
-        }
-      )
-      .subscribe();
+  //         refetch();
+  //       }
+  //     )
+  //     .on('postgres_changes', 
+  //       { event: 'UPDATE', schema: 'public', table: 'appointments' }, 
+  //       (payload) => {
+  //         console.log('🔄 Agendamento atualizado:', payload);
+  //         refetch();
+  //       }
+  //     )
+  //     .on('postgres_changes', 
+  //       { event: 'DELETE', schema: 'public', table: 'appointments' }, 
+  //       (payload) => {
+  //         console.log('🗑️ Agendamento excluído:', payload);
+  //         refetch();
+  //       }
+  //     )
+  //     .subscribe();
 
-    // Polling como fallback
-    const interval = setInterval(() => {
-      console.log('🔍 Polling para novos agendamentos');
-      refetch();
-    }, 300000);
+  //   // Polling como fallback
+  //   const interval = setInterval(() => {
+  //     console.log('🔍 Polling para novos agendamentos');
+  //     refetch();
+  //   }, 300000);
 
-    return () => {
-      console.log('❌ Cancelando subscription e polling');
-      subscription.unsubscribe();
-      clearInterval(interval);
-    };
-  }, [refetch]);
+  //   return () => {
+  //     console.log('❌ Cancelando subscription e polling');
+  //     subscription.unsubscribe();
+  //     clearInterval(interval);
+  //   };
+  // }, [refetch]);
 
   const handleViewAppointment = (appointment: Appointment) => {
     setEditingAppointment({ ...appointment });

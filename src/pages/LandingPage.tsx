@@ -21,7 +21,7 @@ const LandingPage = () => {
           
           {/* Menu Desktop */}
           <div className="hidden md:flex items-center space-x-8">
-            {['Recursos', 'Soluções', 'Preços', 'Empresa'].map(item => (
+            {['Recursos', 'Preços'].map(item => (
               <a key={item} href={`#${item.toLowerCase()}`} className="text-gray-700 hover:text-gray-900 transition-colors font-medium">
                 {item}
               </a>
@@ -51,7 +51,7 @@ const LandingPage = () => {
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="container mx-auto px-4 py-4 space-y-4">
-              {['Recursos', 'Soluções', 'Preços', 'Empresa'].map(item => (
+              {['Recursos', 'Preços'].map(item => (
                 <a 
                   key={item} 
                   href={`#${item.toLowerCase()}`} 
@@ -102,10 +102,6 @@ const LandingPage = () => {
               </a>
             </div>
             <p className="text-sm text-gray-500 mt-4">Grátis para sempre — sem cartão de crédito necessário</p>
-          </div>
-
-          {/* Logos de Empresas */}
-          <div className="text-center mb-16">
             <p className="text-sm text-gray-500 mb-6">Confiado por mais de 2.500 profissionais</p>
           </div>
 
@@ -123,7 +119,7 @@ const LandingPage = () => {
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4">Agendar uma consulta</h3>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">Realizar agendamento</h3>
                     <p className="text-gray-600 mb-6">Escolha um horário que funcione melhor para você.</p>
                     
                     <div className="space-y-3">
@@ -234,8 +230,8 @@ const LandingPage = () => {
               <div className="w-16 h-16 bg-[#E8DBFA] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-[#6D3FC4]" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Tipos de evento personalizados</h3>
-              <p className="text-gray-600">Escolha entre modelos pré-construídos ou crie rapidamente tipos de eventos personalizados para qualquer reunião.</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Relatórios completos</h3>
+              <p className="text-gray-600">Tenha todos os dados de seus agendamento com um poderoso relatório.</p>
             </div>
           </div>
 
@@ -282,7 +278,7 @@ const LandingPage = () => {
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
-                  "Olá João! Lembre-se da sua consulta amanhã às 14:00. Confirme sua presença respondendo SIM."
+                  "Olá João! Lembre-se da sua consulta amanhã às 14:00."
                 </div>
               </div>
               
@@ -333,7 +329,7 @@ const LandingPage = () => {
       </section>
 
       {/* Seção de Integrações */}
-      <section className="py-20 bg-gray-50">
+      {/* <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Conecte o Merlin Desk às ferramentas que você já usa</h2>
@@ -352,10 +348,10 @@ const LandingPage = () => {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Seção de Preços */}
-      <section id="precos" className="py-20 bg-white">
+      <section id="precos" className="py-20 bg-white scroll-mt-28">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Escolha o plano perfeito para sua equipe</h2>
@@ -373,7 +369,7 @@ const LandingPage = () => {
               <ul className="space-y-3 mb-8">
                 {[
                   '1 calendário',
-                  '50 agendamentos por mês',
+                  '20 agendamentos por mês',
                   'Relatório',
                   'Página de agendamento'
                 ].map((feature, i) => (
@@ -397,7 +393,7 @@ const LandingPage = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Essencial</h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold">R$59</span>
+                <span className="text-3xl font-bold">R$69</span>
                 <span className="text-gray-500">/mês</span>
               </div>
               <p className="text-gray-600 mb-6">Para uso profissional</p>
@@ -409,6 +405,7 @@ const LandingPage = () => {
                   'Especialidades ilimitadas',
                   'Lembretes automáticos',
                   'Relatório',
+                  'Integração com Google',
                   'Assistente pessoal com IA',
                   'API',
                   'Suporte por email'
@@ -436,19 +433,19 @@ const LandingPage = () => {
           <p className="text-xl text-blue-100 mb-8">
             Junte-se a milhões de profissionais que confiam no Merlin Desk para simplificar seus agendamentos.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <Link to="/register">
-              <Button size="lg" className="bg-white text-[#6D3FC4] hover:bg-gray-50 px-8 py-4 text-lg font-medium">
+              <Button
+                size="lg"
+                className="bg-white text-[#6D3FC4] hover:bg-gray-50 px-8 py-4 text-lg font-medium"
+              >
                 Começar grátis
               </Button>
             </Link>
-            <a href="#demo">
-              <Button size="lg" variant="outline" className="border-[#6D3FC4] text-white hover:bg-white hover:text-[#6D3FC4] px-8 py-4 text-lg font-medium transition-colors">
-                Agendar demonstração
-              </Button>
-            </a>
           </div>
-          <p className="text-sm text-blue-200 mt-4">Grátis para sempre — sem cartão de crédito necessário</p>
+          <p className="text-sm text-blue-200 mt-4">
+            Grátis para sempre — sem cartão de crédito necessário
+          </p>
         </div>
       </section>
     </div>

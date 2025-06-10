@@ -16,7 +16,8 @@ import {
   LogOut, 
   MessageCircle,
   Brain,
-  Stars
+  Stars,
+  Plug 
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -64,6 +65,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     //{ path: '/ai-training', icon: <Brain size={20} />, label: 'AI Training' },
     { path: '/analytics', icon: <BarChart size={20} />, label: 'Relatório' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
+    { path: '/integrations', icon: <Plug size={20} />, label: 'Integrações' },
   ];
 
   const isActive = (path: string) => {

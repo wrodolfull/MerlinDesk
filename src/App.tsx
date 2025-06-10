@@ -30,6 +30,7 @@ import AITrainingPage from './pages/AITrainingPage';
 import AssistantSettingsPage from './pages/AssistantSettingsPage';
 import WhatsAppConnect from './pages/WhatsAppConnect';
 import SharedBookingEmbedPage from './pages/SharedBookingEmbedPage';
+import Integracoes from './pages/IntegrationsPage';
 
 function App() {
   return (
@@ -194,6 +195,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <AnalyticsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/integrations"
+                element={
+                  <PrivateRoute>
+                    <Integracoes />
                   </PrivateRoute>
                 }
               />

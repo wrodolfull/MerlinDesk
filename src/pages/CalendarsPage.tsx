@@ -231,7 +231,7 @@ const CalendarsPage = () => {
                     >
                       Deletar
                     </Button>
-                    <Button
+                    {/* <Button
                       variant="ghost"
                       size="sm"
                       leftIcon={<Eye size={14} />}
@@ -241,7 +241,7 @@ const CalendarsPage = () => {
                       }}
                     >
                       ID
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               </CardHeader>

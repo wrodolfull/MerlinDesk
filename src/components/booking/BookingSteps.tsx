@@ -151,7 +151,8 @@ useEffect(() => {
         start_time: new Date(bookingData.timeSlot.start).toISOString(),
         end_time: new Date(bookingData.timeSlot.end).toISOString(),
         status: 'pending',
-        notes: ''
+        notes: '',
+        user_id: owner_id
       };
 
     const { data: createdAppointment, error } = await supabase
@@ -161,6 +162,37 @@ useEffect(() => {
       .single();
 
     if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+
+    try {
+  const { data: integration } = await supabase
+    .from('user_integrations')
+    .select('status')
+    .eq('user_id', owner_id)
+    .eq('integration_type', 'google_calendar')
+    .eq('status', 'active')
+    .single();
+
+    if (integration) {
+      const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId: createdAppointment.id,
+          userId: owner_id
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Evento criado no Google Calendar:', result.eventId);
+      }
+    }
+  } catch (googleError) {
+    console.error('⚠️ Erro ao criar evento no Google Calendar:', googleError);
+    // Não falha o agendamento se o Google Calendar falhar
+  }
+
+  console.log('📋 Agendamento criado com sucesso:', createdAppointment);
 
     console.log('📋 Agendamento criado com sucesso:', createdAppointment);
 

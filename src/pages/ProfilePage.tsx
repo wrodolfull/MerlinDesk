@@ -7,7 +7,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader, AlertTriangle, Trash2, Copy, RefreshCw } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Copy, RefreshCw, Plus, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProfileFormData {
@@ -29,6 +29,9 @@ const ProfilePage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToken, setUserToken] = useState('');
   const [tokenLoading, setTokenLoading] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [creatingApiKey, setCreatingApiKey] = useState(false);
+  const [apiKeyData, setApiKeyData] = useState<any>(null);
 
   const {
     register,
@@ -42,12 +45,10 @@ const ProfilePage = () => {
 
   // Função para gerar UUID com fallback
   const generateUUID = () => {
-    // Tentar usar crypto.randomUUID() primeiro
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
     
-    // Fallback usando crypto.getRandomValues()
     if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
@@ -56,7 +57,6 @@ const ProfilePage = () => {
       });
     }
     
-    // Último recurso usando Math.random()
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -64,50 +64,102 @@ const ProfilePage = () => {
     });
   };
 
-  const generateUserTokenIfNotExists = async (userId: string) => {
+  // Função para verificar se o usuário tem API Key
+  const checkApiKey = async (userId: string) => {
     try {
-      const { data: existing, error: fetchError } = await supabase
-        .from('user_tokens')
-        .select('token')
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('user_id, client_secret, created_at')
         .eq('user_id', userId)
-        .single();
+        .eq('is_active', true)
+        .maybeSingle();
 
-      if (existing) {
-        return existing.token;
+      if (error) {
+        console.error('Erro ao verificar API Key:', error);
+        return null;
       }
 
-      const generatedToken = generateUUID(); // Usar nossa função com fallback
-
-      const { error: insertError } = await supabase
-        .from('user_tokens')
-        .insert({ user_id: userId, token: generatedToken });
-
-      if (insertError) throw insertError;
-
-      return generatedToken;
+      return data;
     } catch (error) {
-      console.error('Erro ao gerar token:', error);
-      throw error;
+      console.error('Erro ao verificar API Key:', error);
+      return null;
     }
   };
 
+  // Função para criar API Key para o usuário
+  const createApiKey = async (userId: string) => {
+    try {
+      setCreatingApiKey(true);
+      const clientSecret = generateUUID();
+
+      const { data, error } = await supabase
+        .from('api_keys')
+        .insert({
+          user_id: userId,
+          client_secret: clientSecret,
+          is_active: true,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro detalhado ao criar API Key:', error);
+        
+        if (error.code === '23503') {
+          toast.error('Erro: Verifique se a foreign key está correta (deve referenciar auth.users)');
+          throw new Error('Foreign key constraint incorreta. Execute o SQL de correção primeiro.');
+        }
+        
+        throw error;
+      }
+
+      toast.success('API Key criada com sucesso!');
+      setHasApiKey(true);
+      setApiKeyData(data);
+      
+      // Gerar token Base64
+      const fullToken = btoa(`${data.user_id}:${data.client_secret}`);
+      setUserToken(fullToken);
+      
+      return data;
+    } catch (error) {
+      console.error('Erro ao criar API Key:', error);
+      toast.error('Erro ao criar API Key');
+      throw error;
+    } finally {
+      setCreatingApiKey(false);
+    }
+  };
+
+  // CORREÇÃO: useEffect simplificado - só usa Base64
   useEffect(() => {
     const loadProfile = async () => {
       try {
         if (!user) return;
 
-        // Carregar dados do usuário autenticado
         reset({
           name: user.user_metadata?.full_name || user.user_metadata?.name || '',
           email: user.email || '',
           phone: user.user_metadata?.phone || '',
         });
 
-        // Gerar token se não existir
-        if (user.id) {
-          const token = await generateUserTokenIfNotExists(user.id);
-          setUserToken(token);
+        const apiKey = await checkApiKey(user.id);
+
+        if (!apiKey) {
+          setHasApiKey(false);
+          setApiKeyData(null);
+          setUserToken('');
+          console.warn('API Key não encontrada para o usuário');
+          return;
         }
+
+        // Se tem API Key, gera o token Base64
+        setHasApiKey(true);
+        setApiKeyData(apiKey);
+        const fullToken = btoa(`${apiKey.user_id}:${apiKey.client_secret}`);
+        setUserToken(fullToken);
+        
       } catch (err) {
         console.error('Erro ao carregar perfil:', err);
         toast.error('Falha ao carregar perfil');
@@ -123,7 +175,6 @@ const ProfilePage = () => {
     try {
       setUpdating(true);
 
-      // Preparar dados para atualização
       const updateData: any = {
         data: {
           full_name: data.name,
@@ -132,15 +183,12 @@ const ProfilePage = () => {
         }
       };
 
-      // 1. Atualizar email se foi alterado
       if (data.email !== user?.email) {
         updateData.email = data.email;
         toast.success('Um email de confirmação foi enviado para o novo endereço');
       }
 
-      // 2. Atualizar senha se fornecida
       if (data.currentPassword && data.newPassword) {
-        // Verificar senha atual fazendo login
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: user?.email || '',
           password: data.currentPassword,
@@ -155,7 +203,6 @@ const ProfilePage = () => {
         toast.success('Senha atualizada com sucesso');
       }
 
-      // 3. Atualizar dados do usuário
       const { error: updateError } = await supabase.auth.updateUser(updateData);
 
       if (updateError) throw updateError;
@@ -178,27 +225,51 @@ const ProfilePage = () => {
     }
   };
 
+  // CORREÇÃO: Regeneração simplificada - só atualiza client_secret e reconstrói Base64
   const handleRegenerateToken = async () => {
     if (!user?.id) return;
 
+    if (!hasApiKey) {
+      toast.error('Crie uma API Key primeiro');
+      return;
+    }
+
     try {
       setTokenLoading(true);
-      const newToken = generateUUID(); // Usar nossa função com fallback
-      
+      const newSecret = generateUUID();
+
       const { error } = await supabase
-        .from('user_tokens')
-        .update({ token: newToken })
-        .eq('user_id', user.id);
+        .from('api_keys')
+        .update({ client_secret: newSecret })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
       if (error) throw error;
 
-      setUserToken(newToken);
+      // Atualizar o estado local
+      const updatedApiKeyData = { ...apiKeyData, client_secret: newSecret };
+      setApiKeyData(updatedApiKeyData);
+
+      // Gerar novo token Base64
+      const fullToken = btoa(`${user.id}:${newSecret}`);
+      setUserToken(fullToken);
+
       toast.success('Token regenerado com sucesso!');
     } catch (error) {
       console.error('Erro ao regenerar token:', error);
       toast.error('Erro ao regenerar token');
     } finally {
       setTokenLoading(false);
+    }
+  };
+
+  const handleCreateApiKey = async () => {
+    if (!user?.id) return;
+    
+    try {
+      await createApiKey(user.id);
+    } catch (error) {
+      console.error('Erro ao criar API Key:', error);
     }
   };
 
@@ -220,10 +291,8 @@ const ProfilePage = () => {
     try {
       setIsDeleting(true);
       
-      // 1. Fazer logout primeiro
       await signOut();
       
-      // 2. Tentar excluir a conta de autenticação
       try {
         const { error: authDeleteError } = await supabase.auth.admin.deleteUser(
           user?.id as string
@@ -359,54 +428,94 @@ const ProfilePage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Token de API</CardTitle>
+            <CardTitle>Configuração de API</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Este é seu token de autenticação da API. Use-o para fazer chamadas autenticadas para nossa API.
-            </p>
-
-            {userToken && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Seu Token</label>
-                <textarea
-                  readOnly
-                  value={userToken}
-                  className="w-full text-xs p-3 bg-gray-100 border border-gray-300 rounded-md resize-none font-mono"
-                  rows={3}
-                />
+            {!hasApiKey ? (
+              <div className="text-center p-6 bg-yellow-50 rounded-md border border-yellow-200">
+                <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-yellow-800 mb-2">API Key não configurada</h3>
+                <p className="text-sm text-yellow-700 mb-4">
+                  Você precisa criar uma API Key para usar os recursos de integração com a API.
+                </p>
+                <Button
+                  onClick={handleCreateApiKey}
+                  isLoading={creatingApiKey}
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {creatingApiKey ? 'Criando...' : 'Criar API Key'}
+                </Button>
               </div>
+            ) : (
+              <>
+                <div className="bg-green-50 p-3 rounded-md border border-green-200">
+                  <p className="text-sm text-green-700 flex items-center">
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    <strong>API Key configurada:</strong> Você pode usar os recursos da API.
+                  </p>
+                  {apiKeyData && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Criada em: {new Date(apiKeyData.created_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Token de Autenticação</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {tokenLoading ? (
+                      <div className="flex items-center justify-center p-8">
+                      </div>
+                    ) : userToken ? (
+                      <div className="space-y-2">
+                        <textarea
+                          readOnly
+                          value={userToken}
+                          className="w-full text-xs p-3 bg-gray-100 border border-gray-300 rounded-md resize-none font-mono"
+                          rows={3}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center p-4 bg-gray-50 rounded-md">
+                        <p className="text-gray-600">Token não disponível</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyToken}
+                        disabled={!userToken || tokenLoading}
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copiar Token
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRegenerateToken}
+                        disabled={tokenLoading}
+                        isLoading={tokenLoading}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        {tokenLoading ? 'Regenerando...' : 'Regenerar Token'}
+                      </Button>
+                    </div>
+
+                    <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                      <p className="text-xs text-blue-600">
+                        <strong>Como usar:</strong> Adicione o header <code>Authorization: Basic {userToken}</code> nas suas requisições para a API.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             )}
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyToken}
-                disabled={!userToken}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copiar Token
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRegenerateToken}
-                disabled={tokenLoading}
-                isLoading={tokenLoading}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                {tokenLoading ? 'Regenerando...' : 'Regenerar Token'}
-              </Button>
-            </div>
-
-            <div className="bg-red-50 p-3 rounded-md border border-red-200">
-              <p className="text-xs text-red-600 flex items-center">
-                <AlertTriangle className="w-4 h-4 mr-1" />
-                <strong>Importante:</strong> Não compartilhe este token com ninguém. Ele dá acesso total à sua conta via API.
-              </p>
-            </div>
           </CardContent>
         </Card>
 

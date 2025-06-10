@@ -188,13 +188,37 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
     fetchData();
   }, [user]);
 
-  const onSubmit = async (data: CreateAppointmentFormData) => {
-    try {
-      if (!user) throw new Error('User not authenticated');
-      if (!limits) throw new Error('Não foi possível carregar os limites do plano.');
+const onSubmit = async (data: CreateAppointmentFormData) => {
+  try {
+    // Se estiver logado, ótimo. Se não, a gente vai buscar o user_id do calendário
+    const specialty = specialtiesData.find((s) => s.id === data.specialtyId);
+    if (!specialty) throw new Error('Specialty not found');
 
+    const professional = professionalsData.find((p) => p.id === data.professionalId);
+    if (!professional) throw new Error('Professional not found');
+
+    const { data: calendarData, error: calendarError } = await supabase
+    .from('calendars')
+    .select('owner_id')
+    .eq('id', professional.calendar_id)
+    .single();
+
+    console.log('🔍 Debug calendar query:');
+    console.log('- calendar_id:', professional.calendar_id);
+    console.log('- calendarData:', calendarData);
+    console.log('- calendarError:', calendarError);
+
+  if (calendarError || !calendarData?.owner_id) {
+    console.error('Erro ao buscar o owner_id do calendário:', calendarError);
+    throw new Error('Não foi possível identificar o dono do calendário');
+  }
+
+  const calendarOwnerId = calendarData.owner_id;
+  console.log('📌 calendarOwnerId encontrado:', calendarOwnerId);
+
+    // Se estiver logado, aplicamos os limites de agendamento
+    if (user && limits) {
       const appointmentLimit = limits.appointments_per_month;
-
       const currentMonthStart = new Date();
       currentMonthStart.setDate(1);
       currentMonthStart.setHours(0, 0, 0, 0);
@@ -211,25 +235,22 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
         toast.error('Você atingiu o limite de agendamentos do seu plano para este mês.');
         return;
       }
+    }
 
-      if (data.clientPhone) {
-        const { error: updateError } = await supabase
-          .from('clients')
-          .update({ phone: data.clientPhone })
-          .eq('id', data.clientId);
-        if (updateError) throw updateError;
-      }
+    if (data.clientPhone) {
+      const { error: updateError } = await supabase
+        .from('clients')
+        .update({ phone: data.clientPhone })
+        .eq('id', data.clientId);
+      if (updateError) throw updateError;
+    }
 
-      const specialty = specialtiesData.find((s) => s.id === data.specialtyId);
-      if (!specialty) throw new Error('Specialty not found');
+    const startTime = new Date(data.startTime);
+    const endTime = addMinutes(startTime, specialty.duration);
 
-      const startTime = new Date(data.startTime);
-      const endTime = addMinutes(startTime, specialty.duration);
-
-      const professional = professionalsData.find((p) => p.id === data.professionalId);
-      if (!professional) throw new Error('Professional not found');
-
-      const { error } = await supabase.from('appointments').insert({
+    const { data: insertedAppointments, error } = await supabase
+      .from('appointments')
+      .insert({
         client_id: data.clientId,
         professional_id: data.professionalId,
         specialty_id: data.specialtyId,
@@ -238,20 +259,77 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
         end_time: endTime.toISOString(),
         status: data.status,
         notes: data.notes,
-        user_id: user.id,
-      });
+        user_id: calendarOwnerId, // <- Aqui o user_id correto
+      })
+      .select();
 
-      if (error) throw error;
+    if (error) throw error;
 
-      toast.success('Appointment created successfully');
-      reset();
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create appointment');
-      console.error('Error creating appointment:', err);
+    const appointmentId = insertedAppointments?.[0]?.id;
+
+    // Verifica se o dono do calendário está com Google Calendar conectado
+    const { data: integration } = await supabase
+      .from('user_integrations')
+      .select('status')
+      .eq('user_id', calendarOwnerId)
+      .eq('integration_type', 'google_calendar')
+      .eq('status', 'active')
+      .single();
+
+    if (integration && appointmentId) {
+      try {
+        const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: calendarOwnerId,
+            event: {
+              summary: `Consulta com profissional`,
+              description: data.notes || '',
+              start: {
+                dateTime: startTime.toISOString(),
+                timeZone: 'America/Sao_Paulo',
+              },
+              end: {
+                dateTime: endTime.toISOString(),
+                timeZone: 'America/Sao_Paulo',
+              },
+              attendees: [
+                {
+                  email: clientsData.find(c => c.id === data.clientId)?.email || '',
+                },
+              ],
+            },
+          }),
+        });
+
+        const googleResult = await response.json();
+        const googleEventId = googleResult.googleEventId;
+
+        if (googleEventId) {
+          const { error: updateError } = await supabase
+            .from('appointments')
+            .update({ google_event_id: googleEventId })
+            .eq('id', appointmentId);
+
+          if (updateError) {
+            console.error('Erro ao salvar google_event_id:', updateError);
+          }
+        }
+      } catch (err) {
+        console.warn('Falha ao criar evento no Google Calendar:', err);
+      }
     }
-  };
+
+    toast.success('Agendamento criado com sucesso');
+    reset();
+    onSuccess();
+    onClose();
+  } catch (err: any) {
+    toast.error(err.message || 'Erro ao criar agendamento');
+    console.error('Erro ao criar agendamento:', err);
+  }
+};
 
   // Filtragem bidirecional usando professional_specialties
   const filteredProfessionals = professionalsData.filter((professional) => {

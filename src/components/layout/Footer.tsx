@@ -10,9 +10,14 @@ const Footer = () => {
             <div className="container mx-auto px-4 max-w-6xl">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div>
-                  <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">AgendaFácil</h3>
+                  <h3 className="text-xl font-bold mb-4 text-white">Merlin Desk</h3>
                   <p className="text-gray-400 mb-4">Simplificando agendamentos para empresas em todo o Brasil.</p>
                   <div className="flex space-x-4">
+                    <a href="https://www.instagram.com/merlindesk/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 1.17.056 1.987.24 2.45.415a4.92 4.92 0 0 1 1.772 1.153 4.92 4.92 0 0 1 1.153 1.772c.175.463.359 1.28.415 2.45.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.056 1.17-.24 1.987-.415 2.45a4.92 4.92 0 0 1-1.153 1.772 4.92 4.92 0 0 1-1.772 1.153c-.463.175-1.28.359-2.45.415-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.17-.056-1.987-.24-2.45-.415a4.92 4.92 0 0 1-1.772-1.153 4.92 4.92 0 0 1-1.153-1.772c-.175-.463-.359-1.28-.415-2.45C2.175 15.747 2.163 15.367 2.163 12s.012-3.584.07-4.85c.056-1.17.24-1.987.415-2.45a4.92 4.92 0 0 1 1.153-1.772A4.92 4.92 0 0 1 5.573 2.65c.463-.175 1.28-.359 2.45-.415C8.416 2.175 8.796 2.163 12 2.163zm0-2.163C8.736 0 8.332.013 7.052.072 5.776.13 4.732.312 3.85.635c-.9.31-1.662.764-2.425 1.527C.764 3.925.31 4.688 0 5.587c-.323.882-.505 1.926-.563 3.202C-.013 8.668 0 9.072 0 12c0 2.928.013 3.332.072 4.613.058 1.276.24 2.32.563 3.202.31.9.764 1.662 1.527 2.425.763.763 1.525 1.217 2.425 1.527.882.323 1.926.505 3.202.563C8.668 23.987 9.072 24 12 24s3.332-.013 4.613-.072c1.276-.058 2.32-.24 3.202-.563.9-.31 1.662-.764 2.425-1.527.763-.763 1.217-1.525 1.527-2.425.323-.882.505-1.926.563-3.202C23.987 15.332 24 14.928 24 12s-.013-3.332-.072-4.613c-.058-1.276-.24-2.32-.563-3.202a6.911 6.911 0 0 0-1.527-2.425 6.911 6.911 0 0 0-2.425-1.527C19.332.313 18.288.13 17.012.072 15.732.013 15.328 0 12 0zM12 5.838A6.162 6.162 0 1 0 18.162 12 6.162 6.162 0 0 0 12 5.838zm0 10.162A4 4 0 1 1 16 12a4 4 0 0 1-4 4zm6.406-11.845a1.44 1.44 0 1 1-1.44-1.44 1.44 1.44 0 0 1 1.44 1.44z"/>
+                      </svg>
+                    </a>
                     <a href="#" className="text-gray-400 hover:text-white transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/>
@@ -36,18 +41,14 @@ const Footer = () => {
                   <ul className="space-y-2">
                     <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Recursos</a></li>
                     <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Preços</a></li>
-                    <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Integrações</a></li>
-                    <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Atualizações</a></li>
                   </ul>
                 </div>
                 
                 <div>
                   <h4 className="font-semibold text-lg mb-4">Recursos</h4>
                   <ul className="space-y-2">
-                    <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Documentação</a></li>
                     <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Tutoriais</a></li>
                     <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Blog</a></li>
-                    <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Suporte</a></li>
                   </ul>
                 </div>
                 
@@ -60,7 +61,7 @@ const Footer = () => {
                     </li>
                     <li className="flex items-center">
                       <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                      <span className="text-gray-400">contato@agendafacil.com.br</span>
+                      <span className="text-gray-400">contato@merlindesk.com</span>
                     </li>
                     <li className="flex items-center">
                       <MapPin className="h-4 w-4 mr-2 text-gray-400" />
@@ -71,7 +72,7 @@ const Footer = () => {
               </div>
               
               <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
-                <p className="text-gray-400 text-sm">© 2025 AgendaFácil. Todos os direitos reservados.</p>
+                <p className="text-gray-400 text-sm">© 2025 Merlin Desk. Todos os direitos reservados.</p>
                 <div className="flex space-x-4 mt-4 md:mt-0">
                   <a href="#" className="text-gray-400 hover:text-white transition-colors text-sm">Política de Privacidade</a>
                   <a href="#" className="text-gray-400 hover:text-white transition-colors text-sm">Termos de Serviço</a>

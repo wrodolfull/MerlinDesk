@@ -34,9 +34,9 @@ const Navbar = () => {
   const navLinks = [
     { path: '/', label: 'Home' },
     { path: '/dashboard', label: 'Dashboard' },
-    { path: '/calendars', label: 'Calendars' },
-    { path: '/appointments', label: 'Appointments' },
-    { path: '/pricing', label: 'Pricing' },
+    { path: '/calendars', label: 'Calendário' },
+    { path: '/appointments', label: 'Agendamentos' },
+    //{ path: '/pricing', label: 'Preço' },
   ];
 
   return (
@@ -47,7 +47,7 @@ const Navbar = () => {
           <div className="flex items-center">
             <Link to="/" className="flex items-center">
               <Calendar className="h-8 w-8 text-primary-600" />
-              <span className="ml-2 text-xl font-bold text-gray-900">AppointEase</span>
+              <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
             </Link>
           </div>
 
