@@ -35,9 +35,13 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
       .from('user_plan_limits')
       .select('limits')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (limitsError) throw limitsError;
+
+    if (!limitsData) {
+      throw new Error('Plano não encontrado para este usuário.');
+    }
 
     const calendarLimit = limitsData?.limits?.calendars;
 

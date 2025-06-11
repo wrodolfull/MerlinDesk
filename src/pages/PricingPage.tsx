@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { supabase } from '../lib/supabase';
 
 const PricingPage = () => {
   const plans = [
@@ -41,10 +42,65 @@ const PricingPage = () => {
     },
   ];
 
+  // 🔍 Versão de debug para investigar o problema
+  const handlePaidPlanClick = async () => {
+    console.log('=== DEBUG: Iniciando handlePaidPlanClick ===');
+    
+    const { data: { user }, error } = await supabase.auth.getUser();
+    console.log('Usuário:', user?.id, user?.email);
+    
+    if (!user || error) {
+      console.log('Erro de autenticação:', error);
+      alert('Você precisa estar logado para assinar o plano.');
+      return;
+    }
+
+    const requestData = {
+      user_id: user.id,
+      email: user.email,
+    };
+    console.log('Dados da requisição:', requestData);
+
+    try {
+      console.log('Fazendo requisição para: https://merlindesk.com/mercado-pago/criar');
+      
+      const response = await fetch('https://merlindesk.com/mercado-pago/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData),
+      });
+
+      console.log('Status:', response.status);
+      console.log('Headers:', Object.fromEntries(response.headers.entries()));
+      
+      const responseText = await response.text();
+      console.log('Resposta bruta:', responseText);
+      
+      if (!response.ok) {
+        console.error('Erro HTTP:', response.status, response.statusText);
+        alert(`Erro ${response.status}: ${response.statusText}`);
+        return;
+      }
+
+      // Tentar fazer parse do JSON
+      const data = JSON.parse(responseText);
+      console.log('Dados parseados:', data);
+      
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        alert('Erro: checkout_url não encontrada');
+      }
+      
+    } catch (err) {
+      console.error('Erro completo:', err);
+      alert('Erro detalhado no console');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-20">
       <div className="container mx-auto px-4 max-w-7xl">
-        {/* Header */}
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Simple, Transparent Pricing
@@ -54,7 +110,6 @@ const PricingPage = () => {
           </p>
         </div>
 
-        {/* Pricing Cards */}
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {plans.map((plan) => (
             <Card
@@ -101,61 +156,23 @@ const PricingPage = () => {
                     </div>
                   )}
                 </div>
+
                 <div className="mt-8">
-                  <Link to="/register">
-                    <Button
-                      className={`w-full ${
-                        plan.popular ? '' : 'bg-gray-800 hover:bg-gray-900'
-                      }`}
-                    >
-                      Get Started
+                  {plan.price === 0 ? (
+                    <Link to="/register">
+                      <Button className="w-full bg-gray-800 hover:bg-gray-900">
+                        Get Started
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button className="w-full" onClick={handlePaidPlanClick}>
+                      Assinar plano Business
                     </Button>
-                  </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
-        </div>
-
-        {/* FAQ Section */}
-        <div className="mt-20">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Frequently Asked Questions
-          </h2>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Can I upgrade or downgrade my plan?
-              </h3>
-              <p className="text-gray-600">
-                Yes, you can change your plan at any time. When upgrading, you'll be charged the prorated amount for the remainder of your billing cycle.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                What happens after my trial ends?
-              </h3>
-              <p className="text-gray-600">
-                After your trial ends, you'll automatically be moved to the Free plan unless you choose to upgrade to the Business plan.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Is there a long-term contract?
-              </h3>
-              <p className="text-gray-600">
-                No, all plans are month-to-month and you can cancel at any time without penalty.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Do you offer custom plans?
-              </h3>
-              <p className="text-gray-600">
-                Yes, if you need custom features or have specific requirements, please contact our sales team for a custom solution.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
