@@ -1,6 +1,6 @@
-# Zap Agenda
+# Merlin Desk
 
-**Zap Agenda** é uma aplicação web para gerenciamento de agendamentos online, integrada com WhatsApp e suporte a múltiplos profissionais e especialidades.
+**Merlin Desk** é uma aplicação web para gerenciamento de agendamentos online, integrada com WhatsApp e suporte a múltiplos profissionais e especialidades.
 
 ## 🚀 Funcionalidades
 
@@ -8,8 +8,6 @@
 - Cadastro de clientes, profissionais e especialidades
 - Painel administrativo com dashboard
 - Integração com Supabase
-- Treinamento de IA para automatizar respostas
-- Upload e gerenciamento de arquivos
 - Integração futura com WhatsApp
 
 ## 📦 Instalação
@@ -18,4 +16,4 @@
 
 ```bash
 git clone https://github.com/wrodolfull/MerlinDesk.git
-cd Zap-Agenda
+cd MerlinDesk
