@@ -11,20 +11,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
 
-// ✅ Middleware de debug ANTES dos routers
+// ✅ Middleware de debug
 app.use((req, res, next) => {
   console.log(`📍 ${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
-console.log('📦 Registrando routers...');
+// ✅ IMPORTANTE: Webhook ANTES do express.json()
+app.use('/webhook/mercado-pago', express.raw({ type: 'application/json' }));
+app.use('/webhook/mercado-pago', mercadoPagoWebhook);
+
+// ✅ JSON middleware para outras rotas
+app.use(express.json());
+
+// ✅ Outras rotas
 app.use('/google', googleRoutes);
 app.use('/google', googleCalendarRoutes);
 app.use('/mercado-pago', mercadoPagoAssinatura);
-app.use('/mercado-pago/webhook', mercadoPagoWebhook);
+
+// ✅ Rota de teste
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor rodando na porta ${PORT}`);
+  console.log(`🔗 Webhook URL: http://localhost:${PORT}/webhook/mercado-pago`);
 });

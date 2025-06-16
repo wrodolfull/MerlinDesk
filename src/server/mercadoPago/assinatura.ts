@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const router = express.Router();
 
-// ✅ Configuração do Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SERVICE_ROLE_KEY!
@@ -20,47 +19,6 @@ const mercadoPagoAPI = axios.create({
   },
 });
 
-// Rota existente
-router.post('/assinatura', async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
-
-  if (!email) {
-    res.status(400).json({ erro: 'E-mail do cliente é obrigatório.' });
-    return;
-  }
-
-  try {
-    const plano = await mercadoPagoAPI.post('/preapproval_plan', {
-      reason: 'Plano Mensal Dohoo',
-      auto_recurring: {
-        frequency: 1,
-        frequency_type: 'months',
-        transaction_amount: 79.9,
-        currency_id: 'BRL',
-      },
-      back_url: 'https://merlindesk.com/login',
-    });
-
-    const planoId = plano.data.id;
-
-    const assinatura = await mercadoPagoAPI.post('/preapproval', {
-      preapproval_plan_id: planoId,
-      payer_email: email,
-      back_url: 'https://merlindesk.com/login',
-    });
-
-    res.status(200).json({
-      init_point: assinatura.data.init_point,
-      planoId,
-      assinaturaId: assinatura.data.id,
-    });
-  } catch (error: unknown) {
-    const err = error as any;
-    console.error('Erro ao criar assinatura:', err.response?.data || err.message);
-    res.status(500).json({ erro: 'Erro ao criar assinatura' });
-  }
-});
-
 router.post('/criar', async (req: Request, res: Response): Promise<void> => {
   const { user_id, email } = req.body;
 
@@ -72,13 +30,26 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('🔄 Criando plano no Mercado Pago...');
     
-    // ✅ Criar apenas o plano (sem assinatura automática)
+    // ✅ Buscar o plan_id dinamicamente (plano Empresa)
+    const { data: planData, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('id, name, price')
+      .eq('name', 'Empresa')
+      .single();
+
+    if (planError || !planData) {
+      console.error('❌ Erro ao buscar plano:', planError);
+      res.status(500).json({ error: 'Plano Empresa não encontrado' });
+      return;
+    }
+    
+    // ✅ Criar plano no Mercado Pago
     const plano = await mercadoPagoAPI.post('/preapproval_plan', {
       reason: 'Assinatura Plano Empresa',
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
-        transaction_amount: 79.9,
+        transaction_amount: planData.price || 79.9,
         currency_id: 'BRL',
       },
       back_url: 'https://merlindesk.com/login',
@@ -86,12 +57,12 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
 
     console.log('✅ Plano criado:', plano.data.id);
 
-    // ✅ Criar link de pagamento (sem card_token_id)
+    // ✅ Criar checkout de pagamento
     const preference = await mercadoPagoAPI.post('/checkout/preferences', {
       items: [{
         title: 'Assinatura Plano Empresa',
         quantity: 1,
-        unit_price: 79.9,
+        unit_price: planData.price || 79.9,
         currency_id: 'BRL',
       }],
       payer: {
@@ -103,28 +74,30 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
         pending: 'https://merlindesk.com/login?status=pending',
       },
       auto_return: 'approved',
+      external_reference: user_id, // ✅ Adicionar referência do usuário
     });
 
     const checkout_url = preference.data.init_point;
     const preference_id = preference.data.id;
 
-    // Salvar no Supabase
+    // ✅ Dados alinhados com sua estrutura SQL
     const subscriptionData = {
       user_id,
-      plan_id: '13a351d7-08e5-4f10-8658-19e4e40b7254',
-      assinatura_id: preference_id,
-      mercado_pago_plan_id: plano.data.id,
+      plan_id: planData.id, // ✅ UUID correto da busca
+      assinatura_id: preference_id, // ✅ Conforme sua estrutura
+      mercado_pago_plan_id: plano.data.id, // ✅ Conforme sua estrutura
+      preference_id: preference_id, // ✅ Campo separado conforme SQL
       status: 'pending',
       current_period_start: new Date().toISOString(),
       current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      // created_at e updated_at são automáticos pelos triggers
     };
 
+    // ✅ Usar UPSERT com a constraint UNIQUE correta
     const { data: subscriptionResult, error: subscriptionError } = await supabase
       .from('user_subscriptions')
       .upsert(subscriptionData, { 
-        onConflict: 'user_id',
+        onConflict: 'user_id', // ✅ Funciona com sua constraint UNIQUE
         ignoreDuplicates: false 
       })
       .select();

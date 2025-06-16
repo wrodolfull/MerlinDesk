@@ -1,36 +1,150 @@
 import express from 'express';
+import crypto from 'crypto';
+import axios from 'axios';
 import { supabase } from '../supabase';
 
 const router = express.Router();
 
+const validateWebhookSignature = (
+  dataId: string, 
+  requestId: string, 
+  signature: string
+): boolean => {
+  const secret = process.env.MP_WEBHOOK_SECRET!;
+  
+  if (!secret || !signature) {
+    return false;
+  }
+  
+  const parts = signature.split(',');
+  let ts = '';
+  let hash = '';
+  
+  parts.forEach(part => {
+    const [key, value] = part.split('=');
+    if (key && value) {
+      if (key.trim() === 'ts') {
+        ts = value.trim();
+      } else if (key.trim() === 'v1') {
+        hash = value.trim();
+      }
+    }
+  });
+  
+  if (!ts || !hash) {
+    return false;
+  }
+  
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  
+  const expectedHash = crypto
+    .createHmac('sha256', secret)
+    .update(manifest)
+    .digest('hex');
+  
+  return expectedHash === hash;
+};
+
 router.post('/', async (req, res): Promise<void> => {
-  const body = req.body;
-
   try {
-    if (body.type === 'preapproval' && body.action === 'authorized') {
-      const assinaturaId = body.data.id;
+    // ✅ Parse do body raw para JSON
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const signature = req.headers['x-signature'] as string;
+    const requestId = req.headers['x-request-id'] as string;
+    const dataId = req.query['data.id'] as string;
 
-      const { error } = await supabase
-        .from('user_subscriptions')
-        .update({
-          status: 'active',
-          current_period_start: new Date().toISOString(),
-        })
-        .eq('assinatura_id', assinaturaId);
+    console.log('📨 Webhook recebido:', JSON.stringify(body, null, 2));
+    console.log('🔍 Headers:', { signature, requestId, dataId });
 
-      if (error) {
-        console.error('Erro ao ativar assinatura:', error);
-        res.status(500).send('Erro ao ativar assinatura');
+    // ✅ Validação de assinatura (opcional para testes)
+    if (signature && process.env.MP_WEBHOOK_SECRET) {
+      if (!validateWebhookSignature(dataId, requestId, signature)) {
+        console.error('❌ Assinatura do webhook inválida');
+        res.status(401).send('Unauthorized');
         return;
       }
-
-      console.log(`✅ Assinatura ativada: ${assinaturaId}`);
+      console.log('✅ Assinatura do webhook válida');
+    } else {
+      console.log('⚠️ Validação de assinatura desabilitada (teste)');
     }
 
-    res.sendStatus(200);
+    // ✅ Tratar eventos de payment
+    if (body.type === 'payment') {
+      const paymentId = body.data.id;
+      console.log(`🔄 Processando pagamento: ${paymentId}`);
+      
+      const mercadoPagoAPI = axios.create({
+        baseURL: 'https://api.mercadopago.com',
+        headers: {
+          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      try {
+        const paymentResponse = await mercadoPagoAPI.get(`/v1/payments/${paymentId}`);
+        const payment = paymentResponse.data;
+        console.log(`💳 Status do pagamento: ${payment.status}`);
+
+        // ✅ Buscar assinatura pelo preference_id
+        const { data: existingSubscription, error: selectError } = await supabase
+          .from('user_subscriptions')
+          .select('id, status, user_id')
+          .eq('preference_id', payment.preference_id)
+          .single();
+
+        if (selectError || !existingSubscription) {
+          console.error('❌ Assinatura não encontrada para preference_id:', payment.preference_id);
+          res.status(200).send('OK - Assinatura não encontrada'); // ✅ Retorna 200 para evitar retry
+          return;
+        }
+
+        // ✅ Atualizar status baseado no pagamento
+        let newStatus = 'pending';
+        if (payment.status === 'approved') {
+          newStatus = 'active';
+        } else if (payment.status === 'cancelled' || payment.status === 'rejected') {
+          newStatus = 'canceled';
+        }
+
+        if (existingSubscription.status !== newStatus) {
+          const updateData: any = {
+            status: newStatus,
+          };
+
+          // ✅ Se aprovado, atualizar período
+          if (newStatus === 'active') {
+            updateData.current_period_start = new Date().toISOString();
+            updateData.current_period_end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          }
+
+          const { error } = await supabase
+            .from('user_subscriptions')
+            .update(updateData)
+            .eq('id', existingSubscription.id);
+
+          if (error) {
+            console.error('❌ Erro ao atualizar assinatura:', error);
+            res.status(500).send('Erro ao atualizar assinatura');
+            return;
+          }
+
+          console.log(`✅ Assinatura atualizada para ${newStatus}: ${payment.preference_id}`);
+        } else {
+          console.log(`ℹ️ Assinatura já estava com status ${newStatus}`);
+        }
+      } catch (apiError) {
+        console.error('❌ Erro ao consultar pagamento no MP:', apiError);
+        res.status(500).send('Erro ao consultar pagamento');
+        return;
+      }
+    }
+
+    // ✅ Sempre retornar 200 para webhooks válidos
+    res.status(200).send('OK');
   } catch (err) {
-    console.error('Erro no webhook:', err);
-    res.sendStatus(500);
+    console.error('❌ Erro no webhook:', err);
+    res.status(500).send('Erro interno');
   }
 });
 

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// google.ts (Versão para Produção - Corrigida)
+// google.ts (Versão para Produção - Corrigida com Validação de Disponibilidade)
 const express_1 = __importDefault(require("express"));
 const googleapis_1 = require("googleapis");
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -32,6 +32,75 @@ function generateCodeVerifier() {
 // Função para gerar code_challenge
 function generateCodeChallenge(verifier) {
     return crypto_1.default.createHash('sha256').update(verifier).digest('base64url');
+}
+// ✅ NOVA FUNÇÃO - Verificar disponibilidade no Google Calendar
+async function checkCalendarAvailability(oauth2Client, startTime, endTime, calendarId = 'primary') {
+    try {
+        const calendar = googleapis_1.google.calendar({ version: 'v3', auth: oauth2Client });
+        // Buscar eventos no período especificado
+        const response = await calendar.events.list({
+            calendarId: calendarId,
+            timeMin: startTime,
+            timeMax: endTime,
+            singleEvents: true,
+            orderBy: 'startTime',
+            maxResults: 50
+        });
+        const events = response.data.items || [];
+        // Filtrar eventos que não são cancelados e que realmente conflitam
+        const conflictingEvents = events.filter(event => {
+            // Ignorar eventos cancelados
+            if (event.status === 'cancelled')
+                return false;
+            // Ignorar eventos de dia inteiro
+            if (event.start?.date && !event.start?.dateTime)
+                return false;
+            // Verificar sobreposição de horários
+            const eventStart = new Date(event.start?.dateTime || event.start?.date);
+            const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+            const requestStart = new Date(startTime);
+            const requestEnd = new Date(endTime);
+            return (requestStart < eventEnd && requestEnd > eventStart);
+        });
+        return {
+            available: conflictingEvents.length === 0,
+            conflictingEvents: conflictingEvents.length > 0 ? conflictingEvents : undefined
+        };
+    }
+    catch (error) {
+        console.error('❌ Erro ao verificar disponibilidade:', error);
+        throw new Error('Erro ao verificar disponibilidade no calendário');
+    }
+}
+// ✅ NOVA FUNÇÃO - Usar FreeBusy API para verificação mais eficiente
+async function checkFreeBusyAvailability(oauth2Client, startTime, endTime, calendarId = 'primary') {
+    try {
+        const calendar = googleapis_1.google.calendar({ version: 'v3', auth: oauth2Client });
+        const response = await calendar.freebusy.query({
+            requestBody: {
+                timeMin: startTime,
+                timeMax: endTime,
+                items: [{ id: calendarId }]
+            }
+        });
+        const busySlots = response.data.calendars?.[calendarId]?.busy || [];
+        // Verificar se há sobreposição com slots ocupados
+        const requestStart = new Date(startTime);
+        const requestEnd = new Date(endTime);
+        const hasConflict = busySlots.some(slot => {
+            const slotStart = new Date(slot.start);
+            const slotEnd = new Date(slot.end);
+            return (requestStart < slotEnd && requestEnd > slotStart);
+        });
+        return {
+            available: !hasConflict,
+            busySlots: hasConflict ? busySlots : undefined
+        };
+    }
+    catch (error) {
+        console.error('❌ Erro ao verificar FreeBusy:', error);
+        throw new Error('Erro ao verificar disponibilidade via FreeBusy');
+    }
 }
 // Middleware de rate limiting
 async function rateLimitMiddleware(req, res, next) {
@@ -194,6 +263,182 @@ router.get('/callback', async (req, res) => {
         res.status(500).send(generateErrorPage('Erro ao processar integração. Tente novamente.'));
     }
 });
+// ✅ NOVA ROTA - Verificar disponibilidade usando Events API
+router.post('/calendar/check-availability', rateLimitMiddleware, validateUserId, async (req, res) => {
+    const { user_id, startTime, endTime, calendarId = 'primary' } = req.body;
+    if (!startTime || !endTime) {
+        res.status(400).json({
+            error: 'startTime e endTime são obrigatórios'
+        });
+        return;
+    }
+    try {
+        // Buscar integração Google Calendar
+        const { data: integration, error: integrationError } = await supabase
+            .from('user_integrations')
+            .select('credentials')
+            .eq('user_id', user_id)
+            .eq('integration_type', 'google_calendar')
+            .eq('status', 'active')
+            .single();
+        if (integrationError || !integration?.credentials) {
+            res.status(401).json({
+                error: 'Integração Google Calendar não encontrada'
+            });
+            return;
+        }
+        // Configurar OAuth2 client
+        const userOAuth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+        userOAuth2Client.setCredentials(integration.credentials);
+        // Verificar disponibilidade
+        const availabilityResult = await checkCalendarAvailability(userOAuth2Client, startTime, endTime, calendarId);
+        res.json({
+            available: availabilityResult.available,
+            startTime,
+            endTime,
+            calendarId,
+            conflictingEvents: availabilityResult.conflictingEvents?.map(event => ({
+                id: event.id,
+                summary: event.summary,
+                start: event.start?.dateTime || event.start?.date,
+                end: event.end?.dateTime || event.end?.date,
+                status: event.status
+            }))
+        });
+    }
+    catch (err) {
+        console.error('❌ Erro ao verificar disponibilidade:', err);
+        res.status(500).json({
+            error: 'Erro ao verificar disponibilidade',
+            details: err.message
+        });
+    }
+});
+// ✅ NOVA ROTA - Verificar disponibilidade usando FreeBusy API (mais eficiente)
+router.post('/calendar/check-freebusy', rateLimitMiddleware, validateUserId, async (req, res) => {
+    const { user_id, startTime, endTime, calendarId = 'primary' } = req.body;
+    if (!startTime || !endTime) {
+        res.status(400).json({
+            error: 'startTime e endTime são obrigatórios'
+        });
+        return;
+    }
+    try {
+        const { data: integration, error: integrationError } = await supabase
+            .from('user_integrations')
+            .select('credentials')
+            .eq('user_id', user_id)
+            .eq('integration_type', 'google_calendar')
+            .eq('status', 'active')
+            .single();
+        if (integrationError || !integration?.credentials) {
+            res.status(401).json({
+                error: 'Integração Google Calendar não encontrada'
+            });
+            return;
+        }
+        const userOAuth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+        userOAuth2Client.setCredentials(integration.credentials);
+        const freeBusyResult = await checkFreeBusyAvailability(userOAuth2Client, startTime, endTime, calendarId);
+        res.json({
+            available: freeBusyResult.available,
+            startTime,
+            endTime,
+            calendarId,
+            busySlots: freeBusyResult.busySlots
+        });
+    }
+    catch (err) {
+        console.error('❌ Erro ao verificar FreeBusy:', err);
+        res.status(500).json({
+            error: 'Erro ao verificar disponibilidade via FreeBusy',
+            details: err.message
+        });
+    }
+});
+// ✅ NOVA ROTA - Verificar múltiplos slots de uma vez
+router.post('/calendar/check-multiple-slots', rateLimitMiddleware, validateUserId, async (req, res) => {
+    const { user_id, timeSlots, calendarId = 'primary', useFreeBusy = true } = req.body;
+    if (!timeSlots || !Array.isArray(timeSlots)) {
+        res.status(400).json({
+            error: 'timeSlots (array) é obrigatório'
+        });
+        return;
+    }
+    if (timeSlots.length > 20) {
+        res.status(400).json({
+            error: 'Máximo de 20 slots por requisição'
+        });
+        return;
+    }
+    try {
+        const { data: integration, error: integrationError } = await supabase
+            .from('user_integrations')
+            .select('credentials')
+            .eq('user_id', user_id)
+            .eq('integration_type', 'google_calendar')
+            .eq('status', 'active')
+            .single();
+        if (integrationError || !integration?.credentials) {
+            res.status(401).json({
+                error: 'Integração Google Calendar não encontrada'
+            });
+            return;
+        }
+        const userOAuth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+        userOAuth2Client.setCredentials(integration.credentials);
+        // Verificar cada slot
+        const results = await Promise.all(timeSlots.map(async (slot) => {
+            try {
+                if (useFreeBusy) {
+                    const availability = await checkFreeBusyAvailability(userOAuth2Client, slot.startTime, slot.endTime, calendarId);
+                    return {
+                        startTime: slot.startTime,
+                        endTime: slot.endTime,
+                        available: availability.available,
+                        method: 'freebusy',
+                        conflicts: availability.busySlots?.length || 0
+                    };
+                }
+                else {
+                    const availability = await checkCalendarAvailability(userOAuth2Client, slot.startTime, slot.endTime, calendarId);
+                    return {
+                        startTime: slot.startTime,
+                        endTime: slot.endTime,
+                        available: availability.available,
+                        method: 'events',
+                        conflicts: availability.conflictingEvents?.length || 0
+                    };
+                }
+            }
+            catch (error) {
+                return {
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    available: false,
+                    error: 'Erro ao verificar slot'
+                };
+            }
+        }));
+        res.json({
+            results,
+            summary: {
+                total: results.length,
+                available: results.filter(r => r.available).length,
+                unavailable: results.filter(r => !r.available).length
+            },
+            availableSlots: results.filter(r => r.available),
+            unavailableSlots: results.filter(r => !r.available)
+        });
+    }
+    catch (err) {
+        console.error('❌ Erro ao verificar múltiplos slots:', err);
+        res.status(500).json({
+            error: 'Erro ao verificar disponibilidade',
+            details: err.message
+        });
+    }
+});
 // Rota para verificar status com cache
 router.get('/status/:user_id', validateUserId, async (req, res) => {
     const { user_id } = req.params;
@@ -244,8 +489,9 @@ router.post('/disconnect', validateUserId, async (req, res) => {
         // Revogar token no Google se existir
         if (integration?.credentials?.access_token) {
             try {
-                oauth2Client.setCredentials(integration.credentials);
-                await oauth2Client.revokeCredentials();
+                const userOAuth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+                userOAuth2Client.setCredentials(integration.credentials);
+                await userOAuth2Client.revokeCredentials();
                 console.log(`✅ Token revogado no Google para usuário ${user_id}`);
             }
             catch (revokeError) {
