@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { Appointment } from '../../types';
 import { Card } from '../ui/Card';
@@ -204,21 +205,22 @@ const AppointmentCalendar = ({
   return (
     <Card className="p-6 shadow-lg">
       <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
         locale={ptBrLocale}
         initialView={window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek'}
         headerToolbar={{
           left: 'prev,next today',
           center: 'title',
           right: window.innerWidth < 768 
-            ? 'timeGridDay,timeGridWeek' 
-            : 'dayGridMonth,timeGridWeek,timeGridDay',
+            ? 'timeGridDay,timeGridWeek,listWeek' 
+            : 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
         }}
         buttonText={{
           today: 'Hoje',
           month: 'Mês',
           week: 'Semana',
           day: 'Dia',
+          list: 'Lista',
           prev: '‹',
           next: '›',
         }}
