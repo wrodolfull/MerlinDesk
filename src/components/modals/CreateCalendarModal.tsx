@@ -31,13 +31,62 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
   try {
     if (!user) throw new Error('User not authenticated');
 
-    const { data: limitsData, error: limitsError } = await supabase
+    // ✅ Buscar limites do usuário
+    let { data: limitsData, error: limitsError } = await supabase
       .from('user_plan_limits')
       .select('limits')
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (limitsError) throw limitsError;
+
+    // ✅ Se não encontrar o usuário, buscar o plano atual e criar registro
+    if (!limitsData) {
+      console.log('Usuário não encontrado em user_plan_limits, criando registro...');
+      
+      // Buscar plano atual do usuário
+      const { data: subscriptionData } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          current_plan_id,
+          current_plan:subscription_plans!current_plan_id(name, features)
+        `)
+        .eq('user_id', user.id)
+        .single();
+
+      let planName = 'Grátis';
+      let planLimits = {
+        calendars: 1,
+        professionals: 1,
+        appointments_per_month: 20
+      };
+
+      // Se tem assinatura ativa, usar dados do plano atual
+      if (subscriptionData?.current_plan) {
+        planName = subscriptionData.current_plan.name;
+        planLimits = subscriptionData.current_plan.features || planLimits;
+      }
+
+      // Criar registro na tabela user_plan_limits
+      const { data: newLimitsData, error: insertError } = await supabase
+        .from('user_plan_limits')
+        .insert({
+          user_id: user.id,
+          plan_name: planName,
+          limits: planLimits,
+          status: 'active'
+        })
+        .select('limits')
+        .single();
+
+      if (insertError) {
+        console.error('Erro ao criar registro user_plan_limits:', insertError);
+        throw new Error('Erro ao configurar plano do usuário.');
+      }
+
+      limitsData = newLimitsData;
+      console.log('✅ Registro criado automaticamente em user_plan_limits');
+    }
 
     if (!limitsData) {
       throw new Error('Plano não encontrado para este usuário.');

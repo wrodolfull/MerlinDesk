@@ -416,9 +416,15 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-[#6D3FC4] text-white hover:bg-[#5A33A3]">
-                Começar teste grátis
-              </Button>
+                <Button className="w-full bg-[#6D3FC4] text-white hover:bg-[#5A33A3] flex flex-col items-center">
+                  <span className="text-base">Assine agora</span>
+                  <span className="text-xs flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M8 1a3 3 0 0 0-3 3v3H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v3H6V4z"/>
+                    </svg>
+                    Pagamento seguro
+                  </span>
+                </Button>
             </div>
           </div>
         </div>

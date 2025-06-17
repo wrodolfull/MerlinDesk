@@ -28,41 +28,90 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    console.log('🔄 Criando plano no Mercado Pago...');
+    console.log('🔄 Buscando planos no Supabase...');
     
-    // ✅ Buscar o plan_id dinamicamente (plano Empresa)
-    const { data: planData, error: planError } = await supabase
+    // ✅ Buscar tanto o plano Empresa quanto o plano Grátis
+    const { data: plansData, error: plansError } = await supabase
       .from('subscription_plans')
-      .select('id, name, price')
-      .eq('name', 'Empresa')
-      .single();
+      .select('id, name, price, mercado_pago_plan_id')
+      .in('name', ['Empresa', 'Grátis']);
 
-    if (planError || !planData) {
-      console.error('❌ Erro ao buscar plano:', planError);
-      res.status(500).json({ error: 'Plano Empresa não encontrado' });
+    if (plansError || !plansData || plansData.length < 2) {
+      console.error('❌ Erro ao buscar planos:', plansError);
+      res.status(500).json({ error: 'Planos não encontrados' });
       return;
     }
-    
-    // ✅ Criar plano no Mercado Pago
-    const plano = await mercadoPagoAPI.post('/preapproval_plan', {
-      reason: 'Assinatura Plano Empresa',
-      auto_recurring: {
-        frequency: 1,
-        frequency_type: 'months',
-        transaction_amount: planData.price || 79.9,
-        currency_id: 'BRL',
-      },
-      back_url: 'https://merlindesk.com/login',
-    });
 
-    console.log('✅ Plano criado:', plano.data.id);
+    const empresaPlan = plansData.find(p => p.name === 'Empresa');
+    const gratisPlan = plansData.find(p => p.name === 'Grátis');
+
+    if (!empresaPlan || !gratisPlan) {
+      res.status(500).json({ error: 'Planos Empresa ou Grátis não encontrados' });
+      return;
+    }
+
+    let mercadoPagoPlanId = empresaPlan.mercado_pago_plan_id;
+
+    // ✅ Verificar se o plano ainda existe no Mercado Pago
+    if (mercadoPagoPlanId) {
+      try {
+        console.log('🔍 Verificando se o plano ainda existe no Mercado Pago...');
+        await mercadoPagoAPI.get(`/preapproval_plan/${mercadoPagoPlanId}`);
+        console.log('✅ Plano ainda existe, reutilizando:', mercadoPagoPlanId);
+      } catch (error: any) {
+        if (error.response?.status === 404 || error.response?.status === 400) {
+          console.log('❌ Plano não existe mais ou foi cancelado, criando novo...');
+          mercadoPagoPlanId = null;
+          
+          await supabase
+            .from('subscription_plans')
+            .update({ mercado_pago_plan_id: null })
+            .eq('id', empresaPlan.id);
+          
+          console.log('✅ ID do plano inválido removido do Supabase');
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // ✅ Criar plano no Mercado Pago se necessário
+    if (!mercadoPagoPlanId) {
+      console.log('🔄 Criando novo plano no Mercado Pago...');
+      
+      const plano = await mercadoPagoAPI.post('/preapproval_plan', {
+        reason: 'Assinatura Plano Empresa',
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: 'months',
+          transaction_amount: Number(empresaPlan.price) || 79.9,
+          currency_id: 'BRL',
+        },
+        back_url: 'https://merlindesk.com/dashboard',
+      });
+
+      mercadoPagoPlanId = plano.data.id;
+      console.log('✅ Novo plano criado:', mercadoPagoPlanId);
+
+      const { error: updateError } = await supabase
+        .from('subscription_plans')
+        .update({ mercado_pago_plan_id: mercadoPagoPlanId })
+        .eq('id', empresaPlan.id);
+
+      if (updateError) {
+        console.error('❌ Erro ao salvar ID do plano no Supabase:', updateError);
+      } else {
+        console.log('✅ ID do plano salvo no Supabase');
+      }
+    }
 
     // ✅ Criar checkout de pagamento
+    console.log('🔄 Criando checkout de pagamento...');
     const preference = await mercadoPagoAPI.post('/checkout/preferences', {
       items: [{
         title: 'Assinatura Plano Empresa',
         quantity: 1,
-        unit_price: planData.price || 79.9,
+        unit_price: Number(empresaPlan.price) || 79.9,
         currency_id: 'BRL',
       }],
       payer: {
@@ -74,52 +123,69 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
         pending: 'https://merlindesk.com/login?status=pending',
       },
       auto_return: 'approved',
-      external_reference: user_id, // ✅ Adicionar referência do usuário
+      external_reference: user_id,
     });
 
     const checkout_url = preference.data.init_point;
     const preference_id = preference.data.id;
+    console.log('✅ Checkout criado:', preference_id);
 
-    // ✅ Dados alinhados com sua estrutura SQL
+    // ✅ Dados para salvar no Supabase - CLIENTE INICIA NO PLANO GRATUITO
     const subscriptionData = {
       user_id,
-      plan_id: planData.id, // ✅ UUID correto da busca
-      assinatura_id: preference_id, // ✅ Conforme sua estrutura
-      mercado_pago_plan_id: plano.data.id, // ✅ Conforme sua estrutura
-      preference_id: preference_id, // ✅ Campo separado conforme SQL
+      plan_id: empresaPlan.id, // Plano que será ativado quando pagar
+      current_plan_id: gratisPlan.id, // ✅ INICIA NO PLANO GRATUITO
+      assinatura_id: preference_id,
+      mercado_pago_plan_id: mercadoPagoPlanId,
+      preference_id: preference_id,
       status: 'pending',
       current_period_start: new Date().toISOString(),
       current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      // created_at e updated_at são automáticos pelos triggers
     };
 
-    // ✅ Usar UPSERT com a constraint UNIQUE correta
+    console.log('🔄 Salvando assinatura no Supabase...');
     const { data: subscriptionResult, error: subscriptionError } = await supabase
       .from('user_subscriptions')
       .upsert(subscriptionData, { 
-        onConflict: 'user_id', // ✅ Funciona com sua constraint UNIQUE
+        onConflict: 'user_id',
         ignoreDuplicates: false 
       })
       .select();
 
     if (subscriptionError) {
       console.error('❌ Erro ao salvar assinatura no Supabase:', subscriptionError);
-      res.status(500).json({ error: 'Erro ao salvar assinatura no banco de dados' });
+      res.status(500).json({ 
+        error: 'Erro ao salvar assinatura no banco de dados',
+        details: subscriptionError.message 
+      });
       return;
     }
 
-    console.log('✅ Dados salvos no Supabase:', subscriptionResult?.[0]?.id);
+    console.log('✅ Dados salvos no Supabase - Cliente iniciado no plano gratuito');
 
     res.json({ 
       checkout_url,
-      plan_id: plano.data.id,
+      plan_id: mercadoPagoPlanId,
       preference_id: preference_id,
-      database_id: subscriptionResult?.[0]?.id
+      database_id: subscriptionResult?.[0]?.id,
+      current_plan: 'Grátis' // Cliente inicia no gratuito
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar assinatura:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Erro ao criar assinatura' });
+    console.error('❌ Erro ao criar assinatura:', error);
+    
+    if (error.response?.data) {
+      console.error('❌ Detalhes do erro MP:', error.response.data);
+      res.status(500).json({ 
+        error: 'Erro na integração com Mercado Pago',
+        details: error.response.data 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        details: error.message 
+      });
+    }
   }
 });
 

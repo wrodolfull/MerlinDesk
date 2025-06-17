@@ -1,181 +1,203 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import Button from '../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { supabase } from '../lib/supabase';
+import AuthModal from '../components/modals/AuthModal';
 
-const PricingPage = () => {
-  const plans = [
+interface Plan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  priceText: string;
+  period: string;
+  features: string[];
+  buttonText: string;
+  popular: boolean;
+}
+
+interface User {
+  id: string;
+  email?: string;
+}
+
+const PricingPage: React.FC = () => {
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const navigate = useNavigate();
+
+  const plans: Plan[] = [
     {
-      name: 'Free',
-      description: 'Perfect for personal use',
+      id: 'gratis',
+      name: 'Grátis',
+      description: 'Perfeito para gerenciamento pessoal',
       price: 0,
+      priceText: 'Grátis',
+      period: ' para sempre',
       features: [
-        '1 calendar',
-        '1 professional',
-        '50 appointments per month',
-        'Basic email notifications',
-        'Standard support',
+        '1 calendário',
+        '1 profissional',
+        '20 agendamentos por mês',
+        'Página de agendamento básica'
       ],
-      limitations: [
-        'No analytics',
-        'No custom branding',
-        'No SMS notifications',
-      ],
+      buttonText: 'Começar grátis',
+      popular: false,
     },
     {
-      name: 'Business',
-      description: 'For growing businesses',
-      price: 29.99,
+      id: 'empresa',
+      name: 'Empresa',
+      description: 'Para negócios em crescimento',
+      price: 79.9,
+      priceText: 'R$79,90',
+      period: '/mês',
       features: [
-        'Unlimited calendars',
-        'Unlimited professionals',
-        'Unlimited appointments',
-        'Advanced analytics',
-        'Custom branding',
-        'Email & SMS notifications',
-        'Priority support',
-        'API access',
+        'Calendários ilimitados',
+        'Profissionais ilimitados',
+        'Agendamentos ilimitados',
+        'Analytics avançado',
+        'Notificações por email',
+        'Relatórios detalhados',
+        'Integração com Google',
+        'Suporte prioritário'
       ],
+      buttonText: 'Assine agora',
       popular: true,
     },
   ];
 
-  // 🔍 Versão de debug para investigar o problema
-  const handlePaidPlanClick = async () => {
-    console.log('=== DEBUG: Iniciando handlePaidPlanClick ===');
-    
-    const { data: { user }, error } = await supabase.auth.getUser();
-    console.log('Usuário:', user?.id, user?.email);
-    
-    if (!user || error) {
-      console.log('Erro de autenticação:', error);
-      alert('Você precisa estar logado para assinar o plano.');
+  const handlePlanClick = async (plan: Plan): Promise<void> => {
+    if (plan.price === 0) {
+      // Plano gratuito - redirecionar para registro
+      navigate('/register');
       return;
     }
 
-    const requestData = {
-      user_id: user.id,
-      email: user.email,
-    };
-    console.log('Dados da requisição:', requestData);
+    // Verificar se o usuário está logado
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (!user || error) {
+      // Usuário não logado - mostrar modal de autenticação
+      setSelectedPlan(plan);
+      setShowAuthModal(true);
+      return;
+    }
 
+    // Usuário logado - prosseguir com o pagamento
+    await handlePayment(user, plan);
+  };
+
+  const handlePayment = async (user: User, plan: Plan): Promise<void> => {
     try {
-      console.log('Fazendo requisição para: https://merlindesk.com/mercado-pago/criar');
+      console.log('Iniciando processo de pagamento para:', plan.name);
       
+      const requestData = {
+        user_id: user.id,
+        email: user.email,
+      };
+
       const response = await fetch('https://merlindesk.com/mercado-pago/criar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
       });
 
-      console.log('Status:', response.status);
-      console.log('Headers:', Object.fromEntries(response.headers.entries()));
-      
-      const responseText = await response.text();
-      console.log('Resposta bruta:', responseText);
-      
       if (!response.ok) {
-        console.error('Erro HTTP:', response.status, response.statusText);
-        alert(`Erro ${response.status}: ${response.statusText}`);
-        return;
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
       }
 
-      // Tentar fazer parse do JSON
-      const data = JSON.parse(responseText);
-      console.log('Dados parseados:', data);
+      const data = await response.json();
       
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        alert('Erro: checkout_url não encontrada');
+        alert('Erro: URL de checkout não encontrada');
       }
       
     } catch (err) {
-      console.error('Erro completo:', err);
-      alert('Erro detalhado no console');
+      console.error('Erro ao processar pagamento:', err);
+      alert('Erro ao processar pagamento. Tente novamente.');
+    }
+  };
+
+  const handleAuthSuccess = async (user: User): Promise<void> => {
+    setShowAuthModal(false);
+    if (selectedPlan) {
+      await handlePayment(user, selectedPlan);
+      setSelectedPlan(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-20">
-      <div className="container mx-auto px-4 max-w-7xl">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Simple, Transparent Pricing
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose the perfect plan for your business. All plans include a 14-day free trial.
-          </p>
-        </div>
+    <>
+      <div className="min-h-screen bg-gray-50 py-20">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="text-center mb-16">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Escolha o plano perfeito para sua equipe
+            </h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Comece com nosso plano gratuito ou escolha o plano empresa para recursos avançados.
+            </p>
+          </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {plans.map((plan) => (
-            <Card
-              key={plan.name}
-              className={`relative ${
-                plan.popular
-                  ? 'border-2 border-primary-500 shadow-xl'
-                  : 'border border-gray-200'
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute top-0 right-0 -translate-y-1/2 px-3 py-1 bg-primary-500 text-white text-sm font-medium rounded-full">
-                  Most Popular
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 justify-center">
+            {plans.map((plan: Plan) => (
+              <div
+                key={plan.id}
+                className={`bg-white rounded-lg p-8 relative ${
+                  plan.popular
+                    ? 'border-2 border-[#7C45D0]'
+                    : 'border border-gray-200'
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <span className="bg-[#7C45D0] text-white px-3 py-1 rounded-full text-sm font-medium">
+                      Mais popular
+                    </span>
+                  </div>
+                )}
+                
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                <div className="mb-4">
+                  <span className="text-3xl font-bold">{plan.priceText}</span>
+                  <span className="text-gray-500">{plan.period}</span>
                 </div>
-              )}
-              <CardHeader className="text-center pb-8 pt-6">
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <p className="text-gray-600 mt-2">{plan.description}</p>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">
-                    ${plan.price}
-                  </span>
-                  {plan.price > 0 && (
-                    <span className="text-gray-600 ml-2">/month</span>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-center text-gray-700">
-                      <Check className="h-5 w-5 text-primary-500 mr-3 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </div>
+                <p className="text-gray-600 mb-6">{plan.description}</p>
+                
+                <ul className="space-y-3 mb-8">
+                  {plan.features.map((feature: string, i: number) => (
+                    <li key={i} className="flex items-center">
+                      <Check className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
+                      <span className="text-gray-700">{feature}</span>
+                    </li>
                   ))}
-                  {plan.limitations && (
-                    <div className="pt-4 mt-4 border-t border-gray-200">
-                      {plan.limitations.map((limitation) => (
-                        <div key={limitation} className="flex items-center text-gray-500 py-1">
-                          <span className="h-5 w-5 mr-3 flex-shrink-0">✕</span>
-                          <span>{limitation}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-8">
-                  {plan.price === 0 ? (
-                    <Link to="/register">
-                      <Button className="w-full bg-gray-800 hover:bg-gray-900">
-                        Get Started
-                      </Button>
-                    </Link>
-                  ) : (
-                    <Button className="w-full" onClick={handlePaidPlanClick}>
-                      Assinar plano Business
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </ul>
+                
+                <Button 
+                  className="w-full bg-[#7C45D0] text-white hover:bg-[#6B3BB8]"
+                  onClick={() => handlePlanClick(plan)}
+                >
+                  {plan.buttonText}
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Modal de Autenticação */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setSelectedPlan(null);
+        }}
+        onSuccess={handleAuthSuccess}
+        selectedPlan={selectedPlan}
+      />
+    </>
   );
 };
 

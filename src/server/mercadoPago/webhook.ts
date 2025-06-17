@@ -47,16 +47,13 @@ const validateWebhookSignature = (
 
 router.post('/', async (req, res): Promise<void> => {
   try {
-    // ✅ Parse do body raw para JSON
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const signature = req.headers['x-signature'] as string;
     const requestId = req.headers['x-request-id'] as string;
     const dataId = req.query['data.id'] as string;
 
     console.log('📨 Webhook recebido:', JSON.stringify(body, null, 2));
-    console.log('🔍 Headers:', { signature, requestId, dataId });
 
-    // ✅ Validação de assinatura (opcional para testes)
     if (signature && process.env.MP_WEBHOOK_SECRET) {
       if (!validateWebhookSignature(dataId, requestId, signature)) {
         console.error('❌ Assinatura do webhook inválida');
@@ -64,8 +61,6 @@ router.post('/', async (req, res): Promise<void> => {
         return;
       }
       console.log('✅ Assinatura do webhook válida');
-    } else {
-      console.log('⚠️ Validação de assinatura desabilitada (teste)');
     }
 
     // ✅ Tratar eventos de payment
@@ -86,30 +81,48 @@ router.post('/', async (req, res): Promise<void> => {
         const payment = paymentResponse.data;
         console.log(`💳 Status do pagamento: ${payment.status}`);
 
-        // ✅ Buscar assinatura pelo preference_id
+        // ✅ Buscar assinatura
         const { data: existingSubscription, error: selectError } = await supabase
           .from('user_subscriptions')
-          .select('id, status, user_id')
+          .select('id, status, user_id, plan_id, current_plan_id')
           .eq('preference_id', payment.preference_id)
           .single();
 
         if (selectError || !existingSubscription) {
           console.error('❌ Assinatura não encontrada para preference_id:', payment.preference_id);
-          res.status(200).send('OK - Assinatura não encontrada'); // ✅ Retorna 200 para evitar retry
+          res.status(200).send('OK - Assinatura não encontrada');
           return;
         }
 
-        // ✅ Atualizar status baseado no pagamento
+        // ✅ IDs dos planos baseados nos seus dados
+        const empresaPlanId = '13a351d7-08e5-41f0-8658-19e4e40b7254';
+        const gratisPlanId = '5d14538d-9f51-41ba-a686-12c6b27af642';
+
+        // ✅ Determinar novo status e plano baseado no pagamento
         let newStatus = 'pending';
+        let newCurrentPlanId = gratisPlanId; // Padrão: plano gratuito
+
         if (payment.status === 'approved') {
           newStatus = 'active';
+          newCurrentPlanId = empresaPlanId; // ✅ UPGRADE PARA EMPRESA
+          console.log('🎉 Pagamento aprovado - Upgrading para plano Empresa');
         } else if (payment.status === 'cancelled' || payment.status === 'rejected') {
           newStatus = 'canceled';
+          newCurrentPlanId = gratisPlanId; // ✅ DOWNGRADE PARA GRATUITO
+          console.log('❌ Pagamento cancelado/rejeitado - Downgrade para plano gratuito');
+        } else {
+          // Pagamento pendente - mantém no plano gratuito
+          newCurrentPlanId = gratisPlanId;
+          console.log('⏳ Pagamento pendente - Mantendo no plano gratuito');
         }
 
-        if (existingSubscription.status !== newStatus) {
+        // ✅ Atualizar apenas se houver mudança
+        if (existingSubscription.status !== newStatus || 
+            existingSubscription.current_plan_id !== newCurrentPlanId) {
+          
           const updateData: any = {
             status: newStatus,
+            current_plan_id: newCurrentPlanId, // ✅ ATUALIZAR PLANO ATUAL
           };
 
           // ✅ Se aprovado, atualizar período
@@ -129,10 +142,12 @@ router.post('/', async (req, res): Promise<void> => {
             return;
           }
 
-          console.log(`✅ Assinatura atualizada para ${newStatus}: ${payment.preference_id}`);
+          const planName = newCurrentPlanId === empresaPlanId ? 'Empresa' : 'Grátis';
+          console.log(`✅ Assinatura atualizada - Status: ${newStatus}, Plano: ${planName}`);
         } else {
-          console.log(`ℹ️ Assinatura já estava com status ${newStatus}`);
+          console.log(`ℹ️ Nenhuma alteração necessária`);
         }
+
       } catch (apiError) {
         console.error('❌ Erro ao consultar pagamento no MP:', apiError);
         res.status(500).send('Erro ao consultar pagamento');
@@ -140,7 +155,6 @@ router.post('/', async (req, res): Promise<void> => {
       }
     }
 
-    // ✅ Sempre retornar 200 para webhooks válidos
     res.status(200).send('OK');
   } catch (err) {
     console.error('❌ Erro no webhook:', err);
