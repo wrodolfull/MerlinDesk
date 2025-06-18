@@ -190,52 +190,22 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
 
 const onSubmit = async (data: CreateAppointmentFormData) => {
   try {
-    // Se estiver logado, ótimo. Se não, a gente vai buscar o user_id do calendário
-    const specialty = specialtiesData.find((s) => s.id === data.specialtyId);
-    if (!specialty) throw new Error('Specialty not found');
+    if (!user) throw new Error('User not authenticated');
 
-    const professional = professionalsData.find((p) => p.id === data.professionalId);
+    const professional = professionalsData.find(p => p.id === data.professionalId);
     if (!professional) throw new Error('Professional not found');
 
+    const specialty = specialtiesData.find(s => s.id === data.specialtyId);
+    if (!specialty) throw new Error('Specialty not found');
+
     const { data: calendarData, error: calendarError } = await supabase
-    .from('calendars')
-    .select('owner_id')
-    .eq('id', professional.calendar_id)
-    .single();
+      .from('calendars')
+      .select('owner_id')
+      .eq('id', professional.calendar_id)
+      .single();
 
-    console.log('🔍 Debug calendar query:');
-    console.log('- calendar_id:', professional.calendar_id);
-    console.log('- calendarData:', calendarData);
-    console.log('- calendarError:', calendarError);
-
-  if (calendarError || !calendarData?.owner_id) {
-    console.error('Erro ao buscar o owner_id do calendário:', calendarError);
-    throw new Error('Não foi possível identificar o dono do calendário');
-  }
-
-  const calendarOwnerId = calendarData.owner_id;
-  console.log('📌 calendarOwnerId encontrado:', calendarOwnerId);
-
-    // Se estiver logado, aplicamos os limites de agendamento
-    if (user && limits) {
-      const appointmentLimit = limits.appointments_per_month;
-      const currentMonthStart = new Date();
-      currentMonthStart.setDate(1);
-      currentMonthStart.setHours(0, 0, 0, 0);
-
-      const { count: currentAppointments, error: countError } = await supabase
-        .from('appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('start_time', currentMonthStart.toISOString());
-
-      if (countError) throw countError;
-
-      if (appointmentLimit !== -1 && currentAppointments !== null && currentAppointments >= appointmentLimit) {
-        toast.error('Você atingiu o limite de agendamentos do seu plano para este mês.');
-        return;
-      }
-    }
+    if (calendarError) throw calendarError;
+    const calendarOwnerId = calendarData.owner_id;
 
     if (data.clientPhone) {
       const { error: updateError } = await supabase
@@ -248,26 +218,27 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
     const startTime = new Date(data.startTime);
     const endTime = addMinutes(startTime, specialty.duration);
 
-    const { data: insertedAppointments, error } = await supabase
+    const appointment = {
+      client_id: data.clientId,
+      professional_id: data.professionalId,
+      specialty_id: data.specialtyId,
+      calendar_id: professional.calendar_id,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      status: data.status,
+      notes: data.notes,
+      user_id: calendarOwnerId,
+    };
+
+    const { data: insertedAppointment, error } = await supabase
       .from('appointments')
-      .insert({
-        client_id: data.clientId,
-        professional_id: data.professionalId,
-        specialty_id: data.specialtyId,
-        calendar_id: professional.calendar_id,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        status: data.status,
-        notes: data.notes,
-        user_id: calendarOwnerId, // <- Aqui o user_id correto
-      })
-      .select();
+      .insert([appointment])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    const appointmentId = insertedAppointments?.[0]?.id;
-
-    // Verifica se o dono do calendário está com Google Calendar conectado
+    // Sincronizar com Google Calendar
     const { data: integration } = await supabase
       .from('user_integrations')
       .select('status')
@@ -276,7 +247,7 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
       .eq('status', 'active')
       .single();
 
-    if (integration && appointmentId) {
+    if (integration && insertedAppointment) {
       try {
         const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
           method: 'POST',
@@ -287,11 +258,11 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
               summary: `Consulta com profissional`,
               description: data.notes || '',
               start: {
-                dateTime: startTime.toISOString(),
+                dateTime: insertedAppointment.start_time,
                 timeZone: 'America/Sao_Paulo',
               },
               end: {
-                dateTime: endTime.toISOString(),
+                dateTime: insertedAppointment.end_time,
                 timeZone: 'America/Sao_Paulo',
               },
               attendees: [
@@ -310,14 +281,14 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
           const { error: updateError } = await supabase
             .from('appointments')
             .update({ google_event_id: googleEventId })
-            .eq('id', appointmentId);
+            .eq('id', insertedAppointment.id);
 
           if (updateError) {
             console.error('Erro ao salvar google_event_id:', updateError);
           }
         }
       } catch (err) {
-        console.warn('Falha ao criar evento no Google Calendar:', err);
+        console.warn('Falha ao criar eventos no Google Calendar:', err);
       }
     }
 

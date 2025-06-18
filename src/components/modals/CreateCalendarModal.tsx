@@ -28,107 +28,94 @@ const CreateCalendarModal: React.FC<CreateCalendarModalProps> = ({ onClose, onSu
   } = useForm<CreateCalendarFormData>();
 
   const onSubmit = async (data: CreateCalendarFormData) => {
-  try {
-    if (!user) throw new Error('User not authenticated');
+    try {
+      if (!user) throw new Error('User not authenticated');
 
-    // ✅ Buscar limites do usuário
-    let { data: limitsData, error: limitsError } = await supabase
-      .from('user_plan_limits')
-      .select('limits')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (limitsError) throw limitsError;
-
-    // ✅ Se não encontrar o usuário, buscar o plano atual e criar registro
-    if (!limitsData) {
-      console.log('Usuário não encontrado em user_plan_limits, criando registro...');
-      
-      // Buscar plano atual do usuário
-      const { data: subscriptionData } = await supabase
-        .from('user_subscriptions')
-        .select(`
-          current_plan_id,
-          current_plan:subscription_plans!current_plan_id(name, features)
-        `)
-        .eq('user_id', user.id)
-        .single();
-
-      let planName = 'Grátis';
-      let planLimits = {
-        calendars: 1,
-        professionals: 1,
-        appointments_per_month: 20
-      };
-
-      // Se tem assinatura ativa, usar dados do plano atual
-      if (subscriptionData?.current_plan) {
-        planName = subscriptionData.current_plan.name;
-        planLimits = subscriptionData.current_plan.features || planLimits;
-      }
-
-      // Criar registro na tabela user_plan_limits
-      const { data: newLimitsData, error: insertError } = await supabase
+      // ✅ Buscar limites do usuário
+      let { data: limitsData, error: limitsError } = await supabase
         .from('user_plan_limits')
-        .insert({
-          user_id: user.id,
-          plan_name: planName,
-          limits: planLimits,
-          status: 'active'
-        })
         .select('limits')
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (insertError) {
-        console.error('Erro ao criar registro user_plan_limits:', insertError);
-        throw new Error('Erro ao configurar plano do usuário.');
+      if (limitsError) throw limitsError;
+
+      // ✅ Se não encontrar o usuário, buscar o plano atual e criar registro
+      if (!limitsData) {
+        console.log('Usuário não encontrado em user_plan_limits, criando registro...');
+        
+        // Buscar plano atual do usuário
+        const { data: subscriptionData } = await supabase
+          .from('user_subscriptions')
+          .select(`
+            current_plan_id,
+            current_plan:subscription_plans!current_plan_id(name, features)
+          `)
+          .eq('user_id', user.id)
+          .single();
+
+        let planName = 'Grátis';
+        let planLimits = {
+          calendars: 1,
+          professionals: 1,
+          appointments_per_month: 20
+        };
+
+        // Se tem assinatura ativa, usar dados do plano atual
+        if (subscriptionData?.current_plan) {
+          planName = subscriptionData.current_plan.name;
+          planLimits = subscriptionData.current_plan.features || planLimits;
+        }
+
+        // Criar registro na tabela user_plan_limits
+        const { data: newLimitsData, error: insertError } = await supabase
+          .from('user_plan_limits')
+          .insert({
+            user_id: user.id,
+            plan_name: planName,
+            limits: planLimits,
+            status: 'active'
+          })
+          .select('limits')
+          .single();
+
+        if (insertError) throw insertError;
+        limitsData = newLimitsData;
       }
 
-      limitsData = newLimitsData;
-      console.log('✅ Registro criado automaticamente em user_plan_limits');
+      // ✅ Verificar limite de calendários
+      const currentCalendars = await supabase
+        .from('calendars')
+        .select('id')
+        .eq('owner_id', user.id);
+
+      if (currentCalendars.error) throw currentCalendars.error;
+
+      const calendarLimit = limitsData.limits.calendars || 1;
+      if (currentCalendars.data.length >= calendarLimit) {
+        throw new Error(`Você atingiu o limite de ${calendarLimit} calendário(s) do seu plano atual. Faça um upgrade para criar mais calendários.`);
+      }
+
+      // ✅ Criar o calendário
+      const { error: createError } = await supabase
+        .from('calendars')
+        .insert({
+          name: data.name,
+          location_id: data.location,
+          owner_id: user.id,
+        });
+
+      if (createError) throw createError;
+
+      toast.success('Calendário criado com sucesso!');
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      const message = error.message || 'Failed to create calendar';
+      toast.error(message);
+      console.error('Error creating calendar:', error);
     }
-
-    if (!limitsData) {
-      throw new Error('Plano não encontrado para este usuário.');
-    }
-
-    const calendarLimit = limitsData?.limits?.calendars;
-
-    const { count: currentCalendars, error: countError } = await supabase
-      .from('calendars')
-      .select('*', { count: 'exact', head: true })
-      .eq('owner_id', user.id);
-
-    if (countError) throw countError;
-
-    if (currentCalendars === null) {
-      throw new Error('Não foi possível obter a quantidade de calendários existentes.');
-    }
-
-    if (calendarLimit !== -1 && currentCalendars >= calendarLimit) {
-      toast.error('Você atingiu o limite de calendários do seu plano.');
-      return;
-    }
-
-    const { error: calendarError } = await supabase
-      .from('calendars')
-      .insert({
-        name: data.name,
-        location_id: data.location,
-        owner_id: user.id,
-      });
-
-    if (calendarError) throw calendarError;
-
-    toast.success('Calendário criado com sucesso');
-    reset();
-    onSuccess();
-    onClose();
-  } catch (error: any) {
-    toast.error(error.message || 'Erro ao criar calendário.');
-    console.error('Erro ao criar calendário:', error);
-  }
-};
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

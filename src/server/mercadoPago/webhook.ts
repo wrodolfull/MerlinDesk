@@ -100,20 +100,36 @@ router.post('/', async (req, res): Promise<void> => {
 
         // ✅ Determinar novo status e plano baseado no pagamento
         let newStatus = 'pending';
-        let newCurrentPlanId = gratisPlanId; // Padrão: plano gratuito
+        let newCurrentPlanId = gratisPlanId; // ✅ Sempre começa com plano gratuito
 
         if (payment.status === 'approved') {
           newStatus = 'active';
           newCurrentPlanId = empresaPlanId; // ✅ UPGRADE PARA EMPRESA
           console.log('🎉 Pagamento aprovado - Upgrading para plano Empresa');
-        } else if (payment.status === 'cancelled' || payment.status === 'rejected') {
+        } else if (payment.status === 'cancelled' || payment.status === 'rejected' || payment.status === 'expired') {
           newStatus = 'canceled';
           newCurrentPlanId = gratisPlanId; // ✅ DOWNGRADE PARA GRATUITO
-          console.log('❌ Pagamento cancelado/rejeitado - Downgrade para plano gratuito');
+          console.log('❌ Pagamento cancelado/rejeitado/expirado - Downgrade para plano gratuito');
+        } else if (payment.status === 'pending') {
+          // Se o pagamento estiver pendente por mais de 30 minutos, cancelar e voltar para gratuito
+          const paymentDate = new Date(payment.date_created);
+          const now = new Date();
+          const diffMinutes = (now.getTime() - paymentDate.getTime()) / (1000 * 60);
+
+          if (diffMinutes > 30) {
+            newStatus = 'canceled';
+            newCurrentPlanId = gratisPlanId;
+            console.log('⏰ Pagamento pendente por mais de 30 minutos - Cancelando e voltando para plano gratuito');
+          } else {
+            newStatus = 'pending';
+            newCurrentPlanId = gratisPlanId;
+            console.log('⏳ Pagamento pendente - Mantendo no plano gratuito');
+          }
         } else {
-          // Pagamento pendente - mantém no plano gratuito
+          // Qualquer outro status não aprovado volta para gratuito
+          newStatus = 'canceled';
           newCurrentPlanId = gratisPlanId;
-          console.log('⏳ Pagamento pendente - Mantendo no plano gratuito');
+          console.log('❌ Status não reconhecido - Downgrade para plano gratuito');
         }
 
         // ✅ Atualizar apenas se houver mudança

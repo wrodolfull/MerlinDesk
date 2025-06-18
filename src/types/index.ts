@@ -24,6 +24,7 @@ export interface Calendar {
   location_id?: string;
   ownerId: string;
   createdAt: Date;
+  hasRecurringSubscription: boolean;
 }
 
 export interface Specialty {

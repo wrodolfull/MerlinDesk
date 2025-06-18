@@ -7,7 +7,6 @@ import {
   Calendar, 
   Users, 
   Clock, 
-  Settings, 
   User, 
   Grid3X3,
   UserCircle,
@@ -19,7 +18,8 @@ import {
   Stars,
   Plug,
   Menu,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -80,7 +80,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     //{ path: '/chat', icon: <MessageCircle size={20} />, label: 'Chat' },
     //{ path: '/ai-training', icon: <Brain size={20} />, label: 'AI Training' },
     { path: '/analytics', icon: <BarChart size={20} />, label: 'Relatório' },
-    { path: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
+    { path: '/subscription', icon: <CreditCard size={20} />, label: 'Assinatura' },
     { path: '/integrations', icon: <Plug size={20} />, label: 'Integrações' },
   ];
 

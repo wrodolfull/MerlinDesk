@@ -189,4 +189,46 @@ router.post('/criar', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// Endpoint para cancelar assinatura
+router.post('/cancelar', async (req: Request, res: Response): Promise<void> => {
+  const { subscription_id, mercado_pago_plan_id } = req.body;
+
+  if (!subscription_id || !mercado_pago_plan_id) {
+    res.status(400).json({ error: 'IDs da assinatura são obrigatórios' });
+    return;
+  }
+
+  try {
+    const mercadoPagoAPI = axios.create({
+      baseURL: 'https://api.mercadopago.com',
+      headers: {
+        Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Cancelar no Mercado Pago
+    await mercadoPagoAPI.put(`/v1/subscriptions/${mercado_pago_plan_id}`, {
+      status: 'cancelled'
+    });
+
+    res.json({ success: true, message: 'Assinatura cancelada com sucesso' });
+  } catch (error: any) {
+    console.error('❌ Erro ao cancelar assinatura no Mercado Pago:', error);
+    
+    if (error.response?.data) {
+      console.error('❌ Detalhes do erro MP:', error.response.data);
+      res.status(500).json({ 
+        error: 'Erro na integração com Mercado Pago',
+        details: error.response.data 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        details: error.message 
+      });
+    }
+  }
+});
+
 export default router;

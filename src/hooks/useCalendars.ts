@@ -34,6 +34,7 @@ export function useCalendars() {
         ownerId: calendar.owner_id,
         userId: calendar.user_id,
         createdAt: new Date(calendar.created_at),
+        hasRecurringSubscription: calendar.has_recurring_subscription || false,
       }));
 
       setCalendars(formattedCalendars);

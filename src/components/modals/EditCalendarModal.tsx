@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import { supabase } from '../../lib/supabase';
 import { Calendar } from '../../types';
 import toast, { Toaster } from 'react-hot-toast';
+import { RecurringSubscriptionToggle } from '../calendar/RecurringSubscriptionToggle';
 
 interface EditCalendarFormData {
   name: string;

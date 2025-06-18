@@ -23,20 +23,25 @@ router.post('/criar', async (req, res) => {
         return;
     }
     try {
-        console.log('🔄 Buscando plano no Supabase...');
-        // ✅ Buscar o plano com o ID do Mercado Pago
-        const { data: planData, error: planError } = await supabase
+        console.log('🔄 Buscando planos no Supabase...');
+        // ✅ Buscar tanto o plano Empresa quanto o plano Grátis
+        const { data: plansData, error: plansError } = await supabase
             .from('subscription_plans')
             .select('id, name, price, mercado_pago_plan_id')
-            .eq('name', 'Empresa')
-            .single();
-        if (planError || !planData) {
-            console.error('❌ Erro ao buscar plano:', planError);
-            res.status(500).json({ error: 'Plano Empresa não encontrado' });
+            .in('name', ['Empresa', 'Grátis']);
+        if (plansError || !plansData || plansData.length < 2) {
+            console.error('❌ Erro ao buscar planos:', plansError);
+            res.status(500).json({ error: 'Planos não encontrados' });
             return;
         }
-        let mercadoPagoPlanId = planData.mercado_pago_plan_id;
-        // ✅ Verificar se o plano ainda existe no Mercado Pago (se tiver ID salvo)
+        const empresaPlan = plansData.find(p => p.name === 'Empresa');
+        const gratisPlan = plansData.find(p => p.name === 'Grátis');
+        if (!empresaPlan || !gratisPlan) {
+            res.status(500).json({ error: 'Planos Empresa ou Grátis não encontrados' });
+            return;
+        }
+        let mercadoPagoPlanId = empresaPlan.mercado_pago_plan_id;
+        // ✅ Verificar se o plano ainda existe no Mercado Pago
         if (mercadoPagoPlanId) {
             try {
                 console.log('🔍 Verificando se o plano ainda existe no Mercado Pago...');
@@ -47,20 +52,18 @@ router.post('/criar', async (req, res) => {
                 if (error.response?.status === 404 || error.response?.status === 400) {
                     console.log('❌ Plano não existe mais ou foi cancelado, criando novo...');
                     mercadoPagoPlanId = null;
-                    // ✅ Limpar o ID inválido do banco
                     await supabase
                         .from('subscription_plans')
                         .update({ mercado_pago_plan_id: null })
-                        .eq('id', planData.id);
+                        .eq('id', empresaPlan.id);
                     console.log('✅ ID do plano inválido removido do Supabase');
                 }
                 else {
-                    // Se for outro tipo de erro, relançar
                     throw error;
                 }
             }
         }
-        // ✅ Criar plano no Mercado Pago apenas se não existir ou for inválido
+        // ✅ Criar plano no Mercado Pago se necessário
         if (!mercadoPagoPlanId) {
             console.log('🔄 Criando novo plano no Mercado Pago...');
             const plano = await mercadoPagoAPI.post('/preapproval_plan', {
@@ -68,33 +71,31 @@ router.post('/criar', async (req, res) => {
                 auto_recurring: {
                     frequency: 1,
                     frequency_type: 'months',
-                    transaction_amount: Number(planData.price) || 79.9,
+                    transaction_amount: Number(empresaPlan.price) || 79.9,
                     currency_id: 'BRL',
                 },
                 back_url: 'https://merlindesk.com/dashboard',
             });
             mercadoPagoPlanId = plano.data.id;
             console.log('✅ Novo plano criado:', mercadoPagoPlanId);
-            // ✅ Salvar o ID do plano no Supabase para reutilização
             const { error: updateError } = await supabase
                 .from('subscription_plans')
                 .update({ mercado_pago_plan_id: mercadoPagoPlanId })
-                .eq('id', planData.id);
+                .eq('id', empresaPlan.id);
             if (updateError) {
                 console.error('❌ Erro ao salvar ID do plano no Supabase:', updateError);
-                // Continuar mesmo com erro de salvamento do ID
             }
             else {
                 console.log('✅ ID do plano salvo no Supabase');
             }
         }
-        // ✅ Criar checkout de pagamento (sempre novo)
+        // ✅ Criar checkout de pagamento
         console.log('🔄 Criando checkout de pagamento...');
         const preference = await mercadoPagoAPI.post('/checkout/preferences', {
             items: [{
                     title: 'Assinatura Plano Empresa',
                     quantity: 1,
-                    unit_price: Number(planData.price) || 79.9,
+                    unit_price: Number(empresaPlan.price) || 79.9,
                     currency_id: 'BRL',
                 }],
             payer: {
@@ -111,10 +112,11 @@ router.post('/criar', async (req, res) => {
         const checkout_url = preference.data.init_point;
         const preference_id = preference.data.id;
         console.log('✅ Checkout criado:', preference_id);
-        // ✅ Dados para salvar no Supabase
+        // ✅ Dados para salvar no Supabase - CLIENTE INICIA NO PLANO GRATUITO
         const subscriptionData = {
             user_id,
-            plan_id: planData.id,
+            plan_id: empresaPlan.id, // Plano que será ativado quando pagar
+            current_plan_id: gratisPlan.id, // ✅ INICIA NO PLANO GRATUITO
             assinatura_id: preference_id,
             mercado_pago_plan_id: mercadoPagoPlanId,
             preference_id: preference_id,
@@ -138,17 +140,55 @@ router.post('/criar', async (req, res) => {
             });
             return;
         }
-        console.log('✅ Dados salvos no Supabase:', subscriptionResult?.[0]?.id);
+        console.log('✅ Dados salvos no Supabase - Cliente iniciado no plano gratuito');
         res.json({
             checkout_url,
             plan_id: mercadoPagoPlanId,
             preference_id: preference_id,
-            database_id: subscriptionResult?.[0]?.id
+            database_id: subscriptionResult?.[0]?.id,
+            current_plan: 'Grátis' // Cliente inicia no gratuito
         });
     }
     catch (error) {
         console.error('❌ Erro ao criar assinatura:', error);
-        // ✅ Tratamento específico para erros do Mercado Pago
+        if (error.response?.data) {
+            console.error('❌ Detalhes do erro MP:', error.response.data);
+            res.status(500).json({
+                error: 'Erro na integração com Mercado Pago',
+                details: error.response.data
+            });
+        }
+        else {
+            res.status(500).json({
+                error: 'Erro interno do servidor',
+                details: error.message
+            });
+        }
+    }
+});
+// Endpoint para cancelar assinatura
+router.post('/cancelar', async (req, res) => {
+    const { subscription_id, mercado_pago_plan_id } = req.body;
+    if (!subscription_id || !mercado_pago_plan_id) {
+        res.status(400).json({ error: 'IDs da assinatura são obrigatórios' });
+        return;
+    }
+    try {
+        const mercadoPagoAPI = axios_1.default.create({
+            baseURL: 'https://api.mercadopago.com',
+            headers: {
+                Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+        });
+        // Cancelar no Mercado Pago
+        await mercadoPagoAPI.put(`/v1/subscriptions/${mercado_pago_plan_id}`, {
+            status: 'cancelled'
+        });
+        res.json({ success: true, message: 'Assinatura cancelada com sucesso' });
+    }
+    catch (error) {
+        console.error('❌ Erro ao cancelar assinatura no Mercado Pago:', error);
         if (error.response?.data) {
             console.error('❌ Detalhes do erro MP:', error.response.data);
             res.status(500).json({

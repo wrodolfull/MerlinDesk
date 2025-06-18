@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Menu, User, X, LogOut, Settings, CreditCard } from 'lucide-react';
+import { Calendar, Menu, User, X, LogOut, CreditCard } from 'lucide-react';
 import Button from '../ui/Button';
 import Avatar from '../ui/Avatar';
 import { useAuth } from '../../contexts/AuthContext';
@@ -87,20 +87,6 @@ const Navbar = () => {
                       <User size={16} className="mr-2" />
                       Profile
                     </Link>
-                    <Link
-                      to="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <Settings size={16} className="mr-2" />
-                      Settings
-                    </Link>
-                    <Link
-                      to="/settings?tab=subscription"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <CreditCard size={16} className="mr-2" />
-                      Subscription
-                    </Link>
                     <div className="border-t border-gray-100 my-1"></div>
                     <button
                       className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -177,20 +163,6 @@ const Navbar = () => {
                     onClick={() => setMenuOpen(false)}
                   >
                     Profile
-                  </Link>
-                  <Link
-                    to="/settings"
-                    className="block py-2 px-3 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Settings
-                  </Link>
-                  <Link
-                    to="/settings?tab=subscription"
-                    className="block py-2 px-3 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Subscription
                   </Link>
                   <button
                     className="block w-full text-left py-2 px-3 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"

@@ -6,6 +6,9 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import PrivateRoute from './components/auth/PrivateRoute';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
+import CookieConsent from './components/ui/CookieConsent';
+import GoogleAnalytics from './components/analytics/GoogleAnalytics';
+import FunctionalityCookies from './components/analytics/FunctionalityCookies';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -31,6 +34,11 @@ import AssistantSettingsPage from './pages/AssistantSettingsPage';
 import WhatsAppConnect from './pages/WhatsAppConnect';
 import SharedBookingEmbedPage from './pages/SharedBookingEmbedPage';
 import Integracoes from './pages/IntegrationsPage';
+import SubscriptionPage from './pages/SubscriptionPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import CookiePolicyPage from './pages/CookiePolicyPage';
+import DashboardLayout from './components/layout/DashboardLayout';
 
 function App() {
   return (
@@ -96,6 +104,36 @@ function App() {
                   <>
                     <Navbar />
                     <PricingPage />
+                    <Footer />
+                  </>
+                }
+              />
+              <Route
+                path="/terms"
+                element={
+                  <>
+                    <Navbar />
+                    <TermsOfServicePage />
+                    <Footer />
+                  </>
+                }
+              />
+              <Route
+                path="/privacy"
+                element={
+                  <>
+                    <Navbar />
+                    <PrivacyPolicyPage />
+                    <Footer />
+                  </>
+                }
+              />
+              <Route
+                path="/cookies"
+                element={
+                  <>
+                    <Navbar />
+                    <CookiePolicyPage />
                     <Footer />
                   </>
                 }
@@ -215,14 +253,6 @@ function App() {
                 }
               />
               <Route
-                path="/settings"
-                element={
-                  <PrivateRoute>
-                    <SettingsPage />
-                  </PrivateRoute>
-                }
-              />
-              <Route
                 path="/conectar-whatsapp"
                 element={
                   <PrivateRoute>
@@ -246,6 +276,16 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route
+                path="/subscription"
+                element={
+                  <PrivateRoute>
+                    <DashboardLayout>
+                      <SubscriptionPage />
+                    </DashboardLayout>
+                  </PrivateRoute>
+                }
+              />
 
               {/* 404 Page */}
               <Route
@@ -259,6 +299,15 @@ function App() {
                 }
               />
             </Routes>
+            
+            {/* Cookie Consent Banner - aparece em todas as páginas */}
+            <CookieConsent />
+            
+            {/* Google Analytics - respeita as preferências de cookies */}
+            <GoogleAnalytics />
+            
+            {/* Cookies de Funcionalidade - respeita as preferências de cookies */}
+            <FunctionalityCookies />
           </SettingsProvider>
         </AuthProvider>
       </LanguageProvider>
