@@ -39,6 +39,7 @@ import TermsOfServicePage from './pages/TermsOfServicePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
 import DashboardLayout from './components/layout/DashboardLayout';
+import TasksPage from './pages/TasksPage';
 
 function App() {
   return (
@@ -283,6 +284,14 @@ function App() {
                     <DashboardLayout>
                       <SubscriptionPage />
                     </DashboardLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/tasks"
+                element={
+                  <PrivateRoute>
+                    <TasksPage />
                   </PrivateRoute>
                 }
               />

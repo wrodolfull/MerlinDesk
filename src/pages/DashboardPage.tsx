@@ -11,6 +11,7 @@ import { Appointment } from '../types';
 import toast, { Toaster } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useAppointments } from '../hooks/useAppointments';
+import TasksWidget from '../components/dashboard/TasksWidget';
 
 const DashboardPage: React.FC = () => {
   const { appointments, loading, error, refetch } = useAppointments();
@@ -407,6 +408,8 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
           </Button>
         </div>
       </div>
+
+      <TasksWidget />
 
       {/* Cards de estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Button from '../ui/Button';
 import { Calendar } from '../../types';
 import { ClipboardCopy, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import { QRCodeCanvas } from 'qrcode.react';
+import { FaWhatsapp, FaInstagram, FaLinkedin, FaFacebookF, FaQrcode } from 'react-icons/fa';
 
 interface ShareCalendarModalProps {
   calendar: Calendar;
@@ -11,6 +13,7 @@ interface ShareCalendarModalProps {
 }
 
 const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClose }) => {
+  const [showQRCode, setShowQRCode] = useState(false);
   const bookingUrl = `${window.location.origin}/booking/${calendar.id}`;
   const embedCode = `<iframe src="${window.location.origin}/booking/embed/${calendar.id}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`;
 
@@ -22,6 +25,31 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
       console.error('Falha ao copiar:', err);
       toast.error('Erro ao copiar');
     }
+  };
+
+  const downloadQRCode = () => {
+    const canvas = document.getElementById('calendar-qrcode') as HTMLCanvasElement;
+    if (canvas) {
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qrcode-${calendar.name || 'calendario'}.png`;
+      a.click();
+    }
+  };
+
+  const socialLinks = {
+    whatsapp: `https://wa.me/?text=${encodeURIComponent('Agende comigo: ' + bookingUrl)}`,
+    instagram: `https://www.instagram.com/?url=${encodeURIComponent(bookingUrl)}`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(bookingUrl)}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(bookingUrl)}`,
+  };
+
+  const socialIcons = {
+    whatsapp: <FaWhatsapp size={28} className="text-[#25D366]" />,
+    instagram: <FaInstagram size={28} className="text-[#E1306C]" />,
+    linkedin: <FaLinkedin size={28} className="text-[#0077B5]" />,
+    facebook: <FaFacebookF size={28} className="text-[#1877F3]" />,
   };
 
   return (
@@ -40,7 +68,6 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Link direto */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Link de agendamento</label>
               <div className="flex items-center space-x-2">
@@ -54,7 +81,6 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
               </div>
             </div>
 
-            {/* Botões de ação */}
             <div className="space-y-3 pt-4">
               <Button
                 onClick={() => copyToClipboard(embedCode, 'Código de incorporação copiado!')}
@@ -70,6 +96,44 @@ const ShareCalendarModal: React.FC<ShareCalendarModalProps> = ({ calendar, onClo
               >
                 Copiar
               </Button>
+              
+              <div className="flex gap-4 justify-center pt-4">
+                {Object.entries(socialIcons).map(([key, icon]) => (
+                  <a
+                    key={key}
+                    href={socialLinks[key as keyof typeof socialLinks]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:scale-110 transition-transform"
+                    title={`Compartilhar no ${key.charAt(0).toUpperCase() + key.slice(1)}`}
+                  >
+                    {icon}
+                  </a>
+                ))}
+                <button
+                  onClick={() => setShowQRCode(s => !s)}
+                  className="hover:scale-110 transition-transform"
+                  title="Mostrar/ocultar QRCode"
+                >
+                  <FaQrcode size={28} className="text-gray-600" />
+                </button>
+              </div>
+              
+              {showQRCode && (
+                <div className="mt-4 flex flex-col items-center animate-fade-in">
+                  <QRCodeCanvas
+                    id="calendar-qrcode"
+                    value={bookingUrl}
+                    size={150}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="H"
+                  />
+                  <Button variant="outline" size="sm" className="mt-4" onClick={downloadQRCode}>
+                    Baixar QRCode
+                  </Button>
+                </div>
+              )}
 
               <Button variant="ghost" onClick={onClose} className="w-full">
                 Fechar

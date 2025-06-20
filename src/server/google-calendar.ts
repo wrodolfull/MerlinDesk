@@ -66,6 +66,31 @@ async function checkCalendarAvailability(
   }
 }
 
+// ✅ FUNÇÃO PARA VERIFICAR PERMISSÕES DA CONTA GOOGLE
+async function checkGoogleAccountPermissions(oauth2Client: any): Promise<boolean> {
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    
+    // Verificar se a conta tem permissões para criar videoconferências
+    const settingsResponse = await calendar.settings.list();
+    console.log('🔍 Configurações da conta Google:', settingsResponse.data.items?.length || 0);
+    
+    // Verificar se a conta tem Google Meet habilitado
+    const calendarListResponse = await calendar.calendarList.list();
+    const primaryCalendar = calendarListResponse.data.items?.find(cal => cal.primary);
+    
+    if (primaryCalendar) {
+      console.log('✅ Calendário primário encontrado:', primaryCalendar.summary);
+      console.log('🔍 Acesso ao calendário:', primaryCalendar.accessRole);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao verificar permissões da conta Google:', error);
+    return false;
+  }
+}
+
 // POST /calendar/create-event (com validação de disponibilidade)
 router.post('/calendar/create-event', async (req: Request, res: Response): Promise<void> => {
   const { appointmentId, userId, skipAvailabilityCheck = false } = req.body;
@@ -130,6 +155,13 @@ router.post('/calendar/create-event', async (req: Request, res: Response): Promi
     
     oauth2Client.setCredentials(integration.credentials);
 
+    // ✅ VERIFICAR PERMISSÕES DA CONTA GOOGLE
+    console.log('🔍 Verificando permissões da conta Google...');
+    const hasPermissions = await checkGoogleAccountPermissions(oauth2Client);
+    if (!hasPermissions) {
+      console.warn('⚠️ Possíveis limitações na conta Google para videoconferência');
+    }
+
     // ✅ VALIDAÇÃO DE DISPONIBILIDADE
     if (!skipAvailabilityCheck) {
       console.log('🔍 Verificando disponibilidade...');
@@ -179,7 +211,7 @@ router.post('/calendar/create-event', async (req: Request, res: Response): Promi
     // Criar evento no formato correto do Google Calendar
     const event = {
       summary: `${appointment.specialties?.name || 'Agendamento'}`,
-      description: `Agendamento com ${appointment.professionals?.name || 'Profissional'}${appointment.notes ? `\n\nObservações: ${appointment.notes}` : ''}`,
+      description: `Agendamento com ${appointment.professionals?.name || 'Profissional'}${appointment.notes ? `\n\nObservações: ${appointment.notes}` : ''}\n\n---\nDesenvolvido por Merlindesk.com`,
       start: {
         dateTime: appointment.start_time,
         timeZone: 'America/Sao_Paulo',
@@ -196,6 +228,19 @@ router.post('/calendar/create-event', async (req: Request, res: Response): Promi
           { method: 'popup', minutes: 15 }, // 15 minutos antes
         ],
       },
+      // ✅ CONFIGURAÇÃO PARA VIDEOCONFERÊNCIA
+      conferenceData: {
+        createRequest: {
+          requestId: `meet-${appointmentId}-${Date.now()}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet'
+          }
+        }
+      },
+      // ✅ CONFIGURAÇÃO ADICIONAL PARA GARANTIR VIDEOCONFERÊNCIA
+      guestsCanModify: false,
+      guestsCanInviteOthers: false,
+      guestsCanSeeOtherGuests: true,
     };
 
     console.log('🔍 Criando evento:', event);
@@ -204,15 +249,65 @@ router.post('/calendar/create-event', async (req: Request, res: Response): Promi
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: event,
-      sendUpdates: 'all'
+      sendUpdates: 'all',
+      // ✅ CONFIGURAÇÃO ADICIONAL PARA FORÇAR VIDEOCONFERÊNCIA
+      conferenceDataVersion: 1
     });
 
     console.log('✅ Evento criado no Google Calendar:', response.data.id);
 
-    // Atualizar agendamento com google_event_id
+    // ✅ Log detalhado da resposta do Google
+    console.log('📋 Resposta completa do Google:', JSON.stringify(response.data, null, 2));
+
+    // ✅ Extrair link da videoconferência se disponível
+    const conferenceLink = response.data.conferenceData?.entryPoints?.find(
+      (entry: any) => entry.entryPointType === 'video'
+    )?.uri;
+
+    console.log('🔗 Link da videoconferência:', conferenceLink);
+    console.log('🔍 conferenceData completo:', response.data.conferenceData);
+
+    // ✅ Se não foi criado automaticamente, tentar adicionar videoconferência
+    let finalConferenceLink = conferenceLink;
+    if (!conferenceLink && response.data.id) {
+      console.log('🔄 Tentando adicionar videoconferência manualmente...');
+      try {
+        const updateResponse = await calendar.events.patch({
+          calendarId: 'primary',
+          eventId: response.data.id,
+          requestBody: {
+            conferenceData: {
+              createRequest: {
+                requestId: `meet-update-${appointmentId}-${Date.now()}`,
+                conferenceSolutionKey: {
+                  type: 'hangoutsMeet'
+                }
+              }
+            }
+          },
+          sendUpdates: 'none' // Não enviar notificações para não spam
+        });
+
+        console.log('✅ Videoconferência adicionada manualmente');
+        console.log('📋 Resposta do update:', JSON.stringify(updateResponse.data, null, 2));
+
+        finalConferenceLink = updateResponse.data.conferenceData?.entryPoints?.find(
+          (entry: any) => entry.entryPointType === 'video'
+        )?.uri;
+
+        console.log('🔗 Link final da videoconferência:', finalConferenceLink);
+      } catch (updateErr: any) {
+        console.error('⚠️ Erro ao adicionar videoconferência manualmente:', updateErr);
+      }
+    }
+
+    // Atualizar agendamento com google_event_id e link da videoconferência
     const { error: updateError } = await supabase
       .from('appointments')
-      .update({ google_event_id: response.data.id })
+      .update({ 
+        google_event_id: response.data.id,
+        video_conference_link: finalConferenceLink || null
+      })
       .eq('id', appointmentId);
 
     if (updateError) {
@@ -223,6 +318,7 @@ router.post('/calendar/create-event', async (req: Request, res: Response): Promi
       success: true, 
       eventId: response.data.id,
       eventLink: response.data.htmlLink,
+      videoConferenceLink: finalConferenceLink,
       notificationsSent: attendees.length,
       availabilityChecked: !skipAvailabilityCheck
     });

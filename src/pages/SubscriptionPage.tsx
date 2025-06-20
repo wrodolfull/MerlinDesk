@@ -70,6 +70,15 @@ const SubscriptionPage: React.FC = () => {
 
         // Se não há assinatura, subscriptionData será null
         setSubscription(subscriptionData || null);
+        
+        // Log para debug
+        console.log('Dados da assinatura carregados:', {
+          subscriptionData,
+          hasSubscription: !!subscriptionData,
+          status: subscriptionData?.status,
+          planName: subscriptionData?.plan?.name,
+          planId: subscriptionData?.plan?.id
+        });
 
         // Buscar planos disponíveis
         const { data: plansData, error: plansError } = await supabase
@@ -100,9 +109,55 @@ const SubscriptionPage: React.FC = () => {
     fetchData();
   }, [user]);
 
+  const isCurrentPlan = (plan: Plan) => {
+    // Se o usuário não tem assinatura ativa, o plano gratuito é o atual
+    if (!subscription || subscription.status !== 'active') {
+      const isFree = plan.name === 'Free';
+      console.log(`Plano ${plan.name} é atual (sem assinatura ativa): ${isFree}`);
+      return isFree;
+    }
+    // Se tem assinatura ativa, compara com o plano da assinatura
+    const isCurrent = subscription.plan?.id === plan.id;
+    console.log(`Plano ${plan.name} é atual (com assinatura): ${isCurrent}`, {
+      planId: plan.id,
+      subscriptionPlanId: subscription.plan?.id,
+      subscriptionPlanName: subscription.plan?.name
+    });
+    return isCurrent;
+  };
+
+  const getCurrentPlanName = () => {
+    if (!subscription || subscription.status !== 'active') {
+      return 'Free';
+    }
+    return subscription.plan?.name || 'Free';
+  };
+
+  const shouldShowCancelButton = () => {
+    const shouldShow = subscription && subscription.status === 'active' && subscription.plan?.name !== 'Free';
+    console.log('Deve mostrar botão de cancelar:', shouldShow, {
+      hasSubscription: !!subscription,
+      status: subscription?.status,
+      planName: subscription?.plan?.name
+    });
+    return shouldShow;
+  };
+
   const handleUpgrade = async (plan: Plan) => {
     if (!user) {
       toast.error('Você precisa estar logado para fazer upgrade');
+      return;
+    }
+
+    // Se o usuário já está no plano gratuito e clicou no gratuito, não fazer nada
+    if (plan.price === 0 && getCurrentPlanName() === 'Free') {
+      toast.success('Você já está no plano gratuito');
+      return;
+    }
+
+    // Se o usuário já está no plano Business e clicou no Business, não fazer nada
+    if (plan.name === 'Business' && getCurrentPlanName() === 'Business') {
+      toast.success('Você já está no plano Business');
       return;
     }
 
@@ -116,7 +171,7 @@ const SubscriptionPage: React.FC = () => {
         plan_id: plan.id
       };
 
-      const response = await fetch('/api/mercado-pago/criar', {
+      const response = await fetch('https://merlindesk.com/mercado-pago/criar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
@@ -253,15 +308,6 @@ const SubscriptionPage: React.FC = () => {
     }).format(value);
   };
 
-  const isCurrentPlan = (plan: Plan) => {
-    // Se o usuário não tem assinatura ativa, o plano gratuito é o atual
-    if (!subscription || subscription.status !== 'active') {
-      return plan.name === 'Free';
-    }
-    // Se tem assinatura ativa, compara com o plano da assinatura
-    return subscription.plan?.id === plan.id;
-  };
-
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -328,12 +374,14 @@ const SubscriptionPage: React.FC = () => {
                 <Button onClick={() => navigate('/pricing')} variant="outline">
                   Ver Outros Planos
                 </Button>
-                <Button 
-                  onClick={() => setShowCancelDialog(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Cancelar Assinatura
-                </Button>
+                {shouldShowCancelButton() && (
+                  <Button 
+                    onClick={() => setShowCancelDialog(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Cancelar Assinatura
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

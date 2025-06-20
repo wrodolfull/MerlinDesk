@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import Navbar from "../Navbar";
+import Navbar from "./Navbar";
 //import AssistantChat from "../../components/ai/AssistantChat";
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -19,9 +19,15 @@ import {
   Plug,
   Menu,
   X,
-  CreditCard
+  CreditCard,
+  ListIcon
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import CreateAppointmentModal from '../modals/CreateAppointmentModal';
+import QuickAppointmentModal from '../modals/QuickAppointmentModal';
+import CreateTaskModal from '../tasks/CreateTaskModal';
+import { Toaster, toast } from 'react-hot-toast';
+import { useTasks } from '../../hooks/useTasks';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -29,12 +35,18 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth();
+  const { createTask } = useTasks();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [userName, setUserName] = useState<string>('User');
+  const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false);
+  const [showQuickAppointmentModal, setShowQuickAppointmentModal] = useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Monitor window resize for mobile detection
   useEffect(() => {
@@ -56,8 +68,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       const name = 
         // Tenta user.user_metadata.name (comum no Supabase)
         (user.user_metadata && user.user_metadata.name) ||
-        // Tenta user.raw_user_meta_data.name (outra possibilidade no Supabase)
-        (user.raw_user_meta_data && user.raw_user_meta_data.name) ||
         // Tenta user.name diretamente (caso já esteja mapeado)
         (user as any).name ||
         // Tenta user.email como fallback
@@ -68,6 +78,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       setUserName(name);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
 
   const navItems = [
     { path: '/dashboard', icon: <Grid3X3 size={20} />, label: 'Dashboard' },
@@ -82,6 +105,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     { path: '/analytics', icon: <BarChart size={20} />, label: 'Relatório' },
     { path: '/subscription', icon: <CreditCard size={20} />, label: 'Assinatura' },
     { path: '/integrations', icon: <Plug size={20} />, label: 'Integrações' },
+    {
+      path: '/tasks',
+      label: 'Minhas tarefas',
+      icon: <ListIcon className="w-5 h-5" />,
+    },
   ];
 
   const isActive = (path: string) => {
@@ -113,7 +141,24 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const navigateToProfile = () => {
     navigate('/profile');
   };
-  
+
+  const handleCreateTask = async (data: any) => {
+    const { title, description, dueDate, status, priority } = data;
+    const error = await createTask({
+      title,
+      description,
+      due_date: dueDate,
+      status,
+      priority,
+    });
+    if (error) {
+      toast.error(`Falha ao criar tarefa: ${error.message}`);
+    } else {
+      toast.success('Tarefa criada com sucesso!');
+    }
+    setShowCreateTaskModal(false);
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Mobile Menu Button */}
@@ -153,6 +198,45 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
                 )}
               </Link>
+            </div>
+
+            {/* Create Task Button - agora logo abaixo do logo */}
+            <div className={cn("flex justify-center mt-4", !sidebarOpen && !isMobile && "px-0")}> 
+              <div className="relative w-full flex justify-center" ref={dropdownRef}>
+                <button
+                  className={`flex items-center justify-center rounded-full bg-[#7C45D0] text-white shadow-lg transition-all duration-200 ${sidebarOpen ? 'w-40 h-12 text-lg font-semibold' : 'w-12 h-12 text-3xl'} ${sidebarOpen ? '' : 'p-0'}`}
+                  onClick={() => setDropdownOpen((open) => !open)}
+                  title="Criar"
+                  style={{ lineHeight: 1, height: sidebarOpen ? '3rem' : '3rem', minHeight: '3rem', alignItems: 'center' }}
+                >
+                  <span className={sidebarOpen ? "mr-2 text-2xl flex items-center justify-center" : "flex items-center justify-center w-full h-full text-2xl"} style={{lineHeight: 1}}>
+                    +
+                  </span>
+                  {sidebarOpen && 'Criar'}
+                </button>
+                {dropdownOpen && (
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-100">
+                    <button
+                      className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
+                      onClick={() => { setShowQuickAppointmentModal(true); setDropdownOpen(false); }}
+                    >
+                      <div className="flex flex-col items-start">
+                        <span>Agendamento Rápido</span>
+                        <span className="text-xs text-gray-500 mt-1">Crie um agendamento para um cliente rapidamente</span>
+                      </div>
+                    </button>
+                    <button
+                      className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
+                      onClick={() => { setShowCreateTaskModal(true); setDropdownOpen(false); }}
+                    >
+                      <div className="flex flex-col items-start">
+                        <span>Tarefa</span>
+                        <span className="text-xs text-gray-500 mt-1">Adicione uma tarefa para sua organização</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Navigation */}
@@ -237,6 +321,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <div 
           className="fixed inset-0 bg-gray-600 bg-opacity-75 z-30"
           onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {showQuickAppointmentModal && (
+        <QuickAppointmentModal
+          onClose={() => setShowQuickAppointmentModal(false)}
+          onSuccess={() => setShowQuickAppointmentModal(false)}
+        />
+      )}
+
+      {showCreateTaskModal && (
+        <CreateTaskModal
+          open={showCreateTaskModal}
+          onClose={() => setShowCreateTaskModal(false)}
+          onCreate={handleCreateTask}
         />
       )}
     </div>

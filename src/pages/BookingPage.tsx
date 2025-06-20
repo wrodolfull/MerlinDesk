@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import BookingSteps from '../components/booking/BookingSteps';
 import { supabase } from '../lib/supabase';
-import { Loader } from 'lucide-react';
+import { Loader, MapPin, Calendar as CalendarIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
 
@@ -127,47 +127,53 @@ const SharedBookingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="container mx-auto max-w-6xl">
-        <Card>
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <span>{calendar.name}</span>
+    <div className="min-h-screen bg-gray-50 py-8 px-2 sm:px-4">
+      <div className="mx-auto w-full max-w-2xl md:max-w-3xl lg:max-w-4xl">
+        <Card className="rounded-2xl shadow-xl border-0">
+          <CardHeader className="pb-3 border-b-0 bg-gradient-to-r from-primary-50 to-white rounded-t-2xl">
+            <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <span className="flex items-center gap-2 text-2xl font-bold text-primary-700">
+                <CalendarIcon className="w-6 h-6 text-primary-500" />
+                {calendar.name}
+              </span>
               {calendar.location_id && (
-                <span className="text-sm font-normal text-gray-500 mt-1 sm:mt-0">
+                <span className="flex items-center gap-1 text-sm font-normal text-gray-500 mt-1 sm:mt-0">
+                  <MapPin className="w-4 h-4 text-gray-400" />
                   {calendar.location_id}
                 </span>
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
-            <BookingSteps 
-              calendarId={calendarId ?? ''} 
-              specialties={calendar.specialties}
-              professionals={calendar.professionals}
-              onComplete={async (bookingData) => {
-                try {
-                  const response = await fetch(
-                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/appointments/book`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                      },
-                      body: JSON.stringify(bookingData),
-                    }
-                  );
+          <CardContent className="p-0 sm:p-6 bg-white rounded-b-2xl">
+            <div className="p-4 sm:p-6 bg-gray-50 rounded-2xl shadow-inner">
+              <BookingSteps 
+                calendarId={calendarId ?? ''} 
+                specialties={calendar.specialties}
+                professionals={calendar.professionals}
+                onComplete={async (bookingData) => {
+                  try {
+                    const response = await fetch(
+                      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/appointments/book`,
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                        },
+                        body: JSON.stringify(bookingData),
+                      }
+                    );
 
-                  if (!response.ok) throw new Error('Falha ao agendar');
+                    if (!response.ok) throw new Error('Falha ao agendar');
 
-                  toast.success('Agendamento realizado com sucesso!');
-                } catch (error) {
-                  console.error('Erro ao agendar:', error);
-                  toast.error('Erro ao agendar. Tente novamente.');
-                }
-              }}
-            />
+                    toast.success('Agendamento realizado com sucesso!');
+                  } catch (error) {
+                    console.error('Erro ao agendar:', error);
+                    toast.error('Erro ao agendar. Tente novamente.');
+                  }
+                }}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

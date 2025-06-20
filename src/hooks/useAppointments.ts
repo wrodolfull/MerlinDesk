@@ -65,6 +65,8 @@ export function useAppointments(options?: UseAppointmentsOptions) {
           status,
           notes,
           created_at,
+          google_event_id,
+          video_conference_link,
           client:clients(*),
           professional:professionals(*, specialty:specialties(*)),
           specialty:specialties(*)
@@ -102,6 +104,8 @@ export function useAppointments(options?: UseAppointmentsOptions) {
         createdAt: new Date(apt.created_at),
         status: apt.status,
         notes: apt.notes,
+        google_event_id: apt.google_event_id,
+        video_conference_link: apt.video_conference_link,
         client: apt.client,
         professional: apt.professional,
         specialty: apt.specialty,

@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/Card
 import Avatar from '../ui/Avatar';
 import StatusBadge from '../ui/StatusBadge';
 import Button from '../ui/Button';
-import { Calendar, Clock, Info, MessageCircle } from 'lucide-react';
+import { Calendar, Clock, Info, MessageCircle, Video } from 'lucide-react';
 
 interface AppointmentCardProps {
   appointment: Appointment;
@@ -154,6 +154,17 @@ const handleWhatsApp = () => {
             >
               <MessageCircle size={16} className="mr-1" />
               Enviar Lembrete
+            </Button>
+          )}
+          {appointment.video_conference_link && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-blue-600 border-blue-600 hover:bg-blue-50"
+              onClick={() => window.open(appointment.video_conference_link, '_blank')}
+            >
+              <Video size={16} className="mr-1" />
+              Entrar na Reunião
             </Button>
           )}
         </div>

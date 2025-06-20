@@ -75,16 +75,16 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({
           onChange={handleChange}
           {...props}
         >
-          <option value="">Select an option</option>
+          <option value="" disabled>Selecione uma opção</option>
           {safeOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
-        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+        {/* <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
           <ChevronDown size={16} className="text-gray-500" />
-        </div>
+        </div> */}
       </div>
       {(error || helperText) && (
         <div className="mt-1 text-sm">

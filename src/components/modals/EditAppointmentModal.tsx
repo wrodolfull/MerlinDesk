@@ -11,6 +11,7 @@ import { useClients } from '../../hooks/useClients';
 import { addMinutes, format, parseISO } from 'date-fns';
 import { Appointment } from '../../types';
 import toast, { Toaster } from 'react-hot-toast';
+import { Video, ExternalLink } from 'lucide-react';
 
 interface EditAppointmentFormData {
   clientId: string;
@@ -36,7 +37,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
   const { specialties } = useSpecialties();
   const { clients } = useClients();
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
-    appointment.specialtyId || appointment.specialty_id
+    appointment.specialtyId
   );
   const [loading, setLoading] = useState(false);
 
@@ -199,7 +200,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     label="Profissional"
                     options={professionals.map((p) => ({
                       value: p.id,
-                      label: `${p.name}${p.specialty?.name ? ` (${p.specialty.name})` : ''}${p.id === appointment.professionalId ? ' - atual' : ''}`
+                      label: `${p.name}${p.id === appointment.professionalId ? ' - atual' : ''}`
                     }))}
                     value={field.value}
                     onChange={(e) => {
@@ -253,6 +254,31 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
               error={errors.notes?.message}
               disabled={loading}
             />
+
+            {/* ✅ SEÇÃO DA VIDEOCONFERÊNCIA */}
+            {appointment.video_conference_link && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Link da Videoconferência
+                </label>
+                <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <Video size={16} className="text-blue-600" />
+                  <span className="text-sm text-blue-800 flex-1 truncate">
+                    {appointment.video_conference_link}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(appointment.video_conference_link, '_blank')}
+                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                  >
+                    <ExternalLink size={14} />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting || loading}>
                 Cancelar

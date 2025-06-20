@@ -60,6 +60,8 @@ export interface Appointment {
   specialtyId: string;
   calendarId: string;
   createdAt: Date;
+  google_event_id?: string;
+  video_conference_link?: string;
   client?: Pick<Client, 'id' | 'name' | 'email' | 'phone'>;
   professional?: Pick<Professional, 'id' | 'name' | 'avatar'>;
   specialty?: Pick<Specialty, 'id' | 'name' | 'duration'>;
@@ -80,6 +82,34 @@ export interface User {
   role: UserRole;
   createdAt: Date;
 }
+
+export interface Task {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Tipos auxiliares para Task compatíveis com o banco (snake_case)
+export type TaskDB = {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  due_date?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateTaskDB = Omit<TaskDB, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type UpdateTaskDB = Partial<Omit<TaskDB, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
 // Tipos auxiliares para operações específicas
 export type CreateAppointment = Omit<Appointment, 'id' | 'createdAt' | 'client' | 'professional' | 'specialty'>;
