@@ -29,6 +29,7 @@ interface Plan {
   price: number;
   features: Record<string, any>;
   popular?: boolean;
+  stripe_price_id?: string;
 }
 
 const SubscriptionPage: React.FC = () => {
@@ -60,7 +61,7 @@ const SubscriptionPage: React.FC = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         // Se não há assinatura (PGRST116 = no rows returned), não é um erro
         if (subscriptionError && subscriptionError.code !== 'PGRST116') {
@@ -94,7 +95,7 @@ const SubscriptionPage: React.FC = () => {
         // Marcar o plano atual como popular se for o Business
         const plansWithPopular = plansData.map(plan => ({
           ...plan,
-          popular: plan.name === 'Business'
+          popular: plan.name === 'Essencial'
         }));
 
         setAvailablePlans(plansWithPopular);
@@ -112,7 +113,7 @@ const SubscriptionPage: React.FC = () => {
   const isCurrentPlan = (plan: Plan) => {
     // Se o usuário não tem assinatura ativa, o plano gratuito é o atual
     if (!subscription || subscription.status !== 'active') {
-      const isFree = plan.name === 'Free';
+      const isFree = plan.name === 'Grátis';
       console.log(`Plano ${plan.name} é atual (sem assinatura ativa): ${isFree}`);
       return isFree;
     }
@@ -128,13 +129,13 @@ const SubscriptionPage: React.FC = () => {
 
   const getCurrentPlanName = () => {
     if (!subscription || subscription.status !== 'active') {
-      return 'Free';
+      return 'Grátis';
     }
-    return subscription.plan?.name || 'Free';
+    return subscription.plan?.name || 'Grátis';
   };
 
   const shouldShowCancelButton = () => {
-    const shouldShow = subscription && subscription.status === 'active' && subscription.plan?.name !== 'Free';
+    const shouldShow = subscription && subscription.status === 'active' && subscription.plan?.name !== 'Grátis';
     console.log('Deve mostrar botão de cancelar:', shouldShow, {
       hasSubscription: !!subscription,
       status: subscription?.status,
@@ -150,14 +151,14 @@ const SubscriptionPage: React.FC = () => {
     }
 
     // Se o usuário já está no plano gratuito e clicou no gratuito, não fazer nada
-    if (plan.price === 0 && getCurrentPlanName() === 'Free') {
+    if (plan.price === 0 && getCurrentPlanName() === 'Grátis') {
       toast.success('Você já está no plano gratuito');
       return;
     }
 
-    // Se o usuário já está no plano Business e clicou no Business, não fazer nada
-    if (plan.name === 'Business' && getCurrentPlanName() === 'Business') {
-      toast.success('Você já está no plano Business');
+    // Se o usuário já está no plano Essencial e clicou no Essencial, não fazer nada
+    if (plan.name === 'Essencial' && getCurrentPlanName() === 'Essencial') {
+      toast.success('Você já está no plano Essencial');
       return;
     }
 
@@ -165,26 +166,18 @@ const SubscriptionPage: React.FC = () => {
       setUpgrading(true);
       console.log('Iniciando upgrade para plano:', plan.name);
       
-      const requestData = {
-        user_id: user.id,
-        email: user.email,
-        plan_id: plan.id
-      };
-
-      const response = await fetch('https://merlindesk.com/mercado-pago/criar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
+      // Usar Stripe em vez de Mercado Pago
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
+          userId: user.id,
+          priceId: plan.stripe_price_id,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      if (error) throw error;
       
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
+      if (data.url) {
+        window.location.href = data.url;
       } else {
         toast.error('Erro: URL de checkout não encontrada');
       }
@@ -225,7 +218,7 @@ const SubscriptionPage: React.FC = () => {
       const { data: freePlan, error: freePlanError } = await supabase
         .from('subscription_plans')
         .select('id')
-        .eq('name', 'Free')
+        .eq('name', 'Grátis')
         .single();
 
       if (freePlanError) throw freePlanError;
@@ -249,7 +242,7 @@ const SubscriptionPage: React.FC = () => {
         plan: {
           ...prev.plan,
           id: freePlan.id,
-          name: 'Free',
+          name: 'Grátis',
           price: 0,
           features: {
             calendars: 1,

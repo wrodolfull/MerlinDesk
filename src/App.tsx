@@ -40,6 +40,8 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import TasksPage from './pages/TasksPage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import PaymentCancelledPage from './pages/PaymentCancelledPage';
 
 function App() {
   return (
@@ -284,6 +286,22 @@ function App() {
                     <DashboardLayout>
                       <SubscriptionPage />
                     </DashboardLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/payment/success"
+                element={
+                  <PrivateRoute>
+                    <PaymentSuccessPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/payment/cancelled"
+                element={
+                  <PrivateRoute>
+                    <PaymentCancelledPage />
                   </PrivateRoute>
                 }
               />

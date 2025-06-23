@@ -184,6 +184,8 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
             ...s,
             calendarId: s.calendar_id,
           })));
+        } else {
+          setSpecialties([]); // Garantir que sempre seja um array
         }
 
         // Buscar profissionais com especialidades
@@ -207,6 +209,8 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
             specialties: p.professional_specialties?.map((ps: any) => ps.specialties) || [],
           }));
           setProfessionals(mappedProfessionals);
+        } else {
+          setProfessionals([]); // Garantir que sempre seja um array
         }
       } catch (error) {
         console.error('Erro ao carregar dados do calendário:', error);
@@ -354,59 +358,64 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
     { id: 5, title: 'Confirmação'},
   ];
 
-  const ProgressSteps = () => (
-    <div className="mb-12">
-      <div className="flex items-center justify-between relative">
-        <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
-        <div
-          className="absolute top-4 left-0 h-0.5 z-10 transition-all duration-500 ease-out"
-          style={{ 
-            backgroundColor: primaryColor,
-            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` 
-          }}
-        ></div>
-        {steps.map((step) => (
-          <div key={step.id} className="flex flex-col items-center relative z-20">
-            <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
-                currentStep > step.id
-                  ? `text-white`
-                  : currentStep === step.id
-                  ? `bg-white text-white shadow-lg ring-4`
-                  : 'bg-white border-gray-300 text-gray-400'
-              }`}
-              style={{
-                backgroundColor: currentStep > step.id ? primaryColor : currentStep === step.id ? 'white' : 'white',
-                borderColor: currentStep >= step.id ? primaryColor : '#d1d5db',
-                color: currentStep > step.id ? 'white' : currentStep === step.id ? primaryColor : '#9ca3af',
-                ringColor: currentStep === step.id ? `${primaryColor}20` : 'transparent'
-              }}
-            >
-              {currentStep > step.id ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <div
-                  className={`w-2 h-2 rounded-full`}
-                  style={{
-                    backgroundColor: currentStep === step.id ? primaryColor : '#9ca3af'
-                  }}
-                />
-              )}
-            </div>
-            <div className="text-center mt-3 max-w-24">
+  const ProgressSteps = () => {
+    // Garantir que steps seja sempre um array
+    const safeSteps = Array.isArray(steps) ? steps : [];
+    
+    return (
+      <div className="mb-12">
+        <div className="flex items-center justify-between relative">
+          <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
+          <div
+            className="absolute top-4 left-0 h-0.5 z-10 transition-all duration-500 ease-out"
+            style={{ 
+              backgroundColor: primaryColor,
+              width: `${((currentStep - 1) / (safeSteps.length - 1)) * 100}%` 
+            }}
+          ></div>
+          {safeSteps.map((step) => (
+            <div key={step.id} className="flex flex-col items-center relative z-20">
               <div
-                className={`text-sm font-medium transition-colors ${
-                  currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
+                  currentStep > step.id
+                    ? `text-white`
+                    : currentStep === step.id
+                    ? `bg-white text-white shadow-lg ring-4`
+                    : 'bg-white border-gray-300 text-gray-400'
                 }`}
+                style={{
+                  backgroundColor: currentStep > step.id ? primaryColor : currentStep === step.id ? 'white' : 'white',
+                  borderColor: currentStep >= step.id ? primaryColor : '#d1d5db',
+                  color: currentStep > step.id ? 'white' : currentStep === step.id ? primaryColor : '#9ca3af',
+                  ringColor: currentStep === step.id ? `${primaryColor}20` : 'transparent'
+                }}
               >
-                {step.title}
+                {currentStep > step.id ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <div
+                    className={`w-2 h-2 rounded-full`}
+                    style={{
+                      backgroundColor: currentStep === step.id ? primaryColor : '#9ca3af'
+                    }}
+                  />
+                )}
+              </div>
+              <div className="text-center mt-3 max-w-24">
+                <div
+                  className={`text-sm font-medium transition-colors ${
+                    currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                  }`}
+                >
+                  {step.title}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const handleBack = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
@@ -490,7 +499,7 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
       {currentStep === 1 && (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold mb-6" style={{ color: textColor }}>Escolha o serviço</h2>
-          {specialties.length > 0 ? (
+          {Array.isArray(specialties) && specialties.length > 0 ? (
             <div className="grid gap-3">
               {specialties.map((spec) => (
                 <button
@@ -546,7 +555,7 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
               </p>
             </div>
           )}
-          {filteredProfessionals.length > 0 ? (
+          {Array.isArray(filteredProfessionals) && filteredProfessionals.length > 0 ? (
             <div className="grid gap-3">
               {filteredProfessionals.map((prof) => (
                 <button
@@ -643,12 +652,19 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
                   return [];
                 }
 
-                return Array.isArray(data)
-                  ? data.map((slot: any) => ({
-                      start: slot.start_time,
-                      end: slot.end_time,
-                    }))
-                  : [];
+                // Verificação de segurança adicional
+                if (!data || !Array.isArray(data)) {
+                  console.log('⚠️ getTimeSlots: Dados inválidos retornados:', data);
+                  return [];
+                }
+
+                const slots = data.map((slot: any) => ({
+                  start: slot.start_time,
+                  end: slot.end_time,
+                }));
+
+                console.log('✅ getTimeSlots: Slots processados:', slots);
+                return slots;
               } catch (err) {
                 console.error('Erro inesperado:', err);
                 return [];

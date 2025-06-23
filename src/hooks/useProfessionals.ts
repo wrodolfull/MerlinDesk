@@ -33,18 +33,18 @@ export const useProfessionals = (calendarId?: string) => {
       }
 
       let query = supabase
-  .from('professionals')
-  .select(`
-    id,
-    name,
-    email,
-    phone,
-    bio,
-    calendar_id,
-    user_id,
-    professional_specialties:specialties(id, name)
-  `)
-  .eq('user_id', user.id);
+        .from('professionals')
+        .select(`
+          id,
+          name,
+          email,
+          phone,
+          bio,
+          calendar_id,
+          user_id,
+          professional_specialties:specialties(id, name)
+        `)
+        .eq('user_id', user.id);
 
       if (calendarId) {
         query = query.eq('calendar_id', calendarId);
@@ -52,6 +52,8 @@ export const useProfessionals = (calendarId?: string) => {
 
       const { data, error } = await query;
       if (error) throw error;
+
+      console.log('🔍 useProfessionals: Dados brutos do Supabase:', data);
 
       const mappedData: Professional[] = (data || []).map((pro) => ({
         id: pro.id,
@@ -64,6 +66,7 @@ export const useProfessionals = (calendarId?: string) => {
         userId: pro.user_id
       }));
 
+      console.log('🔍 useProfessionals: Dados mapeados:', mappedData);
       setProfessionals(mappedData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to fetch professionals');

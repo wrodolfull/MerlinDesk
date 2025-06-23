@@ -11,6 +11,9 @@
     "deploy": "vite build && sudo mkdir -p /tmp/well-known-backup && if [ -d /var/www/merlindesk.com/.well-known ]; then sudo mv /var/www/merlindesk.com/.well-known /tmp/well-known-backup; fi && sudo rm -rf /var/www/merlindesk.com && sudo mkdir -p /var/www/merlindesk.com && sudo cp -r dist/* /var/www/merlindesk.com && if [ -d /tmp/well-known-backup/.well-known ]; then sudo mv /tmp/well-known-backup/.well-known /var/www/merlindesk.com/; fi && sudo chown -R www-data:www-data /var/www/merlindesk.com && sudo chmod -R 755 /var/www/merlindesk.com && sudo systemctl restart caddy && sleep 2 && curl -sI https://merlindesk.com | head -n 1 && echo '✅ Deploy concluído com sucesso!'"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@eslint/config-array": "^0.20.0",
     "@eslint/object-schema": "^2.1.6",
     "@fullcalendar/core": "^6.1.10",
@@ -27,6 +30,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@react-google-maps/api": "^2.20.6",
     "@supabase/supabase-js": "^2.50.0",
+    "@types/nodemailer": "^6.4.17",
     "axios": "^1.9.0",
     "chart.js": "^4.4.1",
     "clsx": "^2.1.1",
@@ -51,6 +55,7 @@
     "lucide-react": "^0.344.0",
     "mercadopago": "^2.7.0",
     "node-cron": "^4.0.7",
+    "nodemailer": "^7.0.3",
     "openai": "^4.100.0",
     "qrcode-svg": "^1.1.0",
     "qrcode.react": "^4.2.0",

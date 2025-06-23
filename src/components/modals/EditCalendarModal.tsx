@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import MultiSelect from '../ui/MultiSelect';
 import { supabase } from '../../lib/supabase';
 import { Calendar } from '../../types';
+import { useAllProfessionals } from '../../hooks/useAllProfessionals';
+import { useAllSpecialties } from '../../hooks/useAllSpecialties';
 import toast, { Toaster } from 'react-hot-toast';
-import { RecurringSubscriptionToggle } from '../calendar/RecurringSubscriptionToggle';
 
 interface EditCalendarFormData {
   name: string;
@@ -20,6 +22,14 @@ interface EditCalendarModalProps {
 }
 
 const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose, onSuccess }) => {
+  const { professionals, loading: professionalsLoading } = useAllProfessionals();
+  const { specialties, loading: specialtiesLoading } = useAllSpecialties();
+  
+  const [selectedProfessionals, setSelectedProfessionals] = useState<any[]>([]);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<any[]>([]);
+  const [currentCalendarProfessionals, setCurrentCalendarProfessionals] = useState<any[]>([]);
+  const [currentCalendarSpecialties, setCurrentCalendarSpecialties] = useState<any[]>([]);
+
   const {
     register,
     handleSubmit,
@@ -32,6 +42,37 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
     },
   });
 
+  // Carregar profissionais e especialidades atuais do calendário
+  useEffect(() => {
+    const loadCurrentData = async () => {
+      try {
+        // Buscar profissionais do calendário
+        const { data: calendarProfessionals } = await supabase
+          .from('professionals')
+          .select('*')
+          .eq('calendar_id', calendar.id);
+
+        if (calendarProfessionals) {
+          setCurrentCalendarProfessionals(calendarProfessionals);
+        }
+
+        // Buscar especialidades do calendário
+        const { data: calendarSpecialties } = await supabase
+          .from('specialties')
+          .select('*')
+          .eq('calendar_id', calendar.id);
+
+        if (calendarSpecialties) {
+          setCurrentCalendarSpecialties(calendarSpecialties);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do calendário:', error);
+      }
+    };
+
+    loadCurrentData();
+  }, [calendar.id]);
+
   React.useEffect(() => {
     reset({
       name: calendar.name,
@@ -41,6 +82,7 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
 
   const onSubmit = async (data: EditCalendarFormData) => {
     try {
+      // Atualizar dados básicos do calendário
       const { error } = await supabase
         .from('calendars')
         .update({
@@ -51,7 +93,57 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
 
       if (error) throw error;
 
-      toast.success('Calendar updated successfully');
+      // Atualizar profissionais do calendário
+      if (selectedProfessionals.length > 0) {
+        // Remover profissionais do calendário atual
+        const { error: removeError } = await supabase
+          .from('professionals')
+          .update({ calendar_id: null })
+          .eq('calendar_id', calendar.id);
+
+        if (removeError) {
+          console.warn('Erro ao remover profissionais do calendário:', removeError);
+        }
+
+        // Adicionar novos profissionais selecionados
+        for (const professional of selectedProfessionals) {
+          const { error: updateError } = await supabase
+            .from('professionals')
+            .update({ calendar_id: calendar.id })
+            .eq('id', professional.id);
+
+          if (updateError) {
+            console.warn('Erro ao atualizar profissional:', updateError);
+          }
+        }
+      }
+
+      // Atualizar especialidades do calendário
+      if (selectedSpecialties.length > 0) {
+        // Remover especialidades do calendário atual
+        const { error: removeError } = await supabase
+          .from('specialties')
+          .update({ calendar_id: null })
+          .eq('calendar_id', calendar.id);
+
+        if (removeError) {
+          console.warn('Erro ao remover especialidades do calendário:', removeError);
+        }
+
+        // Adicionar novas especialidades selecionadas
+        for (const specialty of selectedSpecialties) {
+          const { error: updateError } = await supabase
+            .from('specialties')
+            .update({ calendar_id: calendar.id })
+            .eq('id', specialty.id);
+
+          if (updateError) {
+            console.warn('Erro ao atualizar especialidade:', updateError);
+          }
+        }
+      }
+
+      toast.success('Calendário atualizado com sucesso!');
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -66,22 +158,40 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
       <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Edit Calendar</CardTitle>
+          <CardTitle>Editar Calendário</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
-              label="Calendar Name"
+              label="Nome do Calendário"
               error={errors.name?.message}
-              {...register('name', { required: 'Calendar name is required' })}
+              {...register('name', { required: 'Nome do calendário é obrigatório' })}
               disabled={isSubmitting}
             />
             
             <Input
-              label="Location"
+              label="Local"
               error={errors.location?.message}
-              {...register('location', { required: 'Location is required' })}
+              {...register('location', { required: 'Local é obrigatório' })}
               disabled={isSubmitting}
+            />
+
+            <MultiSelect
+              label="Profissionais (opcional)"
+              options={professionals.filter(p => !p.calendarId || p.calendarId === calendar.id)}
+              selectedOptions={selectedProfessionals}
+              onSelectionChange={setSelectedProfessionals}
+              placeholder="Selecione profissionais para adicionar ao calendário"
+              disabled={isSubmitting || professionalsLoading}
+            />
+
+            <MultiSelect
+              label="Especialidades (opcional)"
+              options={specialties.filter(s => !s.calendarId || s.calendarId === calendar.id)}
+              selectedOptions={selectedSpecialties}
+              onSelectionChange={setSelectedSpecialties}
+              placeholder="Selecione especialidades para adicionar ao calendário"
+              disabled={isSubmitting || specialtiesLoading}
             />
 
             <div className="flex justify-end space-x-2">
@@ -91,14 +201,14 @@ const EditCalendarModal: React.FC<EditCalendarModalProps> = ({ calendar, onClose
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                Cancelar
               </Button>
               <Button
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={isSubmitting}
               >
-                Save Changes
+                Salvar Alterações
               </Button>
             </div>
           </form>

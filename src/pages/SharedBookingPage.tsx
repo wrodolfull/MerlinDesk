@@ -231,7 +231,7 @@ const SharedBookingPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {calendar.professionals.slice(0, 3).map((professional: any) => (
+                    {Array.isArray(calendar.professionals) && calendar.professionals.slice(0, 3).map((professional: any) => (
                       <div key={professional.id} className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                           {professional.avatar ? (
@@ -254,7 +254,7 @@ const SharedBookingPage = () => {
                         </div>
                       </div>
                     ))}
-                    {calendar.professionals.length > 3 && (
+                    {Array.isArray(calendar.professionals) && calendar.professionals.length > 3 && (
                       <p className="text-sm text-gray-500 text-center pt-2">
                         +{calendar.professionals.length - 3} outros profissionais
                       </p>
@@ -280,8 +280,8 @@ const SharedBookingPage = () => {
               <CardContent className="p-6 lg:p-8">
                 <BookingSteps
                   calendarId={calendarId?.replace(':', '') || ''}
-                  specialties={calendar.specialties}
-                  professionals={calendar.professionals}
+                  specialties={Array.isArray(calendar.specialties) ? calendar.specialties : []}
+                  professionals={Array.isArray(calendar.professionals) ? calendar.professionals : []}
                   onComplete={async (appointment) => {
                     try {
                       console.log('📋 Agendamento criado com sucesso:', appointment);

@@ -7,6 +7,11 @@ import { BookingConfirmation } from './BookingConfirmation';
 import { Client, Professional, Specialty } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { Check } from 'lucide-react';
+import { sendAppointmentConfirmation } from '../../lib/whatsapp';
+import { sendAppointmentConfirmation as sendEmailConfirmation } from '../../lib/emailService';
+import { getApiBaseUrl } from '../../lib/utils';
+import { checkTimeConflict, formatConflictDetails } from '../../lib/appointmentValidation';
+import { toast, Toaster } from 'react-hot-toast';
 
 interface BookingStepsProps {
   calendarId: string;
@@ -94,7 +99,7 @@ useEffect(() => {
     setCurrentStep(4);
   };
 
-  const handleClientInfoSubmit = (client: Client) => {
+  const handleClientInfoSubmit = (client: Client & { guests?: string[] }) => {
     setBookingData(prev => ({ ...prev, client }));
     setCurrentStep(5);
   };
@@ -152,8 +157,23 @@ useEffect(() => {
         end_time: new Date(bookingData.timeSlot.end).toISOString(),
         status: 'pending',
         notes: '',
-        user_id: owner_id
+        user_id: owner_id,
+        guests: Array.isArray((bookingData.client as any).guests) ? (bookingData.client as any).guests : []
       };
+
+      // Verificar conflitos de horário
+      const startTime = new Date(bookingData.timeSlot.start);
+      const endTime = new Date(bookingData.timeSlot.end);
+      
+      const conflictCheck = await checkTimeConflict(bookingData.professional.id, startTime, endTime);
+      
+      if (conflictCheck.hasConflict) {
+        const conflictingAppointments = conflictCheck.conflictingAppointments || [];
+        const conflictDetails = formatConflictDetails(conflictingAppointments);
+        
+        console.error('❌ Conflito de horário detectado:', conflictDetails);
+        throw new Error(`Horário indisponível! O profissional já possui agendamentos neste horário:\n${conflictDetails}`);
+      }
 
     const { data: createdAppointment, error } = await supabase
       .from('appointments')
@@ -162,6 +182,10 @@ useEffect(() => {
       .single();
 
     if (error) throw new Error(`Erro ao criar agendamento: ${error.message}`);
+
+    console.log('📋 Agendamento criado com sucesso:', createdAppointment);
+
+    let videoConferenceLink: string | undefined;
 
     try {
   const { data: integration } = await supabase
@@ -173,7 +197,7 @@ useEffect(() => {
     .single();
 
     if (integration) {
-      const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
+      const response = await fetch(`${getApiBaseUrl()}/google/calendar/create-event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,6 +209,10 @@ useEffect(() => {
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Evento criado no Google Calendar:', result.eventId);
+        if (result.videoConferenceLink) {
+          console.log('🔗 Link da videoconferência:', result.videoConferenceLink);
+          videoConferenceLink = result.videoConferenceLink;
+        }
       }
     }
   } catch (googleError) {
@@ -192,9 +220,28 @@ useEffect(() => {
     // Não falha o agendamento se o Google Calendar falhar
   }
 
-  console.log('📋 Agendamento criado com sucesso:', createdAppointment);
+    // Enviar email de confirmação
+    try {
+      const emailResult = await sendEmailConfirmation({
+        clientEmail: bookingData.client.email,
+        clientName: bookingData.client.name,
+        professionalName: bookingData.professional.name,
+        specialtyName: bookingData.specialty.name,
+        startTime: new Date(bookingData.timeSlot.start),
+        duration: bookingData.specialty.duration,
+        notes: '',
+        guests: Array.isArray((bookingData.client as any).guests) ? (bookingData.client as any).guests : [],
+        videoConferenceLink,
+      });
 
-    console.log('📋 Agendamento criado com sucesso:', createdAppointment);
+      if (emailResult) {
+        console.log('✅ E-mail de confirmação enviado com sucesso');
+      } else {
+        console.warn('⚠️ Erro ao enviar e-mail de confirmação');
+      }
+    } catch (emailError) {
+      console.warn('⚠️ Erro ao enviar e-mail de confirmação:', emailError);
+    }
 
     if (onComplete) {
       onComplete(createdAppointment); // ✅ dado real salvo no Supabase
@@ -205,6 +252,17 @@ useEffect(() => {
       }, 5000);
     } catch (error) {
       console.error('❌ Erro ao criar agendamento:', error);
+      
+      // Exibir mensagem de erro amigável
+      if (error instanceof Error) {
+        if (error.message.includes('Horário indisponível')) {
+          toast.error(error.message, { duration: 8000 });
+        } else {
+          toast.error('Erro ao criar agendamento. Tente novamente.');
+        }
+      } else {
+        toast.error('Erro ao criar agendamento. Tente novamente.');
+      }
     }
   };
 
@@ -215,7 +273,7 @@ useEffect(() => {
   };
 
   const availableProfessionals = bookingData.specialty
-    ? professionals.filter((p) =>
+    ? (Array.isArray(professionals) ? professionals : []).filter((p) =>
         Array.isArray(p.specialties) &&
         p.specialties.some((s: any) => s?.id === bookingData.specialty?.id)
       )
@@ -262,80 +320,84 @@ const getTimeSlots = async (date: Date) => {
   }
 };
 
-  const steps = [1, 2, 3, 4, 5];
+const steps = [1, 2, 3, 4, 5];
 
-  return (
-    <div className="w-full min-h-screen overflow-x-hidden bg-white text-gray-900">
-      {/* Etapas Visuais */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between relative">
-          <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
-          <div
-            className="absolute top-4 left-0 h-0.5 bg-[#7C45D0] z-10 transition-all duration-500 ease-out"
-            style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
-          ></div>
-          {steps.map((step) => (
-            <div key={step} className="flex flex-col items-center relative z-20">
-              <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
-                  currentStep > step
-                    ? 'bg-[#7C45D0] border-[#7C45D0] text-white'
-                    : currentStep === step
-                    ? 'bg-white border-[#7C45D0] text-[#7C45D0] shadow-lg ring-4 ring-[#7C45D0]/20'
-                    : 'bg-white border-gray-300 text-gray-400'
-                }`}
-              >
-                {currentStep > step ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      currentStep === step ? 'bg-[#7C45D0]' : 'bg-gray-400'
-                    }`}
-                  />
-                )}
-              </div>
+// Garantir que steps seja sempre um array
+const safeSteps = Array.isArray(steps) ? steps : [];
+
+return (
+  <div className="w-full min-h-screen overflow-x-hidden bg-white text-gray-900">
+    <Toaster />
+    {/* Etapas Visuais */}
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between relative">
+        <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 z-0"></div>
+        <div
+          className="absolute top-4 left-0 h-0.5 bg-[#7C45D0] z-10 transition-all duration-500 ease-out"
+          style={{ width: `${((currentStep - 1) / (safeSteps.length - 1)) * 100}%` }}
+        ></div>
+        {safeSteps.map((step) => (
+          <div key={step} className="flex flex-col items-center relative z-20">
+            <div
+              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
+                currentStep > step
+                  ? 'bg-[#7C45D0] border-[#7C45D0] text-white'
+                  : currentStep === step
+                  ? 'bg-white border-[#7C45D0] text-[#7C45D0] shadow-lg ring-4 ring-[#7C45D0]/20'
+                  : 'bg-white border-gray-300 text-gray-400'
+              }`}
+            >
+              {currentStep > step ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    currentStep === step ? 'bg-[#7C45D0]' : 'bg-gray-400'
+                  }`}
+                />
+              )}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Conteúdo de cada etapa */}
-      <div className="animate-fade-in">
-        {currentStep === 1 && (
-          <SpecialtySelection specialties={specialties} onSelect={handleSpecialtySelect} />
-        )}
-        {currentStep === 2 && (
-          <ProfessionalSelection
-            professionals={availableProfessionals}
-            specialty={bookingData.specialty}
-            onSelect={handleProfessionalSelect}
-            onBack={handleBack}
-          />
-        )}
-        {currentStep === 3 && (
-          <DateTimeSelection
-            professional={bookingData.professional}
-            specialty={bookingData.specialty}
-            onSelect={handleDateTimeSelect}
-            onBack={handleBack}
-            getTimeSlots={getTimeSlots}
-            workingDays={workingDays}
-          />
-        )}
-        {currentStep === 4 && (
-          <ClientInfoForm onSubmit={handleClientInfoSubmit} onBack={handleBack} />
-        )}
-        {currentStep === 5 && (
-          <BookingConfirmation
-            bookingData={bookingData}
-            onConfirm={handleConfirmBooking}
-            onBack={handleBack}
-          />
-        )}
+          </div>
+        ))}
       </div>
     </div>
-  );
+
+    {/* Conteúdo de cada etapa */}
+    <div className="animate-fade-in">
+      {currentStep === 1 && (
+        <SpecialtySelection specialties={specialties} onSelect={handleSpecialtySelect} />
+      )}
+      {currentStep === 2 && (
+        <ProfessionalSelection
+          professionals={availableProfessionals}
+          specialty={bookingData.specialty}
+          onSelect={handleProfessionalSelect}
+          onBack={handleBack}
+        />
+      )}
+      {currentStep === 3 && (
+        <DateTimeSelection
+          professional={bookingData.professional}
+          specialty={bookingData.specialty}
+          onSelect={handleDateTimeSelect}
+          onBack={handleBack}
+          getTimeSlots={getTimeSlots}
+          workingDays={workingDays}
+        />
+      )}
+      {currentStep === 4 && (
+        <ClientInfoForm onSubmit={handleClientInfoSubmit} onBack={handleBack} />
+      )}
+      {currentStep === 5 && (
+        <BookingConfirmation
+          bookingData={bookingData}
+          onConfirm={handleConfirmBooking}
+          onBack={handleBack}
+        />
+      )}
+    </div>
+  </div>
+);
 };
 
 export default BookingSteps;

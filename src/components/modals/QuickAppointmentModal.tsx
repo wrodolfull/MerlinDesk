@@ -5,10 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import Select from '../ui/Select';
+import TagInput from '../ui/TagInput';
 import { useAuth } from '../../contexts/AuthContext';
 import { addMinutes, addDays, addWeeks, addMonths } from 'date-fns';
 import toast, { Toaster } from 'react-hot-toast';
 import { usePlanLimits } from '../../hooks/usePlanLimits';
+import { sendAppointmentConfirmation, formatPhoneForWhatsApp } from '../../lib/whatsapp';
+import { sendAppointmentConfirmation as sendEmailConfirmation } from '../../lib/emailService';
+import { getApiBaseUrl } from '../../lib/utils';
+import { checkTimeConflict, formatConflictDetails } from '/root/MerlinDesk/src/lib/appointmentValidation.ts';
 
 interface Specialty {
   id: string;
@@ -41,10 +46,7 @@ interface QuickAppointmentFormData {
   startTime: string;
   notes?: string;
   status: 'pending' | 'confirmed' | 'completed' | 'canceled';
-  isRecurring: boolean;
-  recurrenceType?: 'daily' | 'weekly' | 'monthly';
-  recurrenceEndDate?: string;
-  recurrenceCount?: number;
+  guests?: string[];
 }
 
 interface QuickAppointmentModalProps {
@@ -59,7 +61,6 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
   const [specialtiesData, setSpecialtiesData] = useState<Specialty[]>([]);
   const [professionalsData, setProfessionalsData] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCalendar, setSelectedCalendar] = useState<{ id: string; has_recurring_subscription: boolean } | null>(null);
 
   const {
     register,
@@ -72,7 +73,6 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
   } = useForm<QuickAppointmentFormData>({
     defaultValues: {
       status: 'pending',
-      isRecurring: false,
       startTime: initialDate ? initialDate.toISOString().slice(0, 16) : '',
     },
   });
@@ -80,7 +80,6 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
   // Monitorar mudanças nos campos
   const watchSpecialtyId = watch('specialtyId');
   const watchProfessionalId = watch('professionalId');
-  const watchIsRecurring = watch('isRecurring');
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -128,31 +127,6 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
       fetchData();
     }
   }, [user]);
-
-  // Atualizar informações do calendário quando o profissional é selecionado
-  useEffect(() => {
-    const fetchCalendarInfo = async () => {
-      if (watchProfessionalId) {
-        const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
-        if (selectedProfessional) {
-          const { data: calendar, error } = await supabase
-            .from('calendars')
-            .select('id, has_recurring_subscription')
-            .eq('id', selectedProfessional.calendar_id)
-            .single();
-
-          if (calendar) {
-            setSelectedCalendar(calendar);
-            if (!calendar.has_recurring_subscription) {
-              setValue('isRecurring', false);
-            }
-          }
-        }
-      }
-    };
-
-    fetchCalendarInfo();
-  }, [watchProfessionalId, professionalsData, setValue]);
 
   const onSubmit = async (data: QuickAppointmentFormData) => {
     try {
@@ -214,58 +188,68 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
       const startTime = new Date(data.startTime);
       const endTime = addMinutes(startTime, specialty.duration);
 
-      // Criar agendamentos recorrentes
-      const appointments = [];
-      let currentStartTime = startTime;
-      let currentEndTime = endTime;
-      let count = 1;
-
-      while (true) {
-        appointments.push({
-          client_id: clientId,
-          professional_id: data.professionalId,
-          specialty_id: data.specialtyId,
-          calendar_id: professional.calendar_id,
-          start_time: currentStartTime.toISOString(),
-          end_time: currentEndTime.toISOString(),
-          status: data.status,
-          notes: data.notes,
-          user_id: calendarOwnerId,
-        });
-
-        if (!data.isRecurring) break;
-
-        // Calcular próxima data baseado no tipo de recorrência
-        switch (data.recurrenceType) {
-          case 'daily':
-            currentStartTime = addDays(currentStartTime, 1);
-            currentEndTime = addDays(currentEndTime, 1);
-            break;
-          case 'weekly':
-            currentStartTime = addWeeks(currentStartTime, 1);
-            currentEndTime = addWeeks(currentEndTime, 1);
-            break;
-          case 'monthly':
-            currentStartTime = addMonths(currentStartTime, 1);
-            currentEndTime = addMonths(currentEndTime, 1);
-            break;
-          default:
-            break;
-        }
-
-        // Verificar condições de parada
-        if (data.recurrenceEndDate && new Date(data.recurrenceEndDate) < currentStartTime) break;
-        if (data.recurrenceCount && count >= data.recurrenceCount) break;
-
-        count++;
+      // Verificar conflitos de horário
+      const conflictCheck = await checkTimeConflict(data.professionalId, startTime, endTime);
+      
+      if (conflictCheck.hasConflict) {
+        const conflictingAppointments = conflictCheck.conflictingAppointments || [];
+        const conflictDetails = formatConflictDetails(conflictingAppointments);
+        
+        toast.error(
+          `Horário indisponível! O profissional já possui agendamentos neste horário:\n${conflictDetails}`,
+          { duration: 6000 }
+        );
+        return;
       }
+
+      // Criar agendamento
+      const appointment = {
+        client_id: clientId,
+        professional_id: data.professionalId,
+        specialty_id: data.specialtyId,
+        calendar_id: professional.calendar_id,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: data.status,
+        notes: data.notes,
+        user_id: calendarOwnerId,
+        guests: data.guests || [],
+      };
 
       const { data: insertedAppointments, error } = await supabase
         .from('appointments')
-        .insert(appointments)
+        .insert(appointment)
         .select();
 
       if (error) throw error;
+
+      // Enviar notificação WhatsApp se configurado
+      if (data.clientPhone) {
+        try {
+          const notification = {
+            clientName: data.clientName,
+            clientPhone: formatPhoneForWhatsApp(data.clientPhone),
+            professionalName: professional.name,
+            specialtyName: specialty.name,
+            appointmentDate: startTime.toISOString().split('T')[0],
+            appointmentTime: startTime.toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            duration: specialty.duration,
+            notes: data.notes || undefined
+          };
+
+          const whatsappResult = await sendAppointmentConfirmation(notification);
+          if (whatsappResult.success) {
+            toast.success('Notificação WhatsApp enviada!');
+          } else {
+            console.log('WhatsApp não configurado ou erro:', whatsappResult.error);
+          }
+        } catch (whatsappError) {
+          console.log('Erro ao enviar WhatsApp:', whatsappError);
+        }
+      }
 
       // Sincronizar com Google Calendar
       const { data: integration } = await supabase
@@ -276,10 +260,12 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
         .eq('status', 'active')
         .single();
 
+      let videoConferenceLink: string | undefined;
+
       if (integration && insertedAppointments) {
         try {
           for (const appointment of insertedAppointments) {
-            const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
+            const response = await fetch(`${getApiBaseUrl()}/google/calendar/create-event`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -294,6 +280,7 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
               console.log('✅ Evento criado no Google Calendar:', googleResult.eventId);
               if (googleResult.videoConferenceLink) {
                 console.log('🔗 Link da videoconferência:', googleResult.videoConferenceLink);
+                videoConferenceLink = googleResult.videoConferenceLink;
               }
             } else {
               console.warn('⚠️ Erro ao criar evento no Google Calendar:', googleResult.error);
@@ -302,6 +289,29 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
         } catch (err) {
           console.warn('Falha ao criar eventos no Google Calendar:', err);
         }
+      }
+
+      // Enviar email de confirmação
+      try {
+        const emailResult = await sendEmailConfirmation({
+          clientEmail: data.clientEmail,
+          clientName: data.clientName,
+          professionalName: professional.name,
+          specialtyName: specialty.name,
+          startTime: startTime,
+          duration: specialty.duration,
+          notes: data.notes,
+          guests: data.guests || [],
+          videoConferenceLink,
+        });
+
+        if (emailResult) {
+          console.log('✅ E-mail de confirmação enviado com sucesso');
+        } else {
+          console.warn('⚠️ Erro ao enviar e-mail de confirmação');
+        }
+      } catch (emailError) {
+        console.warn('⚠️ Erro ao enviar e-mail de confirmação:', emailError);
       }
 
       toast.success('Agendamento(s) criado(s) com sucesso');
@@ -333,11 +343,11 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Toaster />
-      <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <CardHeader>
+      <Card className="w-full max-w-md max-h-[90vh] flex flex-col">
+        <CardHeader className="flex-shrink-0">
           <CardTitle>Agendamento Rápido</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Informações do Cliente */}
             <div className="space-y-4 border-b pb-4">
@@ -446,75 +456,27 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
                 )}
               />
 
+              <Controller
+                name="guests"
+                control={control}
+                defaultValue={[]}
+                render={({ field }) => (
+                  <TagInput
+                    label="Convidados (emails)"
+                    value={field.value || []}
+                    onChange={(value: string[]) => field.onChange(value)}
+                    placeholder="Digite o email e pressione Enter"
+                    disabled={loading || limitsLoading}
+                  />
+                )}
+              />
+
               <Input
                 label="Observações"
                 {...register('notes')}
                 placeholder="Observações adicionais..."
                 disabled={loading || limitsLoading}
               />
-
-              {/* Recorrência */}
-              {selectedCalendar?.has_recurring_subscription && (
-                <div className="space-y-4 border-t pt-4">
-                  <Controller
-                    name="isRecurring"
-                    control={control}
-                    render={({ field }) => (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="isRecurring"
-                          checked={field.value}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700">
-                          Agendamento Recorrente
-                        </label>
-                      </div>
-                    )}
-                  />
-
-                  {watchIsRecurring && (
-                    <div className="space-y-4 pl-6">
-                      <Controller
-                        name="recurrenceType"
-                        control={control}
-                        rules={{ required: watchIsRecurring ? 'Tipo de recorrência é obrigatório' : false }}
-                        render={({ field }) => (
-                          <Select
-                            label="Tipo de Recorrência"
-                            options={[
-                              { value: 'daily', label: 'Diário' },
-                              { value: 'weekly', label: 'Semanal' },
-                              { value: 'monthly', label: 'Mensal' },
-                            ]}
-                            value={field.value}
-                            onChange={field.onChange}
-                            error={errors.recurrenceType?.message}
-                            disabled={loading || limitsLoading}
-                          />
-                        )}
-                      />
-
-                      <Input
-                        type="date"
-                        label="Data de Término"
-                        {...register('recurrenceEndDate')}
-                        disabled={loading || limitsLoading}
-                      />
-
-                      <Input
-                        type="number"
-                        label="Número de Ocorrências"
-                        {...register('recurrenceCount', { min: 1 })}
-                        placeholder="Deixe em branco para ilimitado"
-                        disabled={loading || limitsLoading}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">

@@ -51,20 +51,8 @@ const RegisterPage = () => {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // ID do plano Grátis no banco
-      const FREE_PLAN_ID = '5d14538d-9f51-41ba-a686-12c6b27af642'; // substitua se for diferente
-
-      // Cria assinatura grátis automaticamente
-      const { error: insertSubError } = await supabase.from('user_subscriptions').insert({
-        user_id: authData.user.id,
-        plan_id: FREE_PLAN_ID,
-        status: 'active',
-        current_period_start: new Date().toISOString(),
-      });
-
-      if (insertSubError) {
-        throw new Error('Erro ao atribuir plano gratuito: ' + insertSubError.message);
-      }
+      // ✅ A assinatura grátis é criada automaticamente pelo trigger do banco
+      // Não precisamos criar manualmente aqui
 
       toast.success(t('auth.registrationSuccess'));
       navigate('/dashboard');

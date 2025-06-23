@@ -41,7 +41,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [userName, setUserName] = useState<string>('User');
   const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false);
   const [showQuickAppointmentModal, setShowQuickAppointmentModal] = useState(false);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
@@ -62,22 +61,23 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   }, []);
 
   // Função para extrair o nome do usuário do objeto user do Supabase
-  useEffect(() => {
-    if (user) {
-      // Tenta obter o nome do usuário de várias possíveis localizações no objeto user do Supabase
-      const name = 
-        // Tenta user.user_metadata.name (comum no Supabase)
-        (user.user_metadata && user.user_metadata.name) ||
-        // Tenta user.name diretamente (caso já esteja mapeado)
-        (user as any).name ||
-        // Tenta user.email como fallback
-        user.email ||
-        // Valor padrão se nada for encontrado
-        'User';
-      
-      setUserName(name);
-    }
-  }, [user]);
+  const getUserName = () => {
+    if (!user) return 'User';
+    
+    // Tenta obter o nome do usuário de várias possíveis localizações no objeto user do Supabase
+    return (
+      // Tenta user.user_metadata.full_name (comum no Supabase)
+      (user.user_metadata && user.user_metadata.full_name) ||
+      // Tenta user.user_metadata.name (alternativo)
+      (user.user_metadata && user.user_metadata.name) ||
+      // Tenta user.name diretamente (caso já esteja mapeado)
+      (user as any).name ||
+      // Tenta user.email como fallback
+      user.email ||
+      // Valor padrão se nada for encontrado
+      'User'
+    );
+  };
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -147,7 +147,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     const error = await createTask({
       title,
       description,
-      due_date: dueDate,
+      dueDate,
       status,
       priority,
     });
@@ -161,14 +161,33 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Mobile Menu Button */}
+      {/* Mobile Top Bar */}
       {isMobile && (
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="fixed top-4 right-4 z-50 p-2.5 rounded-lg bg-white shadow-md border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-200"
-        >
-          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            {/* Hamburger Menu Button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-200"
+            >
+              <Menu size={24} />
+            </button>
+
+            {/* Logo */}
+            <Link to="/" className="flex items-center">
+              <Calendar className="h-8 w-8 text-primary-600" />
+              <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
+            </Link>
+
+            {/* Profile Button */}
+            <button
+              onClick={navigateToProfile}
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-200"
+            >
+              <User size={24} />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Sidebar */}
@@ -187,32 +206,54 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       >
         <div className="h-full flex flex-col justify-between">
           <div>
-            {/* Logo */}
-            <div className={cn(
-              "flex items-center h-16 px-4",
-              !sidebarOpen && !isMobile && "justify-center"
-            )}>
-              <Link to="/" className="flex items-center">
-                <Calendar className="h-8 w-8 text-primary-600" />
-                {sidebarOpen && (
-                  <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
-                )}
-              </Link>
-            </div>
+            {/* Logo - Only show on desktop */}
+            {!isMobile && (
+              <div className={cn(
+                "flex items-center h-16 px-4",
+                !sidebarOpen && "justify-center"
+              )}>
+                <Link to="/" className="flex items-center">
+                  <Calendar className="h-8 w-8 text-primary-600" />
+                  {sidebarOpen && (
+                    <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
+                  )}
+                </Link>
+              </div>
+            )}
 
-            {/* Create Task Button - agora logo abaixo do logo */}
-            <div className={cn("flex justify-center mt-4", !sidebarOpen && !isMobile && "px-0")}> 
+            {/* Mobile sidebar header with close button */}
+            {isMobile && (
+              <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+                <Link to="/" className="flex items-center">
+                  <Calendar className="h-8 w-8 text-primary-600" />
+                  <span className="ml-2 text-xl font-bold text-gray-900">Merlin Desk</span>
+                </Link>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            )}
+
+            {/* Create Task Button */}
+            <div className={cn(
+              "flex justify-center",
+              isMobile ? "mt-4" : "mt-4",
+              !sidebarOpen && !isMobile && "px-0"
+            )}> 
               <div className="relative w-full flex justify-center" ref={dropdownRef}>
                 <button
-                  className={`flex items-center justify-center rounded-full bg-[#7C45D0] text-white shadow-lg transition-all duration-200 ${sidebarOpen ? 'w-40 h-12 text-lg font-semibold' : 'w-12 h-12 text-3xl'} ${sidebarOpen ? '' : 'p-0'}`}
+                  className={`flex items-center justify-center rounded-full bg-[#7C45D0] text-white shadow-lg transition-all duration-200 ${sidebarOpen || isMobile ? 'w-40 h-12 text-lg font-semibold' : 'w-12 h-12 text-3xl'} ${sidebarOpen || isMobile ? '' : 'p-0'}`}
                   onClick={() => setDropdownOpen((open) => !open)}
                   title="Criar"
-                  style={{ lineHeight: 1, height: sidebarOpen ? '3rem' : '3rem', minHeight: '3rem', alignItems: 'center' }}
+                  style={{ lineHeight: 1, height: '3rem', minHeight: '3rem', alignItems: 'center' }}
                 >
-                  <span className={sidebarOpen ? "mr-2 text-2xl flex items-center justify-center" : "flex items-center justify-center w-full h-full text-2xl"} style={{lineHeight: 1}}>
+                  <span className={(sidebarOpen || isMobile) ? "mr-2 text-2xl flex items-center justify-center" : "flex items-center justify-center w-full h-full text-2xl"} style={{lineHeight: 1}}>
                     +
                   </span>
-                  {sidebarOpen && 'Criar'}
+                  {(sidebarOpen || isMobile) && 'Criar'}
                 </button>
                 {dropdownOpen && (
                   <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-100">
@@ -280,7 +321,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
               {(sidebarOpen || isMobile) && user && (
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">{userName}</p>
+                  <p className="text-sm font-medium text-gray-700">{getUserName()}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
               )}
@@ -308,7 +349,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       {/* Main Content */}
       <div className={cn(
         "flex-1 overflow-auto",
-        isMobile && "ml-0"
+        isMobile ? "pt-16" : "ml-0" // Add top padding for mobile to account for fixed header
       )}>
         <main className="p-6">
           {children}

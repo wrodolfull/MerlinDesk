@@ -24,7 +24,6 @@ export interface Calendar {
   location_id?: string;
   ownerId: string;
   createdAt: Date;
-  hasRecurringSubscription: boolean;
 }
 
 export interface Specialty {
@@ -62,6 +61,7 @@ export interface Appointment {
   createdAt: Date;
   google_event_id?: string;
   video_conference_link?: string;
+  guests?: string[];
   client?: Pick<Client, 'id' | 'name' | 'email' | 'phone'>;
   professional?: Pick<Professional, 'id' | 'name' | 'avatar'>;
   specialty?: Pick<Specialty, 'id' | 'name' | 'duration'>;
@@ -83,14 +83,17 @@ export interface User {
   createdAt: Date;
 }
 
+export type TaskStatus = 'pending' | 'in_progress' | 'completed';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
 export interface Task {
   id: string;
   userId: string;
   title: string;
   description?: string;
   dueDate?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
+  status: TaskStatus;
+  priority: TaskPriority;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,8 +105,8 @@ export type TaskDB = {
   title: string;
   description?: string;
   due_date?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
+  status: TaskStatus;
+  priority: TaskPriority;
   created_at: string;
   updated_at: string;
 };

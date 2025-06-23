@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import Select from '../ui/Select';
 import { Task } from '../../types';
+import { formatDateForInput, createISODate } from '../../lib/utils';
 
 type UpdateTaskData = Partial<Omit<Task, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>;
 
@@ -12,15 +13,6 @@ interface EditTaskModalProps {
   onClose: () => void;
   task: Task;
   onSave: (updates: UpdateTaskData) => void;
-}
-
-function formatDateForInput(dateString?: string) {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function isTodayLocal(dateString: string) {
@@ -63,10 +55,11 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, onClose, task, onSa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
     onSave({
       title,
       description,
-      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      dueDate: createISODate(dueDate),
       status,
       priority,
     });
@@ -86,16 +79,31 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, onClose, task, onSa
           </div>
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-            <Input id="description" value={description} onChange={e => setDescription(e.target.value)} as="textarea" className="min-h-[80px]" />
+            <textarea 
+              id="description" 
+              value={description} 
+              onChange={e => setDescription(e.target.value)} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-h-[80px]"
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <Select id="status" value={status} onChange={e => setStatus((e.target as HTMLSelectElement).value as Task['status'])} options={statusOptions} />
+              <Select 
+                id="status" 
+                value={status} 
+                onChange={(value) => setStatus(value as Task['status'])} 
+                options={statusOptions} 
+              />
             </div>
             <div>
               <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
-              <Select id="priority" value={priority} onChange={e => setPriority((e.target as HTMLSelectElement).value as Task['priority'])} options={priorityOptions} />
+              <Select 
+                id="priority" 
+                value={priority} 
+                onChange={(value) => setPriority(value as Task['priority'])} 
+                options={priorityOptions} 
+              />
             </div>
           </div>
           <div>

@@ -1,13 +1,18 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { Client } from '../../types';
 import { Card, CardContent } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { ChevronLeft } from 'lucide-react';
+import TagInput from '../ui/TagInput';
+
+interface ClientInfoData extends Client {
+  guests: string[];
+}
 
 interface ClientInfoFormProps {
-  onSubmit: (data: Client) => void;
+  onSubmit: (data: ClientInfoData) => void;
   onBack: () => void;
 }
 
@@ -15,11 +20,15 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
-  } = useForm<Client>();
+  } = useForm<ClientInfoData>({
+    defaultValues: {
+      guests: [],
+    },
+  });
   
-  const processSubmit = (data: Client) => {
-    // Add synthetic id and createdAt
+  const processSubmit = (data: ClientInfoData) => {
     const enrichedData = {
       ...data,
       id: Math.random().toString(36).substring(2, 9),
@@ -85,6 +94,19 @@ export const ClientInfoForm = ({ onSubmit, onBack }: ClientInfoFormProps) => {
                 },
               })}
               helperText="Usaremos estas informações para envio de lembretes"
+            />
+
+            <Controller
+              name="guests"
+              control={control}
+              render={({ field }) => (
+                <TagInput
+                  label="Convidados (opcional)"
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pressione Enter para adicionar um e-mail"
+                />
+              )}
             />
             
             <div className="flex justify-end pt-4">

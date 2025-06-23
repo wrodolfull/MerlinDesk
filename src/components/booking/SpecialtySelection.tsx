@@ -7,13 +7,25 @@ interface SpecialtySelectionProps {
   onSelect: (specialty: Specialty) => void;
 }
 
-export const SpecialtySelection = ({ specialties, onSelect }: SpecialtySelectionProps) => {
+export const SpecialtySelection = ({ specialties = [], onSelect }: SpecialtySelectionProps) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleSelect = (specialty: Specialty) => {
     setSelectedId(specialty.id);
     onSelect(specialty);
   };
+
+  // Verificação de segurança
+  if (!Array.isArray(specialties) || specialties.length === 0) {
+    return (
+      <div className="animate-fade-in">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Agendar uma consulta</h2>
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">Nenhuma especialidade disponível no momento.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">

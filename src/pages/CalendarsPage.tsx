@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Building, MapPin, Plus, Users, Edit, Trash2, CalendarRange, Loader, Share2, Eye } from 'lucide-react';
+import { Building, MapPin, Plus, Users, Edit, Trash2, CalendarRange, Loader, Share2, Eye, MoreVertical } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import CreateCalendarModal from '../components/modals/CreateCalendarModal';
@@ -173,206 +173,242 @@ const CalendarsPage = () => {
   return (
     <DashboardLayout>
       <Toaster />
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      
+      {/* Header Responsivo */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Calendário</h1>
           <p className="text-gray-600">Gerencie seus calendários</p>
         </div>
-        <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreateCalendar(true)}>
-          Criar calendário
-        </Button>
+        <div className="flex-shrink-0">
+          <Button 
+            leftIcon={<Plus size={16} />} 
+            onClick={() => setShowCreateCalendar(true)}
+            className="w-full sm:w-auto"
+          >
+            <span className="hidden sm:inline">Criar calendário</span>
+            <span className="sm:hidden">Novo</span>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 mb-8">
-        {calendars.map((calendar) => {
-          const calendarSpecialties = specialties.filter((s) => s.calendarId === calendar.id);
-          const calendarProfessionals = professionals.filter((p) => p.calendarId === calendar.id);
+      {/* Lista de Calendários */}
+      <div className="space-y-6">
+        {calendars.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum calendário criado</h3>
+              <p className="text-gray-500 mb-4">Crie seu primeiro calendário para começar a gerenciar agendamentos</p>
+              <Button onClick={() => setShowCreateCalendar(true)}>
+                Criar primeiro calendário
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          calendars.map((calendar) => {
+            const calendarSpecialties = specialties.filter((s) => s.calendarId === calendar.id);
+            const calendarProfessionals = professionals.filter((p) => p.calendarId === calendar.id);
 
-          return (
-            <Card key={calendar.id}>
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center">
-                    <div className="bg-primary-100 p-2 rounded-full mr-4">
-                      <Building className="h-8 w-8 text-primary-600" />
-                    </div>
-                    <div>
-                      <CardTitle>{calendar.name}</CardTitle>
-                      <div className="flex items-center mt-1 text-sm text-gray-500">
-                        <MapPin size={14} className="mr-1" />
-                        <span>{calendar.location_id || 'Nenhuma localização adicionada'}</span>
+            return (
+              <Card key={calendar.id} className="overflow-hidden">
+                {/* Header do Card */}
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+                    {/* Informações do Calendário */}
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="bg-primary-100 p-3 rounded-full flex-shrink-0">
+                        <Building className="h-6 w-6 text-primary-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg mb-1">{calendar.name}</CardTitle>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <MapPin size={14} className="mr-1 flex-shrink-0" />
+                          <span className="truncate">
+                            {calendar.location_id || 'Nenhuma localização adicionada'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Share2 size={14} color="white" />}
-                      onClick={() => setSharingCalendar(calendar)}
-                      className="bg-[#7C45D0] text-white border-[#7C45D0] hover:bg-[#6D3FC4]"
-                    >
-                      Compartilhar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Edit size={14} />}
-                      onClick={() => setEditingCalendar(calendar)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-error-500 border-error-500 hover:bg-error-50"
-                      leftIcon={<Trash2 size={14} />}
-                      onClick={() => handleDeleteCalendar(calendar.id)}
-                    >
-                      Deletar
-                    </Button>
-                    {/* <Button
-                      variant="ghost"
-                      size="sm"
-                      leftIcon={<Eye size={14} />}
-                      onClick={() => {
-                        setSelectedCalendarId(calendar.id);
-                        setShowCalendarId(true);
-                      }}
-                    >
-                      ID
-                    </Button> */}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-medium flex items-center">
-                        <CalendarRange size={18} className="mr-2 text-gray-500" /> Especialidades
-                      </h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Plus size={14} />}
-                        onClick={() => {
-                          setSelectedCalendarId(calendar.id);
-                          setShowCreateSpecialty(true);
-                        }}
-                      >
-                        Adicionar
-                      </Button>
-                    </div>
-                    <div className="bg-gray-50 rounded-md p-3">
-                      {calendarSpecialties.length > 0 ? (
-                        <ul className="space-y-2">
-                          {calendarSpecialties.map((specialty) => (
-                            <li
-                              key={specialty.id}
-                              className="flex justify-between items-center p-2 bg-white rounded border border-gray-200"
-                            >
-                              <div>
-                                <p className="font-medium">{specialty.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {specialty.duration} min {specialty.price && `• $${specialty.price}`}
-                                </p>
-                              </div>
-                              <div className="flex space-x-1">
-                                <button
-                                  className="p-1 text-gray-500 hover:text-gray-700"
-                                  onClick={() => setEditingSpecialty(specialty)}
-                                >
-                                  <Edit size={14} />
-                                </button>
-                                <button
-                                  className="p-1 text-gray-500 hover:text-error-500"
-                                  onClick={() => handleDeleteSpecialty(specialty.id)}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-center text-gray-500 py-4">Nenhuma especialidade criada</p>
-                      )}
-                    </div>
-                  </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-medium flex items-center">
-                        <Users size={18} className="mr-2 text-gray-500" /> Profissionais
-                      </h3>
+                    {/* Botões de Ação */}
+                    <div className="flex flex-wrap gap-2 lg:flex-shrink-0">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        leftIcon={<Plus size={14} />}
-                        onClick={() => {
-                          setSelectedCalendarId(calendar.id);
-                          setShowCreateProfessional(true);
-                        }}
+                        leftIcon={<Share2 size={14} />}
+                        onClick={() => setSharingCalendar(calendar)}
+                        className="bg-[#7C45D0] text-white border-[#7C45D0] hover:bg-[#6D3FC4]"
                       >
-                        Adicionar
+                        <span className="hidden sm:inline">Compartilhar</span>
+                        <span className="sm:hidden">Compartilhar</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Edit size={14} />}
+                        onClick={() => setEditingCalendar(calendar)}
+                      >
+                        <span className="hidden sm:inline">Editar</span>
+                        <span className="sm:hidden">Editar</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-error-500 border-error-500 hover:bg-error-50"
+                        leftIcon={<Trash2 size={14} />}
+                        onClick={() => handleDeleteCalendar(calendar.id)}
+                      >
+                        <span className="hidden sm:inline">Deletar</span>
+                        <span className="sm:hidden">Deletar</span>
                       </Button>
                     </div>
-                    <div className="bg-gray-50 rounded-md p-3">
-                      {calendarProfessionals.length > 0 ? (
-                        <ul className="space-y-2">
-                          {calendarProfessionals.map((professional) => {
-                            <p className="text-sm text-gray-500">
-                            {professional.specialties?.length
-                              ? professional.specialties.map((s) => s.name).join(', ')
-                              : 'No specialty assigned'}
-                          </p>
-                            return (
-                              <li
-                                key={professional.id}
-                                className="flex justify-between items-center p-2 bg-white rounded border border-gray-200"
+                  </div>
+                </CardHeader>
+
+                {/* Conteúdo do Card */}
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {/* Seção de Especialidades */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-medium flex items-center text-gray-900">
+                          <CalendarRange size={18} className="mr-2 text-gray-500" />
+                          <span className="hidden sm:inline">Especialidades</span>
+                          <span className="sm:hidden">Especialidades</span>
+                        </h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Plus size={14} />}
+                          onClick={() => {
+                            setSelectedCalendarId(calendar.id);
+                            setShowCreateSpecialty(true);
+                          }}
+                          className="text-sm"
+                        >
+                          <span className="hidden sm:inline">Adicionar</span>
+                          <span className="sm:hidden">+</span>
+                        </Button>
+                      </div>
+                      
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        {calendarSpecialties.length > 0 ? (
+                          <div className="space-y-3">
+                            {calendarSpecialties.map((specialty) => (
+                              <div
+                                key={specialty.id}
+                                className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow"
                               >
-                                <div className="flex items-center">
-                                  
-                                  <div>
-                                    <p className="font-medium">{professional.name}</p>
-                                    <p className="text-sm text-gray-500">
-                                      {professional.specialties?.length
-                                        ? professional.specialties.map((s) => s.name).join(', ')
-                                        : 'No specialty assigned'}
-                                    </p>
-                                  </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 truncate">{specialty.name}</p>
+                                  <p className="text-sm text-gray-500">
+                                    {specialty.duration} min {specialty.price && `• R$ ${specialty.price}`}
+                                  </p>
                                 </div>
-                                <div className="flex space-x-1">
+                                <div className="flex items-center gap-1 ml-3 flex-shrink-0">
                                   <button
-                                    className="p-1 text-gray-500 hover:text-gray-700"
-                                    onClick={() => setEditingProfessional(professional)}
+                                    className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                    onClick={() => setEditingSpecialty(specialty)}
+                                    title="Editar especialidade"
                                   >
                                     <Edit size={14} />
                                   </button>
                                   <button
-                                    className="p-1 text-gray-500 hover:text-error-500"
-                                    onClick={() => handleDeleteProfessional(professional.id)}
+                                    className="p-1.5 text-gray-500 hover:text-error-500 hover:bg-error-50 rounded transition-colors"
+                                    onClick={() => handleDeleteSpecialty(specialty.id)}
+                                    title="Deletar especialidade"
                                   >
                                     <Trash2 size={14} />
                                   </button>
                                 </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-center text-gray-500 py-4">Nenhum profissional criado</p>
-                      )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <CalendarRange className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-500 text-sm">Nenhuma especialidade criada</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Seção de Profissionais */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-medium flex items-center text-gray-900">
+                          <Users size={18} className="mr-2 text-gray-500" />
+                          <span className="hidden sm:inline">Profissionais</span>
+                          <span className="sm:hidden">Profissionais</span>
+                        </h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Plus size={14} />}
+                          onClick={() => {
+                            setSelectedCalendarId(calendar.id);
+                            setShowCreateProfessional(true);
+                          }}
+                          className="text-sm"
+                        >
+                          <span className="hidden sm:inline">Adicionar</span>
+                          <span className="sm:hidden">+</span>
+                        </Button>
+                      </div>
+                      
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        {calendarProfessionals.length > 0 ? (
+                          <div className="space-y-3">
+                            {calendarProfessionals.map((professional) => (
+                              <div
+                                key={professional.id}
+                                className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 truncate">{professional.name}</p>
+                                  <p className="text-sm text-gray-500 truncate">
+                                    {professional.specialties?.length
+                                      ? professional.specialties.map((s) => s.name).join(', ')
+                                      : 'Nenhuma especialidade atribuída'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-3 flex-shrink-0">
+                                  <button
+                                    className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                    onClick={() => setEditingProfessional(professional)}
+                                    title="Editar profissional"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    className="p-1.5 text-gray-500 hover:text-error-500 hover:bg-error-50 rounded transition-colors"
+                                    onClick={() => handleDeleteProfessional(professional.id)}
+                                    title="Deletar profissional"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-500 text-sm">Nenhum profissional criado</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
+      {/* Modais */}
       {showCreateCalendar && (
         <CreateCalendarModal onClose={() => setShowCreateCalendar(false)} onSuccess={fetchData} />
       )}
@@ -428,64 +464,68 @@ const CalendarsPage = () => {
       {sharingCalendar && (
         <ShareCalendarModal calendar={sharingCalendar} onClose={() => setSharingCalendar(null)} />
       )}
+
+      {/* Modal de ID do Calendário */}
       {showCalendarId && selectedCalendarId && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative">
             <h2 className="text-lg font-semibold mb-4">ID do Calendário</h2>
             <p className="text-sm text-gray-600 mb-2">Copie este ID para integrar à API de agendamento:</p>
             <textarea
               readOnly
-              className="w-full p-2 border border-gray-300 rounded bg-gray-50 text-sm font-mono"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono resize-none"
               value={selectedCalendarId}
               rows={3}
               onFocus={(e) => e.target.select()}
             />
             <div className="mt-4 flex justify-end">
-              <button
-                className="text-sm px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+              <Button
                 onClick={() => setShowCalendarId(false)}
+                className="w-full sm:w-auto"
               >
                 Fechar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal de Iframe */}
       {iframeCalendarId && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-lg relative">
             <h2 className="text-lg font-semibold mb-4">Incorpore este calendário</h2>
             <p className="text-sm text-gray-600 mb-2">Copie e cole o código abaixo no seu site:</p>
             <textarea
               readOnly
-              className="w-full p-2 border border-gray-300 rounded bg-gray-50 text-sm font-mono"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono resize-none"
               value={`<iframe src="https://merlindesk.com/booking/embed/${iframeCalendarId}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`}
               rows={4}
               onFocus={(e) => e.target.select()}
             />
-            <div className="mt-4 flex justify-between items-center">
-              <button
-                className="text-sm text-blue-600 underline"
+            <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <Button
+                variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(
                     `<iframe src="https://merlindesk.com/booking/embed/${iframeCalendarId}" width="100%" height="700" frameborder="0" style="border:none;"></iframe>`
                   );
                   toast.success('Código copiado!');
                 }}
+                className="w-full sm:w-auto"
               >
                 Copiar código
-              </button>
-              <button
-                className="text-sm px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+              </Button>
+              <Button
                 onClick={() => setIframeCalendarId(null)}
+                className="w-full sm:w-auto"
               >
                 Fechar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-
     </DashboardLayout>
   );
 };

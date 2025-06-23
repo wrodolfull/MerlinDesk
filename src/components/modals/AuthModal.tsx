@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { Card, CardContent } from '/root/MerlinDesk/src/components/ui/Card.tsx';
-import Input from '/root/MerlinDesk/src/components/ui/Input.tsx';
-import Button from '/root/MerlinDesk/src/components/ui/Button.tsx';
-import { supabase } from '/root/MerlinDesk/src/lib/supabase.ts';
+import { Card, CardContent } from '../ui/Card';
+import Input from '../ui/Input';
+import Button from '../ui/Button';
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -36,7 +36,7 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: any) => void;
-  selectedPlan: SelectedPlan | null;
+  selectedPlan?: SelectedPlan | null;
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ 
@@ -152,7 +152,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full relative">
+      <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] flex flex-col relative">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
@@ -160,7 +160,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
           <X className="w-6 h-6" />
         </button>
 
-        <div className="p-8">
+        <div className="p-8 flex-1 overflow-y-auto">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               {isLogin ? t('auth.welcomeBack') : t('auth.createAccount')}

@@ -90,7 +90,8 @@ router.post('/calendar/create-event', async (req, res) => {
         *,
         clients(name, email),
         professionals(name),
-        specialties(name)
+        specialties(name),
+        guests
       `)
             .eq('id', appointmentId)
             .single();
@@ -106,6 +107,14 @@ router.post('/calendar/create-event', async (req, res) => {
             .eq('id', userId)
             .single();
         console.log('✅ Agendamento encontrado:', appointment.id);
+        console.log('🔍 Dados do agendamento:', {
+            id: appointment.id,
+            clientEmail: appointment.clients?.email,
+            guests: appointment.guests,
+            guestsType: typeof appointment.guests,
+            guestsIsArray: Array.isArray(appointment.guests),
+            guestsLength: appointment.guests ? appointment.guests.length : 0
+        });
         // Buscar integração Google Calendar
         const { data: integration, error: integrationError } = await supabase
             .from('user_integrations')
@@ -155,6 +164,28 @@ router.post('/calendar/create-event', async (req, res) => {
         if (appointment.clients?.email) {
             attendees.push({ email: appointment.clients.email });
         }
+        // Adicionar convidados (guests)
+        console.log('🔍 Processando convidados...');
+        console.log('🔍 appointment.guests:', appointment.guests);
+        console.log('🔍 appointment.guests é array?', Array.isArray(appointment.guests));
+        if (appointment.guests && Array.isArray(appointment.guests) && appointment.guests.length > 0) {
+            console.log('✅ Encontrados convidados para adicionar:', appointment.guests.length);
+            appointment.guests.forEach((guestEmail, index) => {
+                console.log(`🔍 Processando convidado ${index + 1}:`, guestEmail);
+                if (guestEmail && guestEmail.trim() !== '') {
+                    attendees.push({ email: guestEmail.trim() });
+                    console.log('✅ Convidado adicionado:', guestEmail.trim());
+                }
+                else {
+                    console.log('⚠️ Convidado ignorado (vazio):', guestEmail);
+                }
+            });
+        }
+        else {
+            console.log('⚠️ Nenhum convidado encontrado ou lista vazia');
+            console.log('🔍 Tipo de guests:', typeof appointment.guests);
+            console.log('🔍 Valor de guests:', appointment.guests);
+        }
         // Adicionar dono do calendário usando alias
         if (ownerData?.email) {
             attendees.push({
@@ -163,6 +194,8 @@ router.post('/calendar/create-event', async (req, res) => {
             });
             console.log('✅ Dono adicionado como participante:', createGmailAlias(ownerData.email));
         }
+        console.log('📋 Lista final de participantes:', attendees.map(a => a.email));
+        console.log('📊 Total de participantes:', attendees.length);
         // Criar evento no formato correto do Google Calendar
         const event = {
             summary: `${appointment.specialties?.name || 'Agendamento'}`,
@@ -259,6 +292,7 @@ router.post('/calendar/create-event', async (req, res) => {
             eventLink: response.data.htmlLink,
             videoConferenceLink: finalConferenceLink,
             notificationsSent: attendees.length,
+            participants: attendees.map(a => a.email),
             availabilityChecked: !skipAvailabilityCheck
         });
     }
@@ -269,6 +303,151 @@ router.post('/calendar/create-event', async (req, res) => {
         }
         res.status(500).json({
             error: 'Erro ao criar evento no Google Calendar',
+            details: err.message
+        });
+    }
+});
+// PUT /calendar/update-event (atualizar evento existente)
+router.put('/calendar/update-event', async (req, res) => {
+    const { appointmentId, userId, googleEventId } = req.body;
+    console.log('🔍 Atualizando evento:', { appointmentId, userId, googleEventId });
+    if (!appointmentId || !userId || !googleEventId) {
+        res.status(400).json({ error: 'appointmentId, userId e googleEventId são obrigatórios' });
+        return;
+    }
+    try {
+        // Buscar dados do agendamento
+        const { data: appointment, error: appointmentError } = await supabase
+            .from('appointments')
+            .select(`
+        *,
+        clients(name, email),
+        professionals(name),
+        specialties(name),
+        guests
+      `)
+            .eq('id', appointmentId)
+            .single();
+        if (appointmentError || !appointment) {
+            console.error('❌ Agendamento não encontrado:', appointmentError);
+            res.status(404).json({ error: 'Agendamento não encontrado' });
+            return;
+        }
+        console.log('✅ Agendamento encontrado:', appointment.id);
+        console.log('🔍 Dados do agendamento:', {
+            id: appointment.id,
+            clientEmail: appointment.clients?.email,
+            guests: appointment.guests,
+            guestsType: typeof appointment.guests,
+            guestsIsArray: Array.isArray(appointment.guests),
+            guestsLength: appointment.guests ? appointment.guests.length : 0
+        });
+        // Buscar integração Google Calendar
+        const { data: integration, error: integrationError } = await supabase
+            .from('user_integrations')
+            .select('credentials')
+            .eq('user_id', userId)
+            .eq('integration_type', 'google_calendar')
+            .eq('status', 'active')
+            .single();
+        if (integrationError || !integration?.credentials) {
+            console.error('❌ Integração não encontrada:', integrationError);
+            res.status(401).json({ error: 'Integração Google Calendar não encontrada' });
+            return;
+        }
+        console.log('✅ Integração encontrada para usuário:', userId);
+        // Configurar OAuth2 client
+        const oauth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+        oauth2Client.setCredentials(integration.credentials);
+        const calendar = googleapis_1.google.calendar({ version: 'v3', auth: oauth2Client });
+        // Criar lista de participantes incluindo o dono
+        const attendees = [];
+        // Adicionar cliente
+        if (appointment.clients?.email) {
+            attendees.push({ email: appointment.clients.email });
+        }
+        // Adicionar convidados (guests)
+        console.log('🔍 Processando convidados...');
+        console.log('🔍 appointment.guests:', appointment.guests);
+        console.log('🔍 appointment.guests é array?', Array.isArray(appointment.guests));
+        if (appointment.guests && Array.isArray(appointment.guests) && appointment.guests.length > 0) {
+            console.log('✅ Encontrados convidados para adicionar:', appointment.guests.length);
+            appointment.guests.forEach((guestEmail, index) => {
+                console.log(`🔍 Processando convidado ${index + 1}:`, guestEmail);
+                if (guestEmail && guestEmail.trim() !== '') {
+                    attendees.push({ email: guestEmail.trim() });
+                    console.log('✅ Convidado adicionado:', guestEmail.trim());
+                }
+                else {
+                    console.log('⚠️ Convidado ignorado (vazio):', guestEmail);
+                }
+            });
+        }
+        else {
+            console.log('⚠️ Nenhum convidado encontrado ou lista vazia');
+            console.log('🔍 Tipo de guests:', typeof appointment.guests);
+            console.log('🔍 Valor de guests:', appointment.guests);
+        }
+        console.log('📋 Lista final de participantes:', attendees.map(a => a.email));
+        console.log('📊 Total de participantes:', attendees.length);
+        // Atualizar evento no Google Calendar
+        const event = {
+            summary: `${appointment.specialties?.name || 'Agendamento'}`,
+            description: `Agendamento com ${appointment.professionals?.name || 'Profissional'}${appointment.notes ? `\n\nObservações: ${appointment.notes}` : ''}\n\n---\nDesenvolvido por Merlindesk.com`,
+            start: {
+                dateTime: appointment.start_time,
+                timeZone: 'America/Sao_Paulo',
+            },
+            end: {
+                dateTime: appointment.end_time,
+                timeZone: 'America/Sao_Paulo',
+            },
+            attendees: attendees,
+            reminders: {
+                useDefault: false,
+                overrides: [
+                    { method: 'email', minutes: 24 * 60 }, // 1 dia antes
+                    { method: 'popup', minutes: 15 }, // 15 minutos antes
+                ],
+            },
+            guestsCanModify: false,
+            guestsCanInviteOthers: false,
+            guestsCanSeeOtherGuests: true,
+        };
+        console.log('🔍 Atualizando evento:', event);
+        const response = await calendar.events.update({
+            calendarId: 'primary',
+            eventId: googleEventId,
+            requestBody: event,
+            sendUpdates: 'all',
+        });
+        console.log('✅ Evento atualizado no Google Calendar:', response.data.id);
+        // Extrair link da videoconferência se disponível
+        const conferenceLink = response.data.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === 'video')?.uri;
+        console.log('🔗 Link da videoconferência:', conferenceLink);
+        // Atualizar agendamento com link da videoconferência se necessário
+        if (conferenceLink && conferenceLink !== appointment.video_conference_link) {
+            const { error: updateError } = await supabase
+                .from('appointments')
+                .update({ video_conference_link: conferenceLink })
+                .eq('id', appointmentId);
+            if (updateError) {
+                console.error('⚠️ Erro ao atualizar video_conference_link:', updateError);
+            }
+        }
+        res.json({
+            success: true,
+            eventId: response.data.id,
+            eventLink: response.data.htmlLink,
+            videoConferenceLink: conferenceLink,
+            participants: attendees.map(a => a.email),
+            message: 'Evento atualizado com sucesso'
+        });
+    }
+    catch (err) {
+        console.error('❌ Erro ao atualizar evento:', err);
+        res.status(500).json({
+            error: 'Erro ao atualizar evento no Google Calendar',
             details: err.message
         });
     }

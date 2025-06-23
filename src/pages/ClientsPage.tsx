@@ -1,361 +1,220 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Loader, Plus, Edit, Trash2, Phone, Mail, History, Calendar, Clock, Search } from 'lucide-react';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
+import { 
+  Loader, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Phone, 
+  Mail, 
+  History, 
+  Search,
+  Users,
+  AlertCircle,
+  TrendingUp,
+  Calendar,
+  Clock,
+  CheckCircle
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Client, Appointment } from '../types';
+import { Client } from '../types';
 import CreateClientModal from '../components/modals/CreateClientModal';
 import EditClientModal from '../components/modals/EditClientModal';
+import ClientHistoryModal from '../components/modals/ClientHistoryModal';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { useClients } from '../hooks/useClients';
 import { format, parseISO } from 'date-fns';
-import Input from '../components/ui/Input';
-
-// Interface para o modal de histórico
-interface ClientHistoryModalProps {
-  client: Client;
-  onClose: () => void;
-}
-
-// Componente do modal de histórico
-const ClientHistoryModal: React.FC<ClientHistoryModalProps> = ({ client, onClose }) => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchClientHistory = async () => {
-      try {
-        setLoading(true);
-        
-        const { data, error } = await supabase
-          .from('appointments')
-          .select(`
-            *,
-            professional:professionals(name),
-            specialty:specialties(name)
-          `)
-          .eq('client_id', client.id)
-          .order('start_time', { ascending: false });
-          
-        if (error) throw error;
-        
-        setAppointments(data || []);
-      } catch (err) {
-        console.error('Error fetching client history:', err);
-        setError('Failed to load appointment history');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchClientHistory();
-  }, [client.id]);
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(parseISO(dateString), 'PPP');
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
-
-  const formatTime = (dateString: string) => {
-    try {
-      return format(parseISO(dateString), 'p');
-    } catch (error) {
-      return 'Invalid time';
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="p-6 border-b">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold">Histórico: {client.name}</h2>
-            <Button variant="ghost" size="sm" onClick={onClose}>×</Button>
-          </div>
-        </div>
-        
-        <div className="p-6 overflow-y-auto flex-grow">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader className="w-8 h-8 animate-spin text-primary-600" />
-            </div>
-          ) : error ? (
-            <div className="text-center text-error-500 py-8">{error}</div>
-          ) : appointments.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              Nenhum histórico encontrado para este cliente.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {appointments.map((appointment) => (
-                <div key={appointment.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-                        <span className="font-medium">{formatDate(appointment.start_time)}</span>
-                      </div>
-                      <div className="flex items-center mt-1">
-                        <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                        <span>{formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}</span>
-                      </div>
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">
-                          {appointment.specialty?.name || 'Unknown service'}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Com {appointment.professional?.name || 'Unknown professional'}
-                        </p>
-                      </div>
-                      {appointment.notes && (
-                        <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                          {appointment.notes}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      appointment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      appointment.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                      appointment.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="p-4 border-t">
-          <Button variant="outline" onClick={onClose} className="w-full">
-            Fechar
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-};
+import { ptBR } from 'date-fns/locale';
 
 const ClientsPage: React.FC = () => {
   const { user } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+  const { clients, loading, error, refetch } = useClients();
+  
   const [clientsWithLastAppointment, setClientsWithLastAppointment] = useState<{[key: string]: string | null}>({});
-  const [clientsWithLastAppointmentProfessional, setClientsWithLastAppointmentProfessional] = useState<{[key: string]: string | null}>({});
+  const [clientsWithAppointmentCount, setClientsWithAppointmentCount] = useState<{[key: string]: number}>({});
   const [calendarId, setCalendarId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [viewingHistoryClient, setViewingHistoryClient] = useState<Client | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'email' | 'lastAppointment' | 'createdAt'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filterBy, setFilterBy] = useState<'all' | 'withAppointments' | 'withoutAppointments'>('all');
 
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      
-      if (!user?.id) {
-        throw new Error('User not authenticated');
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!user?.id) return;
+  
+      try {
+        const { data: calendarsData, error: calendarsError } = await supabase
+          .from('calendars')
+          .select('id')
+          .eq('owner_id', user.id)
+          .limit(1);
+    
+        if (calendarsError) throw calendarsError;
+        if (calendarsData && calendarsData.length > 0) {
+          setCalendarId(calendarsData[0].id);
+        } else {
+           console.warn("Nenhum calendário encontrado para o usuário. A criação de clientes pode ser desativada.");
+        }
+      } catch (e) {
+        toast.error("Falha ao buscar calendário.");
+        console.error(e);
       }
-  
-      // Buscar calendário principal do usuário para criação de novos clientes
-      const { data: calendarsData, error: calendarsError } = await supabase
-        .from('calendars')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1);
-  
-      if (calendarsError) throw calendarsError;
-  
-      if (!calendarsData || calendarsData.length === 0) {
-        throw new Error('No calendars found');
-      }
-  
-      setCalendarId(calendarsData[0].id);
-  
-      // ✅ CORREÇÃO: Buscar apenas clientes do owner atual
-      const { data, error: clientsError } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('owner_id', user.id)  // Apenas clientes deste owner
-        .order('created_at', { ascending: false });
-  
-      if (clientsError) throw clientsError;
+    };
+    
+    fetchInitialData();
+  }, [user]);
 
-      setClients(data || []);
-      setFilteredClients(data || []);
+  useEffect(() => {
+    const fetchLastAppointments = async () => {
+      if (!clients || clients.length === 0) return;
+
+      const clientIds = clients.map(client => client.id);
       
-      // Buscar o último agendamento para cada cliente
-      if (data && data.length > 0) {
-        const clientIds = data.map(client => client.id);
-        
-        // Buscar todos os agendamentos para esses clientes
+      try {
         const { data: appointmentsData, error: appointmentsError } = await supabase
           .from('appointments')
-          .select(`
-            client_id, 
-            start_time,
-            professional:professionals(id, name)
-          `)
+          .select('client_id, start_time')
           .in('client_id', clientIds)
           .order('start_time', { ascending: false });
           
         if (appointmentsError) throw appointmentsError;
         
-        // Processar os dados para obter o último agendamento de cada cliente
         const lastAppointments: {[key: string]: string | null} = {};
-        const lastAppointmentProfessionals: {[key: string]: string | null} = {};
-        
-        data.forEach(client => {
-          const clientAppointments = appointmentsData?.filter(apt => apt.client_id === client.id) || [];
-          if (clientAppointments.length > 0) {
-            lastAppointments[client.id] = clientAppointments[0].start_time;
-            lastAppointmentProfessionals[client.id] = clientAppointments[0].professional?.name || null;
-          } else {
-            lastAppointments[client.id] = null;
-            lastAppointmentProfessionals[client.id] = null;
+        const appointmentCounts: {[key: string]: number} = {};
+        const seenClients = new Set();
+
+        // Contar agendamentos por cliente
+        appointmentsData?.forEach(apt => {
+          appointmentCounts[apt.client_id] = (appointmentCounts[apt.client_id] || 0) + 1;
+          
+          if (!seenClients.has(apt.client_id)) {
+            lastAppointments[apt.client_id] = apt.start_time;
+            seenClients.add(apt.client_id);
           }
         });
         
         setClientsWithLastAppointment(lastAppointments);
-        setClientsWithLastAppointmentProfessional(lastAppointmentProfessionals);
+        setClientsWithAppointmentCount(appointmentCounts);
+      } catch (e) {
+        console.error("Falha ao buscar últimos agendamentos", e);
       }
-      
-      setError(null);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch clients';
-      setError(message);
-      console.error('Fetch clients error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Função para filtrar clientes com base no termo de pesquisa
-  const filterClients = (term: string) => {
-    if (!term.trim()) {
-      setFilteredClients(clients);
+    fetchLastAppointments();
+  }, [clients]);
+
+  const sortedAndFilteredClients = useMemo(() => {
+    let filtered = clients.filter(client => {
+      const matchesSearch = client.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.phone?.includes(searchTerm);
+
+      const matchesFilter = filterBy === 'all' ||
+        (filterBy === 'withAppointments' && clientsWithLastAppointment[client.id]) ||
+        (filterBy === 'withoutAppointments' && !clientsWithLastAppointment[client.id]);
+
+      return matchesSearch && matchesFilter;
+    });
+    
+    // Ordenação
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'email':
+          aValue = a.email?.toLowerCase() || '';
+          bValue = b.email?.toLowerCase() || '';
+          break;
+        case 'lastAppointment':
+          aValue = clientsWithLastAppointment[a.id] ? parseISO(clientsWithLastAppointment[a.id]!).getTime() : 0;
+          bValue = clientsWithLastAppointment[b.id] ? parseISO(clientsWithLastAppointment[b.id]!).getTime() : 0;
+          break;
+        case 'createdAt':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [clients, searchTerm, sortBy, sortOrder, filterBy, clientsWithLastAppointment]);
+
+  const handleCreateClick = () => {
+    if (!calendarId) {
+      toast.error('Você precisa ter um calendário configurado para adicionar clientes.');
       return;
     }
-    
-    const lowerTerm = term.toLowerCase();
-    const filtered = clients.filter(client => 
-      client.name?.toLowerCase().includes(lowerTerm) || 
-      client.email?.toLowerCase().includes(lowerTerm) || 
-      client.phone?.toLowerCase().includes(lowerTerm)
-    );
-    
-    setFilteredClients(filtered);
-  };
-
-  // Atualizar os clientes filtrados quando o termo de pesquisa mudar
-  useEffect(() => {
-    filterClients(searchTerm);
-  }, [searchTerm, clients]);
-
-  const formatLastAppointment = (dateString: string | null) => {
-    if (!dateString) return 'No appointments';
-    try {
-      return format(parseISO(dateString), 'PP');
-    } catch (error) {
-      return 'Invalid date';
-    }
+    setShowCreateModal(true);
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this client?')) return;
+    if (!window.confirm('Tem certeza que deseja deletar este cliente? Esta ação não pode ser desfeita.')) return;
+    
     try {
-      // Verificar se o cliente tem agendamentos
-      const { count, error: countError } = await supabase
-        .from('appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('client_id', id);
-        
-      if (countError) throw countError;
-      
-      if (count && count > 0) {
-        // Perguntar se o usuário quer excluir os agendamentos também
-        const deleteAppointments = confirm(
-          `This client has ${count} appointments. Delete all appointments as well?`
-        );
-        
-        if (deleteAppointments) {
-          // Excluir agendamentos primeiro
-          const { error: deleteAptsError } = await supabase
-            .from('appointments')
-            .delete()
-            .eq('client_id', id);
-            
-          if (deleteAptsError) throw deleteAptsError;
-        } else {
-          toast.error('Cannot delete client with appointments');
-          return;
-        }
-      }
-
-      // Excluir o cliente
-      const { error: deleteError } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', id);
-        
+      const { error: deleteError } = await supabase.from('clients').delete().eq('id', id);
       if (deleteError) throw deleteError;
-
-      toast.success('Client deleted successfully');
-      await fetchClients();
+      
+      toast.success('Cliente deletado com sucesso!');
+      await refetch();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete client';
+      const message = err instanceof Error ? err.message : 'Falha ao deletar cliente.';
       toast.error(message);
       console.error('Delete client error:', err);
     }
   };
 
-  useEffect(() => {
-    fetchClients();
-    
-    // Configurar subscription para atualizações em tempo real
-    const subscription = supabase
-      .channel('clients_changes')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'clients' }, 
-        () => {
-          console.log('New client added');
-          fetchClients();
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'clients' }, 
-        () => {
-          console.log('Client updated');
-          fetchClients();
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'DELETE', schema: 'public', table: 'clients' }, 
-        () => {
-          console.log('Client deleted');
-          fetchClients();
-        }
-      )
-      .subscribe();
+  const formatLastAppointment = (dateString: string | null) => {
+    if (!dateString) return 'Nunca agendou';
+    try {
+      return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR });
+    } catch (error) {
+      return 'Data inválida';
+    }
+  };
+  
+  const stats = useMemo(() => {
+    const total = clients.length;
+    const withAppointments = Object.keys(clientsWithLastAppointment).length;
+    const totalAppointments = Object.values(clientsWithAppointmentCount).reduce((sum, count) => sum + count, 0);
+    const averageAppointments = total > 0 ? totalAppointments / total : 0;
 
-    return () => {
-      subscription.unsubscribe();
+    return {
+      total,
+      withAppointments,
+      totalAppointments,
+      averageAppointments
     };
-  }, [user?.id]);
+  }, [clients, clientsWithLastAppointment, clientsWithAppointmentCount]);
 
   if (loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader className="w-8 h-8 animate-spin text-primary-600" />
+          <div className="text-center">
+            <Loader className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-4" />
+            <p className="text-gray-600">Carregando clientes...</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -364,8 +223,11 @@ const ClientsPage: React.FC = () => {
   if (error) {
     return (
       <DashboardLayout>
-        <div className="text-center text-error-500">
-          Error loading clients: {error}
+        <div className="text-center py-12">
+          <AlertCircle className="w-12 h-12 text-error-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar clientes</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={refetch}>Tentar novamente</Button>
         </div>
       </DashboardLayout>
     );
@@ -374,130 +236,271 @@ const ClientsPage: React.FC = () => {
   return (
     <DashboardLayout>
       <Toaster />
-      <div className="mb-6 flex justify-between items-center">
+      
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-600">Visualize, edite, e gerencie seus clientes</p>
+          <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
+          <p className="text-gray-600 mt-1">Gerencie sua lista de clientes</p>
         </div>
-        <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreateModal(true)}>
-          Criar cliente
+        <Button 
+          leftIcon={<Plus size={16} />} 
+          onClick={handleCreateClick}
+          className="w-full lg:w-auto"
+          disabled={!calendarId}
+        >
+          Novo Cliente
         </Button>
       </div>
 
-      {/* Campo de pesquisa */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="Procure clientes por nome, e-mail ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      {/* Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-primary-100 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-primary-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600">Total</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Users className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600">Com Agendamentos</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.withAppointments}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Calendar className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600">Total Agendamentos</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.totalAppointments}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Clock className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600">Média por Cliente</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.averageAppointments.toFixed(1)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {filteredClients.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <p className="text-gray-500">
-            {searchTerm ? 'No clients found matching your search' : 'No clients found'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => (
-            <Card key={client.id}>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold">{client.name}</h3>
-                {client.email && (
-                  <div className="flex items-center text-sm text-gray-500 mt-1">
-                    <Mail className="h-4 w-4 mr-1" />
-                    {client.email}
-                  </div>
-                )}
-                {client.phone && (
-                  <div className="flex items-center text-sm text-gray-500 mt-1">
-                    <Phone className="h-4 w-4 mr-1" />
+      {/* Filtros e Busca */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Buscar clientes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <Select
+                value={filterBy}
+                onChange={(value) => setFilterBy(value as 'all' | 'withAppointments' | 'withoutAppointments')}
+                className="w-48"
+                options={[
+                  { value: 'all', label: 'Todos' },
+                  { value: 'withAppointments', label: 'Com agendamentos' },
+                  { value: 'withoutAppointments', label: 'Sem agendamentos' }
+                ]}
+              />
+
+              <Select
+                value={sortBy}
+                onChange={(value) => setSortBy(value as 'name' | 'email' | 'lastAppointment' | 'createdAt')}
+                className="w-40"
+                options={[
+                  { value: 'name', label: 'Nome' },
+                  { value: 'email', label: 'E-mail' },
+                  { value: 'lastAppointment', label: 'Último agendamento' },
+                  { value: 'createdAt', label: 'Data de criação' }
+                ]}
+              />
+
+              <Button
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="px-3"
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Lista de Clientes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sortedAndFilteredClients.length === 0 ? (
+          <div className="col-span-full">
+            <Card>
+              <CardContent className="p-12 flex flex-col items-center justify-center text-center">
+                {searchTerm || filterBy !== 'all' ? (
+                  <>
+                    <Search className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum cliente encontrado</h3>
+                    <p className="text-gray-500 mb-4">Tente ajustar os filtros de busca</p>
                     <Button 
-                      variant="link" 
-                      className="p-0 h-auto text-sm text-gray-500 hover:text-primary-600"
+                      variant="outline" 
                       onClick={() => {
-                        const formattedPhone = client.phone?.replace(/\D/g, '');
-                        window.open(`https://wa.me/${formattedPhone}`, '_blank');
+                        setSearchTerm('');
+                        setFilterBy('all');
                       }}
                     >
-                      {client.phone}
+                      Limpar filtros
                     </Button>
-                  </div>
+                  </>
+                ) : (
+                  <>
+                    <Users className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum cliente encontrado</h3>
+                    <p className="text-gray-500 mb-4">Comece criando seu primeiro cliente</p>
+                    <Button onClick={handleCreateClick} disabled={!calendarId}>
+                      Criar cliente
+                    </Button>
+                  </>
                 )}
-                <div className="flex items-center text-sm text-gray-500 mt-1">
-                  <Calendar className="h-4 w-4 mr-1" />
-                  <span>
-                    Último agendamento: {formatLastAppointment(clientsWithLastAppointment[client.id])}
-                    {clientsWithLastAppointment[client.id] && clientsWithLastAppointmentProfessional[client.id] && (
-                      <span className="ml-1">
-                        com <span className="font-medium">{clientsWithLastAppointmentProfessional[client.id]}</span>
-                      </span>
-                    )}
-                  </span>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          sortedAndFilteredClients.map(client => (
+            <Card key={client.id} className="hover:shadow-lg transition-shadow duration-200">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{client.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      Último agendamento: {formatLastAppointment(clientsWithLastAppointment[client.id] || null)}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={() => setViewingHistoryClient(client)}
+                      title="Ver histórico"
+                    >
+                      <History size={16} />
+                    </button>
+                    <button
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={() => setEditingClient(client)}
+                      title="Editar"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      className="p-2 text-gray-500 hover:text-error-500 hover:bg-error-50 rounded-lg transition-colors"
+                      onClick={() => handleDeleteClient(client.id)}
+                      title="Excluir"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex space-x-2 mt-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    leftIcon={<History size={14} />}
-                    onClick={() => setViewingHistoryClient(client)}
-                  >
-                    Histórico
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    leftIcon={<Edit size={14} />}
-                    onClick={() => setEditingClient(client)}
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-error-500 border-error-500 hover:bg-error-50"
-                    leftIcon={<Trash2 size={14} />}
-                    onClick={() => handleDeleteClient(client.id)}
-                  >
-                    Deletar
-                  </Button>
+
+                <div className="space-y-2">
+                  {client.email && (
+                    <div className="flex items-center text-gray-600">
+                      <Mail size={16} className="mr-2" />
+                      <span className="text-sm">{client.email}</span>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center text-gray-600">
+                      <Phone size={16} className="mr-2" />
+                      <span className="text-sm">{client.phone}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-gray-500 mt-4">
+                    <span>
+                      {clientsWithAppointmentCount[client.id] || 0} agendamento(s)
+                    </span>
+                    <div className="flex items-center">
+                      <CheckCircle size={12} className="mr-1 text-green-500" />
+                      <span>Ativo</span>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+        )}
+      </div>
+
+      {/* Resultados da busca */}
+      {searchTerm && (
+        <div className="mt-6 text-center text-sm text-gray-600">
+          {sortedAndFilteredClients.length} de {clients.length} clientes encontrados
         </div>
       )}
 
+      {/* Modais */}
       {showCreateModal && calendarId && (
         <CreateClientModal
-          calendarId={calendarId}
+          isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
-            fetchClients();
             setShowCreateModal(false);
+            refetch();
+            toast.success('Cliente criado com sucesso!');
           }}
+          calendarId={calendarId}
         />
       )}
 
       {editingClient && (
         <EditClientModal
-          client={editingClient}
+          isOpen={!!editingClient}
           onClose={() => setEditingClient(null)}
           onSuccess={() => {
-            fetchClients();
             setEditingClient(null);
+            refetch();
+            toast.success('Cliente atualizado com sucesso!');
           }}
+          client={editingClient}
         />
       )}
 
       {viewingHistoryClient && (
         <ClientHistoryModal
+          isOpen={!!viewingHistoryClient}
           client={viewingHistoryClient}
           onClose={() => setViewingHistoryClient(null)}
         />

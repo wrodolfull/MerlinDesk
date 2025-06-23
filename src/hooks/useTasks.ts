@@ -21,23 +21,44 @@ export function useTasks() {
     if (error) setError(error.message);
     setTasks((data || []).map(task => ({
       ...task,
-      dueDate: task.due_date,
+      dueDate: task.due_date || undefined,
     })));
     setLoading(false);
   }, [user?.id]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const createTask = async (task: CreateTaskDB) => {
+  const createTask = async (task: Omit<Task, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
     if (!user?.id) return;
-    const { error } = await supabase.from('tasks').insert({ ...task, user_id: user.id });
-    if (!error) fetchTasks();
+    const { dueDate, ...rest } = task;
+    const taskToInsert: CreateTaskDB = {
+      ...rest,
+      due_date: dueDate,
+    };
+    const { error } = await supabase.from('tasks').insert({ ...taskToInsert, user_id: user.id });
+    if (error) {
+      console.error("Error creating task:", error);
+    } else {
+      fetchTasks();
+    }
     return error;
   };
 
-  const updateTask = async (id: string, updates: UpdateTaskDB) => {
-    const { error } = await supabase.from('tasks').update(updates).eq('id', id);
-    if (!error) fetchTasks();
+  const updateTask = async (id: string, updates: Partial<Omit<Task, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>) => {
+    const { dueDate, ...rest } = updates;
+    const updatesForDB: UpdateTaskDB = {
+      ...rest,
+    };
+    if (dueDate !== undefined) {
+      updatesForDB.due_date = dueDate;
+    }
+
+    const { error } = await supabase.from('tasks').update(updatesForDB).eq('id', id);
+    if (error) {
+      console.error("Error updating task:", error);
+    } else {
+      fetchTasks();
+    }
     return error;
   };
 

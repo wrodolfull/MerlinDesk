@@ -67,6 +67,7 @@ export function useAppointments(options?: UseAppointmentsOptions) {
           created_at,
           google_event_id,
           video_conference_link,
+          guests,
           client:clients(*),
           professional:professionals(*, specialty:specialties(*)),
           specialty:specialties(*)
@@ -93,23 +94,29 @@ export function useAppointments(options?: UseAppointmentsOptions) {
 
       console.log('Fetched appointments:', data.length);
       
-      const formattedAppointments = data.map((apt) => ({
-        ...apt,
-        clientId: apt.client_id,
-        professionalId: apt.professional_id,
-        specialtyId: apt.specialty_id,
-        calendarId: apt.calendar_id,
-        startTime: new Date(apt.start_time),
-        endTime: new Date(apt.end_time),
-        createdAt: new Date(apt.created_at),
-        status: apt.status,
-        notes: apt.notes,
-        google_event_id: apt.google_event_id,
-        video_conference_link: apt.video_conference_link,
-        client: apt.client,
-        professional: apt.professional,
-        specialty: apt.specialty,
-      }));
+      const formattedAppointments = data.map((apt) => {
+        console.log('📋 useAppointments: Agendamento bruto:', apt);
+        console.log('📧 useAppointments: Convidados do agendamento:', apt.guests);
+        
+        return {
+          ...apt,
+          clientId: apt.client_id,
+          professionalId: apt.professional_id,
+          specialtyId: apt.specialty_id,
+          calendarId: apt.calendar_id,
+          startTime: new Date(apt.start_time),
+          endTime: new Date(apt.end_time),
+          createdAt: new Date(apt.created_at),
+          status: apt.status,
+          notes: apt.notes,
+          google_event_id: apt.google_event_id,
+          video_conference_link: apt.video_conference_link,
+          guests: Array.isArray(apt.guests) ? apt.guests : [],
+          client: apt.client,
+          professional: apt.professional,
+          specialty: apt.specialty,
+        };
+      });
       
       console.log('Formatted appointments:', formattedAppointments.length);
       setAppointments(formattedAppointments);

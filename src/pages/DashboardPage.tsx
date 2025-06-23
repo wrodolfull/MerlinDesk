@@ -12,9 +12,11 @@ import toast, { Toaster } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useAppointments } from '../hooks/useAppointments';
 import TasksWidget from '../components/dashboard/TasksWidget';
+import { useAuth } from '../contexts/AuthContext';
 
 const DashboardPage: React.FC = () => {
   const { appointments, loading, error, refetch } = useAppointments();
+  const { user } = useAuth();
   
   const [stats, setStats] = useState({
     todayAppointments: 0,
@@ -29,11 +31,29 @@ const DashboardPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [initialDate, setInitialDate] = useState<Date | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
-  const [userName, setUserName] = useState('');
   
   // Estados para notificações
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [previousAppointmentCount, setPreviousAppointmentCount] = useState(0);
+
+  // Função para extrair o nome do usuário do objeto user do Supabase
+  const getUserName = () => {
+    if (!user) return 'User';
+    
+    // Tenta obter o nome do usuário de várias possíveis localizações no objeto user do Supabase
+    return (
+      // Tenta user.user_metadata.full_name (comum no Supabase)
+      (user.user_metadata && user.user_metadata.full_name) ||
+      // Tenta user.user_metadata.name (alternativo)
+      (user.user_metadata && user.user_metadata.name) ||
+      // Tenta user.name diretamente (caso já esteja mapeado)
+      (user as any).name ||
+      // Tenta user.email como fallback
+      user.email ||
+      // Valor padrão se nada for encontrado
+      'User'
+    );
+  };
 
   // Função para tocar o som de notificação
   const playNotificationSound = () => {
@@ -67,136 +87,113 @@ const DashboardPage: React.FC = () => {
     }
   }, []);
 
-  // Função para buscar nome do usuário
-  const fetchUserName = async () => {
+  // Função para calcular estatísticas baseada nos appointments
+  const calculateStats = async (appointmentsList: Appointment[]) => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) throw new Error('User not authenticated');
-  
-      // Obter nome diretamente do Supabase Auth
-      setUserName(user.user_metadata?.name || user.email || 'User');
+      if (!user) return;
+
+      const now = new Date();
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7);
+      
+      // Datas para comparação (mês atual vs mês anterior)
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+      // Calcular estatísticas atuais
+      const todayAppointments = appointmentsList.filter((apt) => {
+        const aptDate = apt.startTime;
+        return aptDate.toDateString() === now.toDateString();
+      }).length;
+
+      const completedThisWeek = appointmentsList.filter((apt) => {
+        return apt.status === 'completed' && apt.startTime >= oneWeekAgo;
+      }).length;
+
+      const cancellations = appointmentsList.filter((apt) => apt.status === 'canceled').length;
+
+      // Buscar dados do mês anterior para comparação
+      const { data: previousMonthAppointments, error: prevApptError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('start_time', previousMonthStart.toISOString())
+        .lt('start_time', previousMonthEnd.toISOString());
+
+      if (prevApptError) throw prevApptError;
+
+      // Calcular estatísticas do mês anterior
+      const previousMonthTotal = previousMonthAppointments?.length || 0;
+      const currentMonthTotal = appointmentsList.filter((apt) => 
+        apt.startTime >= currentMonthStart
+      ).length;
+
+      const previousMonthCompleted = previousMonthAppointments?.filter(
+        apt => apt.status === 'completed'
+      ).length || 0;
+      const currentMonthCompleted = appointmentsList.filter((apt) => 
+        apt.status === 'completed' && apt.startTime >= currentMonthStart
+      ).length;
+
+      const previousMonthCanceled = previousMonthAppointments?.filter(
+        apt => apt.status === 'canceled'
+      ).length || 0;
+      const currentMonthCanceled = appointmentsList.filter((apt) => 
+        apt.status === 'canceled' && apt.startTime >= currentMonthStart
+      ).length;
+
+      // Buscar dados de clientes para comparação
+      const { count: currentClientsCount, error: clientsError } = await supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .eq('owner_id', user.id);
+
+      if (clientsError) throw clientsError;
+
+      const { count: previousClientsCount, error: prevClientsError } = await supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .eq('owner_id', user.id)
+        .lt('created_at', currentMonthStart.toISOString());
+
+      if (prevClientsError) throw prevClientsError;
+
+      // Calcular mudanças percentuais
+      const calculatePercentageChange = (current: number, previous: number): number => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return Math.round(((current - previous) / previous) * 100);
+      };
+
+      const todayAppointmentsChange = calculatePercentageChange(currentMonthTotal, previousMonthTotal);
+      const totalClientsChange = calculatePercentageChange(currentClientsCount ?? 0, previousClientsCount ?? 0);
+      const completedChange = calculatePercentageChange(currentMonthCompleted, previousMonthCompleted);
+      const cancellationsChange = calculatePercentageChange(currentMonthCanceled, previousMonthCanceled);
+
+      // Atualizar estado com dados reais
+      setStats(prevStats => ({
+        todayAppointments,
+        totalClients: currentClientsCount ?? 0,
+        completedThisWeek,
+        cancellations,
+        todayAppointmentsChange,
+        totalClientsChange,
+        completedChange,
+        cancellationsChange,
+      }));
+
     } catch (error) {
-      console.error('Error fetching user name:', error);
+      console.error('Error calculating stats:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
     }
   };
-
-  // Função para calcular estatísticas baseada nos appointments
-// Função para calcular estatísticas baseada nos appointments
-const calculateStats = async (appointmentsList: Appointment[]) => {
-  try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error('User not authenticated');
-
-    const now = new Date();
-    const oneWeekAgo = new Date(now);
-    oneWeekAgo.setDate(now.getDate() - 7);
-    
-    // Datas para comparação (mês atual vs mês anterior)
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-
-    // Calcular estatísticas atuais
-    const todayAppointments = appointmentsList.filter((apt) => {
-      const aptDate = apt.startTime;
-      return aptDate.toDateString() === now.toDateString();
-    }).length;
-
-    const completedThisWeek = appointmentsList.filter((apt) => {
-      return apt.status === 'completed' && apt.startTime >= oneWeekAgo;
-    }).length;
-
-    const cancellations = appointmentsList.filter((apt) => apt.status === 'canceled').length;
-
-    // Buscar dados do mês anterior para comparação
-    const { data: previousMonthAppointments, error: prevApptError } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('start_time', previousMonthStart.toISOString())
-      .lt('start_time', previousMonthEnd.toISOString());
-
-    if (prevApptError) throw prevApptError;
-
-    // Calcular estatísticas do mês anterior
-    const previousMonthTotal = previousMonthAppointments?.length || 0;
-    const currentMonthTotal = appointmentsList.filter((apt) => 
-      apt.startTime >= currentMonthStart
-    ).length;
-
-    const previousMonthCompleted = previousMonthAppointments?.filter(
-      apt => apt.status === 'completed'
-    ).length || 0;
-    const currentMonthCompleted = appointmentsList.filter((apt) => 
-      apt.status === 'completed' && apt.startTime >= currentMonthStart
-    ).length;
-
-    const previousMonthCanceled = previousMonthAppointments?.filter(
-      apt => apt.status === 'canceled'
-    ).length || 0;
-    const currentMonthCanceled = appointmentsList.filter((apt) => 
-      apt.status === 'canceled' && apt.startTime >= currentMonthStart
-    ).length;
-
-    // Buscar dados de clientes para comparação
-    const { count: currentClientsCount, error: clientsError } = await supabase
-      .from('clients')
-      .select('*', { count: 'exact', head: true })
-      .eq('owner_id', user.id);
-
-    if (clientsError) throw clientsError;
-
-    const { count: previousClientsCount, error: prevClientsError } = await supabase
-      .from('clients')
-      .select('*', { count: 'exact', head: true })
-      .eq('owner_id', user.id)
-      .lt('created_at', currentMonthStart.toISOString());
-
-    if (prevClientsError) throw prevClientsError;
-
-    // Calcular mudanças percentuais
-    const calculatePercentageChange = (current: number, previous: number): number => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return Math.round(((current - previous) / previous) * 100);
-    };
-
-    const todayAppointmentsChange = calculatePercentageChange(currentMonthTotal, previousMonthTotal);
-    const totalClientsChange = calculatePercentageChange(currentClientsCount ?? 0, previousClientsCount ?? 0);
-    const completedChange = calculatePercentageChange(currentMonthCompleted, previousMonthCompleted);
-    const cancellationsChange = calculatePercentageChange(currentMonthCanceled, previousMonthCanceled);
-
-    // Atualizar estado com dados reais
-    setStats(prevStats => ({
-      todayAppointments,
-      totalClients: currentClientsCount ?? 0,
-      completedThisWeek,
-      cancellations,
-      todayAppointmentsChange,
-      totalClientsChange,
-      completedChange,
-      cancellationsChange,
-    }));
-
-  } catch (error) {
-    console.error('Error calculating stats:', error);
-    toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
-  }
-};
-
-
-  // Carregar nome do usuário uma vez
-  useEffect(() => {
-    fetchUserName();
-  }, []);
 
   // Calcular estatísticas sempre que appointments mudarem
   useEffect(() => {
     if (!loading && appointments.length >= 0) {
       calculateStats(appointments);
     }
-  }, [appointments, loading]);
+  }, [appointments, loading, user]);
 
   // // Configurar subscription para atualizações em tempo real com notificações
   // useEffect(() => {
@@ -390,8 +387,8 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
       {/* Cabeçalho de boas-vindas */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Olá, {userName.split(' ')[0]}!</h1>
-          <p className="text-muted-foreground mt-1">Tem compromisso hoje? Vem ver o que te espera!</p>
+          <h1 className="text-3xl font-bold">Olá, {getUserName().split(' ')[0]}!</h1>
+          <p className="text-gray-600">Tem compromisso hoje? Vem ver o que te espera!</p>
         </div>
         <div className="mt-4 md:mt-0 flex space-x-3">
           <Button asChild variant="outline">
@@ -409,10 +406,13 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
         </div>
       </div>
 
-      <TasksWidget />
+      {/* Tasks Widget */}
+      <div className="mb-6">
+        <TasksWidget />
+      </div>
 
       {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -433,7 +433,6 @@ const calculateStats = async (appointmentsList: Appointment[]) => {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Seus agendamentos</h2>
-          <Link to="/appointments"><Button variant="outline" size="sm">Ver todos</Button></Link>
         </div>
         <Card>
           <CardContent className="p-0">

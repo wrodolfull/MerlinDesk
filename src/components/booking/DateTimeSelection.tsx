@@ -58,6 +58,14 @@ useEffect(() => {
 
       try {
         const slots = await getTimeSlots(internalSelectedDate);
+        
+        // Verificação de segurança para garantir que slots seja um array
+        if (!Array.isArray(slots)) {
+          console.warn('⚠️ getTimeSlots retornou algo que não é um array:', slots);
+          setTimeSlots([]);
+          return;
+        }
+        
         const now = new Date();
         const filtered = slots.filter((slot) => {
           const slotStart = new Date(slot.start);
@@ -73,6 +81,15 @@ useEffect(() => {
 
     fetchSlots();
   }, [internalSelectedDate, professional, specialty]);
+
+  // Verificação de segurança adicional
+  useEffect(() => {
+    // Garantir que timeSlots sempre seja um array
+    if (!Array.isArray(timeSlots)) {
+      console.warn('⚠️ timeSlots não é um array, corrigindo...', timeSlots);
+      setTimeSlots([]);
+    }
+  }, [timeSlots]);
 
   const handleDateSelect = (date: Date) => {
     setInternalSelectedDate(date);
@@ -186,7 +203,7 @@ useEffect(() => {
             Horários disponíveis para {format(internalSelectedDate, "dd 'de' MMMM", { locale: ptBR })}
           </h3>
 
-          {timeSlots.length > 0 ? (
+          {Array.isArray(timeSlots) && timeSlots.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {timeSlots.map((slot, index) => (
                 <button

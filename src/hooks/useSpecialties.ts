@@ -19,10 +19,25 @@ export function useSpecialties(calendarId?: string) {
         return;
       }
 
+      // Primeiro, buscar os calendários do usuário
+      const { data: calendars, error: calendarsError } = await supabase
+        .from('calendars')
+        .select('id')
+        .eq('owner_id', user.id);
+
+      if (calendarsError) throw calendarsError;
+
+      if (!calendars || calendars.length === 0) {
+        setSpecialties([]);
+        return;
+      }
+
+      const calendarIds = calendars.map(c => c.id);
+
       let query = supabase
         .from('specialties')
         .select('*')
-        .eq('user_id', user.id)
+        .in('calendar_id', calendarIds)
         .order('created_at', { ascending: false });
 
       if (calendarId) {
@@ -40,7 +55,7 @@ export function useSpecialties(calendarId?: string) {
         price: spec.price || undefined,
         description: spec.description || undefined,
         calendarId: spec.calendar_id,
-        userId: spec.user_id,
+        userId: spec.user_id || user.id,
         createdAt: new Date(spec.created_at),
       }));
 

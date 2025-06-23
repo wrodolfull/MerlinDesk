@@ -13,11 +13,41 @@ interface ProfessionalSelectionProps {
 }
 
 export const ProfessionalSelection = ({
-  professionals,
+  professionals = [],
   specialty,
   onSelect,
   onBack,
 }: ProfessionalSelectionProps) => {
+  // Verificação de segurança
+  if (!Array.isArray(professionals)) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<ChevronLeft size={16} />}
+            onClick={onBack}
+            className="mr-2"
+          >
+            Voltar
+          </Button>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Escolha o Profissional
+            {specialty && (
+              <span className="text-gray-500 text-lg ml-2">
+                para {specialty.name}
+              </span>
+            )}
+          </h2>
+        </div>
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">Erro ao carregar profissionais.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <div className="flex items-center mb-6">

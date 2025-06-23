@@ -5,10 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import Select from '../ui/Select';
+import TagInput from '../ui/TagInput';
 import { useAuth } from '../../contexts/AuthContext';
 import { addMinutes, addDays, addWeeks, addMonths } from 'date-fns';
 import toast, { Toaster } from 'react-hot-toast';
 import { usePlanLimits } from '../../hooks/usePlanLimits';
+import { sendAppointmentConfirmation, createAppointmentNotification } from '../../lib/whatsapp';
+import { Video, ExternalLink } from 'lucide-react';
+import { sendAppointmentConfirmation as sendEmailConfirmation } from '../../lib/emailService';
+import { getApiBaseUrl } from '../../lib/utils';
+import { checkTimeConflict, formatConflictDetails } from '/root/MerlinDesk/src/lib/appointmentValidation.ts';
 
 interface Client {
   id: string;
@@ -47,10 +53,7 @@ interface CreateAppointmentFormData {
   notes?: string;
   status: 'pending' | 'confirmed' | 'completed' | 'canceled';
   clientPhone?: string;
-  isRecurring: boolean;
-  recurrenceType?: 'daily' | 'weekly' | 'monthly';
-  recurrenceEndDate?: string;
-  recurrenceCount?: number;
+  guests?: string[];
 }
 
 interface CreateAppointmentModalProps {
@@ -66,7 +69,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
   const [specialtiesData, setSpecialtiesData] = useState<Specialty[]>([]);
   const [professionalsData, setProfessionalsData] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCalendar, setSelectedCalendar] = useState<{ id: string; hasRecurringSubscription: boolean } | null>(null);
 
   const {
     register,
@@ -79,7 +81,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
   } = useForm<CreateAppointmentFormData>({
     defaultValues: {
       status: 'pending',
-      isRecurring: false,
     },
   });
 
@@ -87,7 +88,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
   const watchClientId = watch('clientId');
   const watchSpecialtyId = watch('specialtyId');
   const watchProfessionalId = watch('professionalId');
-  const watchIsRecurring = watch('isRecurring');
 
   // Atualizar telefone do cliente quando cliente é selecionado
   useEffect(() => {
@@ -137,31 +137,6 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
       setValue('startTime', iso);
     }
   }, [initialDate, setValue]);
-
-  // Atualizar informações do calendário quando o profissional é selecionado
-  useEffect(() => {
-    const fetchCalendarInfo = async () => {
-      if (watchProfessionalId) {
-        const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
-        if (selectedProfessional) {
-          const { data: calendar, error } = await supabase
-            .from('calendars')
-            .select('id, has_recurring_subscription')
-            .eq('id', selectedProfessional.calendar_id)
-            .single();
-
-          if (calendar) {
-            setSelectedCalendar(calendar);
-            if (!calendar.has_recurring_subscription) {
-              setValue('isRecurring', false);
-            }
-          }
-        }
-      }
-    };
-
-    fetchCalendarInfo();
-  }, [watchProfessionalId, professionalsData, setValue]);
 
   // Carregar dados do banco
   useEffect(() => {
@@ -250,93 +225,126 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
     const startTime = new Date(data.startTime);
     const endTime = addMinutes(startTime, specialty.duration);
 
-    // Criar agendamentos recorrentes
-    const appointments = [];
-    let currentStartTime = startTime;
-    let currentEndTime = endTime;
-    let count = 1;
-
-    while (true) {
-      appointments.push({
-        client_id: data.clientId,
-        professional_id: data.professionalId,
-        specialty_id: data.specialtyId,
-        calendar_id: professional.calendar_id,
-        start_time: currentStartTime.toISOString(),
-        end_time: currentEndTime.toISOString(),
-        status: data.status,
-        notes: data.notes,
-        user_id: calendarOwnerId,
-      });
-
-      if (!data.isRecurring) break;
-
-      // Calcular próxima data baseado no tipo de recorrência
-      switch (data.recurrenceType) {
-        case 'daily':
-          currentStartTime = addDays(currentStartTime, 1);
-          currentEndTime = addDays(currentEndTime, 1);
-          break;
-        case 'weekly':
-          currentStartTime = addWeeks(currentStartTime, 1);
-          currentEndTime = addWeeks(currentEndTime, 1);
-          break;
-        case 'monthly':
-          currentStartTime = addMonths(currentStartTime, 1);
-          currentEndTime = addMonths(currentEndTime, 1);
-          break;
-        default:
-          break;
-      }
-
-      // Verificar condições de parada
-      if (data.recurrenceEndDate && new Date(data.recurrenceEndDate) < currentStartTime) break;
-      if (data.recurrenceCount && count >= data.recurrenceCount) break;
-
-      count++;
+    // Verificar conflitos de horário
+    const conflictCheck = await checkTimeConflict(data.professionalId, startTime, endTime);
+    
+    if (conflictCheck.hasConflict) {
+      const conflictingAppointments = conflictCheck.conflictingAppointments || [];
+      const conflictDetails = formatConflictDetails(conflictingAppointments);
+      
+      toast.error(
+        `Horário indisponível! O profissional já possui agendamentos neste horário:\n${conflictDetails}`,
+        { duration: 6000 }
+      );
+      return;
     }
+
+    // Criar agendamento
+    const appointment = {
+      client_id: data.clientId,
+      professional_id: data.professionalId,
+      specialty_id: data.specialtyId,
+      calendar_id: professional.calendar_id,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      status: data.status,
+      notes: data.notes,
+      user_id: calendarOwnerId,
+      guests: data.guests || [],
+    };
 
     const { data: insertedAppointments, error } = await supabase
       .from('appointments')
-      .insert(appointments)
+      .insert(appointment)
       .select();
 
     if (error) throw error;
 
-    // Sincronizar com Google Calendar
-    const { data: integration } = await supabase
-      .from('user_integrations')
-      .select('status')
-      .eq('user_id', calendarOwnerId)
-      .eq('integration_type', 'google_calendar')
-      .eq('status', 'active')
-      .single();
-
-    if (integration && insertedAppointments) {
+    // Enviar notificação WhatsApp para o primeiro agendamento
+    if (insertedAppointments && insertedAppointments.length > 0) {
       try {
-        for (const appointment of insertedAppointments) {
-          const response = await fetch('https://merlindesk.com/google/calendar/create-event', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              appointmentId: appointment.id,
-              userId: calendarOwnerId
-            }),
-          });
-
-          const googleResult = await response.json();
-          
-          if (googleResult.success) {
-            console.log('✅ Evento criado no Google Calendar:', googleResult.eventId);
-            if (googleResult.videoConferenceLink) {
-              console.log('🔗 Link da videoconferência:', googleResult.videoConferenceLink);
-            }
+        const firstAppointment = insertedAppointments[0];
+        const notification = await createAppointmentNotification(firstAppointment.id);
+        
+        if (notification) {
+          const whatsappResult = await sendAppointmentConfirmation(notification);
+          if (whatsappResult.success) {
+            console.log('✅ Notificação WhatsApp enviada com sucesso');
           } else {
-            console.warn('⚠️ Erro ao criar evento no Google Calendar:', googleResult.error);
+            console.warn('⚠️ Erro ao enviar notificação WhatsApp:', whatsappResult.error);
           }
         }
-      } catch (err) {
-        console.warn('Falha ao criar eventos no Google Calendar:', err);
+      } catch (whatsappError) {
+        console.warn('⚠️ Erro ao enviar notificação WhatsApp:', whatsappError);
+      }
+
+      // Enviar e-mail de confirmação
+      try {
+        const selectedClient = clientsData.find(c => c.id === data.clientId);
+        const selectedProfessional = professionalsData.find(p => p.id === data.professionalId);
+        const selectedSpecialty = specialtiesData.find(s => s.id === data.specialtyId);
+
+        if (selectedClient && selectedProfessional && selectedSpecialty) {
+          let videoConferenceLink: string | undefined;
+
+          // Sincronizar com Google Calendar
+          const { data: integration } = await supabase
+            .from('user_integrations')
+            .select('status')
+            .eq('user_id', calendarOwnerId)
+            .eq('integration_type', 'google_calendar')
+            .eq('status', 'active')
+            .single();
+
+          if (integration && insertedAppointments) {
+            try {
+              for (const appointment of insertedAppointments) {
+                const response = await fetch(`${getApiBaseUrl()}/google/calendar/create-event`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    appointmentId: appointment.id,
+                    userId: calendarOwnerId
+                  }),
+                });
+
+                const googleResult = await response.json();
+                
+                if (googleResult.success) {
+                  console.log('✅ Evento criado no Google Calendar:', googleResult.eventId);
+                  if (googleResult.videoConferenceLink) {
+                    console.log('🔗 Link da videoconferência:', googleResult.videoConferenceLink);
+                    videoConferenceLink = googleResult.videoConferenceLink;
+                  }
+                } else {
+                  console.warn('⚠️ Erro ao criar evento no Google Calendar:', googleResult.error);
+                }
+              }
+            } catch (err) {
+              console.warn('Falha ao criar eventos no Google Calendar:', err);
+            }
+          }
+
+          const emailResult = await sendEmailConfirmation({
+            clientEmail: selectedClient.email,
+            clientName: selectedClient.name,
+            professionalName: selectedProfessional.name,
+            specialtyName: selectedSpecialty.name,
+            startTime: startTime,
+            duration: selectedSpecialty.duration,
+            notes: data.notes,
+            guests: data.guests || [],
+            videoConferenceLink,
+          });
+
+          if (emailResult) {
+            console.log('✅ E-mail de confirmação enviado com sucesso');
+          } else {
+            console.warn('⚠️ Erro ao enviar e-mail de confirmação');
+          }
+        }
+      } catch (emailError) {
+        console.warn('⚠️ Erro ao enviar e-mail de confirmação:', emailError);
       }
     }
 
@@ -369,11 +377,11 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Toaster />
-      <Card className="w-full max-w-md">
-        <CardHeader>
+      <Card className="w-full max-w-md max-h-[90vh] flex flex-col">
+        <CardHeader className="flex-shrink-0">
           <CardTitle>Novo agendamento</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Controller
               name="clientId"
@@ -448,71 +456,6 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
               disabled={loading || limitsLoading}
             />
 
-            {selectedCalendar?.hasRecurringSubscription && (
-              <div className="space-y-4 border-t pt-4">
-                <Controller
-                  name="isRecurring"
-                  control={control}
-                  render={({ field }) => (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="isRecurring"
-                        checked={field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700">
-                        Agendamento Recorrente
-                      </label>
-                    </div>
-                  )}
-                />
-
-                {watchIsRecurring && (
-                  <>
-                    <Controller
-                      name="recurrenceType"
-                      control={control}
-                      rules={{ required: watchIsRecurring ? 'Recurrence type is required' : false }}
-                      render={({ field }) => (
-                        <Select
-                          label="Tipo de Recorrência"
-                          options={[
-                            { value: 'daily', label: 'Diário' },
-                            { value: 'weekly', label: 'Semanal' },
-                            { value: 'monthly', label: 'Mensal' },
-                          ]}
-                          value={field.value}
-                          onChange={field.onChange}
-                          error={errors.recurrenceType?.message}
-                          disabled={loading || limitsLoading}
-                        />
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        type="date"
-                        label="Data Final"
-                        {...register('recurrenceEndDate')}
-                        error={errors.recurrenceEndDate?.message}
-                        disabled={loading || limitsLoading}
-                      />
-
-                      <Input
-                        type="number"
-                        label="Número de Ocorrências"
-                        {...register('recurrenceCount', { min: 1 })}
-                        error={errors.recurrenceCount?.message}
-                        disabled={loading || limitsLoading}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
             <Controller
               name="status"
               control={control}
@@ -528,6 +471,21 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
                   ]}
                   value={field.value}
                   onChange={field.onChange}
+                  disabled={loading || limitsLoading}
+                />
+              )}
+            />
+
+            <Controller
+              name="guests"
+              control={control}
+              defaultValue={[]}
+              render={({ field }) => (
+                <TagInput
+                  label="Convidados (emails)"
+                  value={field.value || []}
+                  onChange={(value: string[]) => field.onChange(value)}
+                  placeholder="Digite o email e pressione Enter"
                   disabled={loading || limitsLoading}
                 />
               )}

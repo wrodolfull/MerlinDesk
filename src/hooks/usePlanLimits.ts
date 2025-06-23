@@ -11,6 +11,7 @@ interface PlanLimits {
   custom_branding: boolean;
   sms_notifications: boolean;
   email_notifications: boolean;
+  whatsapp_notifications: boolean;
   appointments_per_month: number;
 }
 
