@@ -18,17 +18,28 @@ interface Plan {
 
 const formatFeature = (key: string, value: any): { text: string; enabled: boolean } => {
   const labels: { [key: string]: string } = {
+    analytics: 'Relatórios e Análises',
     calendars_limit: 'Calendários',
     professionals_limit: 'Profissionais',
     specialties_limit: 'Especialidades',
     appointments_limit: 'Agendamentos/mês',
     whatsapp_limit: 'Lembretes WhatsApp',
     integrations_limit: 'Integrações',
+    email_notifications: 'Notificações por Email',
+    custom_branding: 'Marca personalizada',
+    planner: 'Planner pessoal',
+    google_integration: 'Integração com Google Calendar + Google Meet',
+    api: 'API',
   };
 
   const label = labels[key] || key;
 
-  if (value === true || value === -1) return { text: label, enabled: true };
+  if (value === true || value === -1) {
+    if (key === 'appointments_limit') return { text: 'Agendamentos ilimitados', enabled: true };
+    if (key === 'calendars_limit') return { text: 'Calendários Ilimitados', enabled: true };
+    if (key === 'professionals_limit') return { text: 'Profissionais Ilimitados', enabled: true };
+    return { text: label, enabled: true };
+  }
   if (value === false || value === 0) return { text: `Sem ${label}`, enabled: false };
   return { text: `${value} ${label}`, enabled: true };
 };
@@ -43,27 +54,65 @@ const PricingPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchPlans = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('subscription_plans')
-        .select('*, limits:user_plan_limits_base(*)')
-        .order('price', { ascending: true });
-      
-      if (error) {
-        console.error('Error fetching plans:', error);
-        toast.error('Não foi possível carregar os planos.');
-      } else {
-        const formattedPlans = data.map((plan: any) => ({
-          ...plan,
-          features: plan.limits[0] || {}
-        }));
-        setPlans(formattedPlans);
+    setLoading(true);
+    
+    // Usar planos hardcoded com as informações atualizadas
+    const hardcodedPlans: Plan[] = [
+      {
+        id: 'free',
+        name: 'Grátis',
+        description: 'Para começar a organizar sua agenda.',
+        price: 0,
+        stripe_price_id: '',
+        features: {
+          analytics: true,
+          calendars_limit: 1,
+          professionals_limit: 1,
+          email_notifications: true,
+          appointments_limit: 20,
+          planner: true
+        }
+      },
+      {
+        id: 'essential',
+        name: 'Essencial',
+        description: 'Para profissionais que buscam mais produtividade.',
+        price: 69.90,
+        stripe_price_id: 'price_1RcEMUPEA5RHigEI4g0hmaks',
+        features: {
+          analytics: true,
+          calendars_limit: -1, // ilimitado
+          professionals_limit: -1, // ilimitado
+          custom_branding: true,
+          email_notifications: true,
+          appointments_limit: 80,
+          planner: true,
+          google_integration: true,
+          api: true
+        }
+      },
+      {
+        id: 'pro',
+        name: 'PRO',
+        description: 'A solução completa com automação total.',
+        price: 99.00,
+        stripe_price_id: 'price_1RcEUMPEA5RHigEIYdBQsljh',
+        features: {
+          analytics: true,
+          calendars_limit: -1, // ilimitado
+          professionals_limit: -1, // ilimitado
+          whatsapp_limit: true,
+          email_notifications: true,
+          appointments_limit: -1, // ilimitado
+          planner: true,
+          google_integration: true,
+          api: true
+        }
       }
-      setLoading(false);
-    };
+    ];
 
-    fetchPlans();
+    setPlans(hardcodedPlans);
+    setLoading(false);
   }, []);
 
   const handleSubscribe = async (plan: Plan) => {
@@ -156,7 +205,15 @@ const PricingPage: React.FC = () => {
 
                   <ul className="space-y-4 mb-8">
                     {Object.entries(plan.features)
-                      .filter(([key]) => key.endsWith('_limit'))
+                      .filter(([key, value]) => {
+                        // Incluir todas as features relevantes
+                        const relevantKeys = [
+                          'analytics', 'calendars_limit', 'professionals_limit', 
+                          'appointments_limit', 'email_notifications', 'custom_branding',
+                          'planner', 'google_integration', 'api', 'whatsapp_limit'
+                        ];
+                        return relevantKeys.includes(key);
+                      })
                       .map(([key, value]) => {
                         const feature = formatFeature(key, value);
                         return (

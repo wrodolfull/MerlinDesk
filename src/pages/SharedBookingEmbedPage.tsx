@@ -188,14 +188,16 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
           setSpecialties([]); // Garantir que sempre seja um array
         }
 
-        // Buscar profissionais com especialidades
+        // Buscar profissionais com especialidades (modelo many-to-many)
         const { data: professionalsData, error: profError } = await supabase
           .from('professionals')
           .select(`
             *, 
-            professional_specialties!inner (
-              specialty_id, 
-              specialties (id, name, duration, price)
+            professional_specialties(
+              specialty_id,
+              specialties(
+                id, name, duration, price
+              )
             )
           `)
           .eq('calendar_id', calendar.id);
@@ -203,11 +205,17 @@ const SharedBookingEmbedPage: React.FC<SharedBookingEmbedPageProps> = ({
         if (profError) throw profError;
         
         if (professionalsData && professionalsData.length > 0) {
-          const mappedProfessionals = professionalsData.map((p: any) => ({
-            ...p,
-            calendarId: p.calendar_id,
-            specialties: p.professional_specialties?.map((ps: any) => ps.specialties) || [],
-          }));
+          const mappedProfessionals = professionalsData.map((p: any) => {
+            const specialties = (p.professional_specialties || [])
+              .map((ps: any) => ps.specialties)
+              .filter((s: any) => s); // Remove null/undefined
+            
+            return {
+              ...p,
+              calendarId: p.calendar_id,
+              specialties: specialties,
+            };
+          });
           setProfessionals(mappedProfessionals);
         } else {
           setProfessionals([]); // Garantir que sempre seja um array

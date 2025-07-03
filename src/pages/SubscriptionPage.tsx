@@ -69,8 +69,71 @@ const SubscriptionPage: React.FC = () => {
           throw subscriptionError;
         }
 
-        // Se não há assinatura, subscriptionData será null
-        setSubscription(subscriptionData || null);
+        // Mapear dados da assinatura para planos hardcoded
+        let mappedSubscription = null;
+        if (subscriptionData) {
+          // Determinar qual plano hardcoded corresponde à assinatura
+          let planId = 'free';
+          if (subscriptionData.plan?.name === 'Essencial' || subscriptionData.plan?.name?.includes('Essencial')) {
+            planId = 'essential';
+          } else if (subscriptionData.plan?.name === 'PRO' || subscriptionData.plan?.name?.includes('PRO')) {
+            planId = 'pro';
+          }
+
+          // Criar assinatura mapeada com dados hardcoded
+          const now = new Date();
+          const nextMonth = new Date(now);
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          
+          mappedSubscription = {
+            ...subscriptionData,
+            // Corrigir datas se forem inválidas
+            current_period_start: subscriptionData.current_period_start && new Date(subscriptionData.current_period_start).getFullYear() > 1970 
+              ? subscriptionData.current_period_start 
+              : now.toISOString(),
+            current_period_end: subscriptionData.current_period_end && new Date(subscriptionData.current_period_end).getFullYear() > 1970 
+              ? subscriptionData.current_period_end 
+              : nextMonth.toISOString(),
+            plan: {
+              id: planId,
+              name: planId === 'essential' ? 'Essencial' : planId === 'pro' ? 'PRO' : 'Grátis',
+              description: planId === 'essential' ? 'Para profissionais que buscam mais produtividade.' : 
+                          planId === 'pro' ? 'A solução completa com automação total.' : 
+                          'Para começar a organizar sua agenda.',
+              price: planId === 'essential' ? 69.90 : planId === 'pro' ? 99.00 : 0,
+              features: planId === 'essential' ? {
+                analytics: true,
+                calendars: -1,
+                professionals: -1,
+                custom_branding: true,
+                email_notifications: true,
+                appointments_per_month: 80,
+                planner: true,
+                google_integration: true,
+                api: true
+              } : planId === 'pro' ? {
+                analytics: true,
+                calendars: -1,
+                professionals: -1,
+                whatsapp_reminders: true,
+                email_notifications: true,
+                appointments_per_month: -1,
+                planner: true,
+                google_integration: true,
+                api: true
+              } : {
+                analytics: true,
+                calendars: 1,
+                professionals: 1,
+                email_notifications: true,
+                appointments_per_month: 20,
+                planner: true
+              }
+            }
+          };
+        }
+        
+        setSubscription(mappedSubscription);
         
         // Log para debug
         console.log('Dados da assinatura carregados:', {
@@ -81,24 +144,64 @@ const SubscriptionPage: React.FC = () => {
           planId: subscriptionData?.plan?.id
         });
 
-        // Buscar planos disponíveis
-        const { data: plansData, error: plansError } = await supabase
-          .from('subscription_plans')
-          .select('*')
-          .order('price', { ascending: true });
+        // Usar planos hardcoded com as informações atualizadas
+        const hardcodedPlans: Plan[] = [
+          {
+            id: 'free',
+            name: 'Grátis',
+            description: 'Para começar a organizar sua agenda.',
+            price: 0,
+            features: {
+              analytics: true,
+              calendars: 1,
+              professionals: 1,
+              email_notifications: true,
+              appointments_per_month: 20,
+              planner: true
+            },
+            popular: false
+          },
+          {
+            id: 'essential',
+            name: 'Essencial',
+            description: 'Para profissionais que buscam mais produtividade.',
+            price: 69.90,
+            features: {
+              analytics: true,
+              calendars: -1, // ilimitado
+              professionals: -1, // ilimitado
+              custom_branding: true,
+              email_notifications: true,
+              appointments_per_month: 80,
+              planner: true,
+              google_integration: true,
+              api: true
+            },
+            popular: true,
+            stripe_price_id: 'price_1RcEMUPEA5RHigEI4g0hmaks'
+          },
+          {
+            id: 'pro',
+            name: 'PRO',
+            description: 'A solução completa com automação total.',
+            price: 99.00,
+            features: {
+              analytics: true,
+              calendars: -1, // ilimitado
+              professionals: -1, // ilimitado
+              whatsapp_reminders: true,
+              email_notifications: true,
+              appointments_per_month: -1, // ilimitado
+              planner: true,
+              google_integration: true,
+              api: true
+            },
+            popular: false,
+            stripe_price_id: 'price_1RcEUMPEA5RHigEIYdBQsljh'
+          }
+        ];
 
-        if (plansError) {
-          console.error('Erro ao buscar planos:', plansError);
-          throw plansError;
-        }
-
-        // Marcar o plano atual como popular se for o Business
-        const plansWithPopular = plansData.map(plan => ({
-          ...plan,
-          popular: plan.name === 'Essencial'
-        }));
-
-        setAvailablePlans(plansWithPopular);
+        setAvailablePlans(hardcodedPlans);
       } catch (err: any) {
         console.error('Erro ao buscar dados:', err);
         setError(err.message);
@@ -273,6 +376,10 @@ const SubscriptionPage: React.FC = () => {
       sms_notifications: 'Notificações por SMS',
       email_notifications: 'Notificações por Email',
       appointments_per_month: 'Agendamentos por mês',
+      whatsapp_reminders: 'Lembretes por WhatsApp',
+      planner: 'Planner pessoal',
+      google_integration: 'Integração com Google Calendar + Google Meet',
+      api: 'API',
     };
 
     if (typeof value === 'boolean') {
@@ -283,11 +390,29 @@ const SubscriptionPage: React.FC = () => {
       return `${labels[key]} ilimitados`;
     }
 
+    if (key === 'appointments_per_month' && value === -1) {
+      return 'Agendamentos ilimitados';
+    }
+
     return `${value} ${labels[key]}`;
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    
+    // Se a data é inválida (como 31/12/1969), usar data atual
+    if (date.getFullYear() < 1970 || isNaN(date.getTime())) {
+      const now = new Date();
+      return now.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+    
+    return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'

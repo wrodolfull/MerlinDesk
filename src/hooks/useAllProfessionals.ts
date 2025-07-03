@@ -8,7 +8,7 @@ export interface Professional {
   email: string;
   phone?: string;
   bio?: string;
-  calendarId: string | null;
+  calendarIds: string[];
   specialties: {
     id: string;
     name: string;
@@ -28,6 +28,7 @@ export const useAllProfessionals = () => {
 
     try {
       if (!user?.id) {
+        console.log('🔍 useAllProfessionals: Usuário não autenticado');
         setProfessionals([]);
         return;
       }
@@ -42,34 +43,51 @@ export const useAllProfessionals = () => {
           email,
           phone,
           bio,
-          calendar_id,
           user_id,
-          professional_specialties:specialties(id, name)
+          calendar_id,
+          professional_specialties(
+            specialty_id,
+            specialties(
+              id,
+              name
+            )
+          )
         `)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('🔍 useAllProfessionals: Erro na consulta:', error);
+        throw error;
+      }
 
       console.log('🔍 useAllProfessionals: Dados brutos do Supabase:', data);
+      console.log('🔍 useAllProfessionals: Número de profissionais encontrados:', data?.length || 0);
 
-      const mappedData: Professional[] = (data || []).map((pro) => ({
-        id: pro.id,
-        name: pro.name,
-        email: pro.email,
-        phone: pro.phone || undefined,
-        bio: pro.bio || undefined,
-        calendarId: pro.calendar_id,
-        specialties: pro.professional_specialties || [],
-        userId: pro.user_id
-      }));
+      const mappedData: Professional[] = (data || []).map((pro: any) => {
+        console.log('🔍 useAllProfessionals: Mapeando profissional:', pro);
+        return {
+          id: pro.id,
+          name: pro.name,
+          email: pro.email,
+          phone: pro.phone || undefined,
+          bio: pro.bio || undefined,
+          calendarIds: pro.calendar_id ? [pro.calendar_id] : [],
+          specialties: (pro.professional_specialties || []).map((ps: any) => ({
+            id: ps.specialties.id,
+            name: ps.specialties.name
+          })),
+          userId: pro.user_id
+        };
+      });
 
       console.log('🔍 useAllProfessionals: Dados mapeados:', mappedData);
-      console.log('🔍 useAllProfessionals: Profissionais sem calendário:', mappedData.filter(p => !p.calendarId));
+      console.log('🔍 useAllProfessionals: Profissionais sem calendário:', mappedData.filter(p => p.calendarIds.length === 0));
       
       setProfessionals(mappedData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to fetch professionals');
       console.error('Professionals fetch error:', err);
+      setProfessionals([]);
     } finally {
       setLoading(false);
     }

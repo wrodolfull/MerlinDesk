@@ -357,21 +357,23 @@ const LandingPage = () => {
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Escolha o plano perfeito para sua equipe</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 justify-center">
-            {/* Plano Pessoal */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 justify-center">
+            {/* Plano Grátis */}
             <div className="bg-white rounded-lg border border-gray-200 p-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Pessoal</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Grátis</h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold">Grátis</span>
+                <span className="text-3xl font-bold">R$0</span>
                 <span className="text-gray-500"> para sempre</span>
               </div>
-              <p className="text-gray-600 mb-6">Para uso individual</p>
+              <p className="text-gray-600 mb-6">Para começar a organizar sua agenda</p>
               <ul className="space-y-3 mb-8">
                 {[
                   '1 calendário',
+                  '1 profissional',
                   '20 agendamentos por mês',
-                  'Relatório',
-                  'Página de agendamento'
+                  'Analytics básico',
+                  'Notificações por email',
+                  'Planner pessoal'
                 ].map((feature, i) => (
                   <li key={i} className="flex items-center">
                     <Check className="w-5 h-5 text-green-500 mr-3" />
@@ -379,36 +381,38 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-[#6D3FC4] text-white hover:bg-[#5A33A3]">
-                Começar grátis
-              </Button>
+              <Link to="/register">
+                <Button className="w-full bg-[#6D3FC4] text-white hover:bg-[#5A33A3]">
+                  Começar grátis
+                </Button>
+              </Link>
             </div>
 
             {/* Plano Essencial */}
             <div className="bg-white rounded-lg border-2 border-[#6D3FC4] p-8 relative">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-[#6D3FC4] text-white px-3 py-1 rounded-full text-sm font-medium">
+                <span className="bg-[#6D3FC4] text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                  <Star size={14} />
                   Mais popular
                 </span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Essencial</h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold">R$69</span>
+                <span className="text-3xl font-bold">R$69,90</span>
                 <span className="text-gray-500">/mês</span>
               </div>
-              <p className="text-gray-600 mb-6">Para uso profissional</p>
+              <p className="text-gray-600 mb-6">Para profissionais que buscam mais produtividade</p>
               <ul className="space-y-3 mb-8">
                 {[
                   'Calendários ilimitados',
-                  'Agendamentos ilimitados',
                   'Profissionais ilimitados',
-                  'Especialidades ilimitadas',
-                  'Lembretes automáticos',
-                  'Relatório',
+                  '80 agendamentos por mês',
+                  'Branding personalizado',
                   'Integração com Google',
-                  'Assistente pessoal com IA',
                   'API',
-                  'Suporte por email'
+                  'Analytics completo',
+                  'Notificações por email',
+                  'Planner pessoal'
                 ].map((feature, i) => (
                   <li key={i} className="flex items-center">
                     <Check className="w-5 h-5 text-green-500 mr-3" />
@@ -416,6 +420,7 @@ const LandingPage = () => {
                   </li>
                 ))}
               </ul>
+              <Link to="/pricing">
                 <Button className="w-full bg-[#6D3FC4] text-white hover:bg-[#5A33A3] flex flex-col items-center">
                   <span className="text-base">Assine agora</span>
                   <span className="text-xs flex items-center gap-1">
@@ -425,6 +430,41 @@ const LandingPage = () => {
                     Pagamento seguro
                   </span>
                 </Button>
+              </Link>
+            </div>
+
+            {/* Plano PRO */}
+            <div className="bg-white rounded-lg border border-gray-200 p-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">PRO</h3>
+              <div className="mb-4">
+                <span className="text-3xl font-bold">R$99,00</span>
+                <span className="text-gray-500">/mês</span>
+              </div>
+              <p className="text-gray-600 mb-6">A solução completa com automação total</p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  'Calendários ilimitados',
+                  'Profissionais ilimitados',
+                  'Agendamentos ilimitados',
+                  'Lembretes WhatsApp',
+                  'Branding personalizado',
+                  'Integração com Google',
+                  'API',
+                  'Analytics completo',
+                  'Notificações por email',
+                  'Planner pessoal'
+                ].map((feature, i) => (
+                  <li key={i} className="flex items-center">
+                    <Check className="w-5 h-5 text-green-500 mr-3" />
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link to="/pricing">
+                <Button className="w-full bg-gray-800 text-white hover:bg-gray-900">
+                  Assine agora
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

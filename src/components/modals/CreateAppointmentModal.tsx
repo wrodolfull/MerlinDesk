@@ -171,15 +171,12 @@ const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({ onClose
         if (specialtiesError) throw specialtiesError;
         setSpecialtiesData(specialties || []);
 
-        // Query modificada para usar professional_specialties
+        // Query para buscar profissionais com especialidades
         const { data: professionals, error: professionalsError } = await supabase
           .from('professionals')
           .select(`
             *,
-            professional_specialties!inner(
-              specialty_id,
-              specialties(id, name)
-            )
+            specialty:specialties(id, name)
           `)
           .in('calendar_id', calendarIds);
         if (professionalsError) throw professionalsError;
@@ -358,20 +355,16 @@ const onSubmit = async (data: CreateAppointmentFormData) => {
   }
 };
 
-  // Filtragem bidirecional usando professional_specialties
+  // Filtragem bidirecional usando specialty_id direto
   const filteredProfessionals = professionalsData.filter((professional) => {
     if (!watchSpecialtyId) return true;
-    return professional.professional_specialties?.some(
-      ps => ps.specialty_id === watchSpecialtyId
-    );
+    return professional.specialty_id === watchSpecialtyId;
   });
 
   const filteredSpecialties = specialtiesData.filter((specialty) => {
     if (!watchProfessionalId) return true;
     const selectedProfessional = professionalsData.find(p => p.id === watchProfessionalId);
-    return selectedProfessional?.professional_specialties?.some(
-      ps => ps.specialty_id === specialty.id
-    ) || false;
+    return selectedProfessional?.specialty_id === specialty.id;
   });
 
   return (

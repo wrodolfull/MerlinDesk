@@ -353,11 +353,28 @@ const SpecialtiesPage: React.FC = () => {
                       Limpar filtros
                     </Button>
                   </>
+                ) : calendarIds.length === 0 ? (
+                  <>
+                    <Calendar className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Primeiro, crie um calendário</h3>
+                    <p className="text-gray-500 mb-4">
+                      Para criar especialidades, você precisa ter pelo menos um calendário configurado. 
+                      As especialidades são vinculadas aos seus calendários.
+                    </p>
+                    <Button 
+                      onClick={() => window.location.href = '/calendars'}
+                      leftIcon={<Calendar size={16} />}
+                    >
+                      Criar calendário
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Clock className="h-12 w-12 text-gray-400 mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma especialidade encontrada</h3>
-                    <p className="text-gray-500 mb-4">Comece criando sua primeira especialidade</p>
+                    <p className="text-gray-500 mb-4">
+                      Comece criando sua primeira especialidade para oferecer seus serviços
+                    </p>
                     <Button onClick={handleCreateClick}>
                       Criar especialidade
                     </Button>

@@ -57,16 +57,31 @@ const ProfessionalsPage: React.FC = () => {
 
       const { data, error } = await supabase
         .from('professionals')
-        .select(`*, specialties:professional_specialties(specialties(id, name))`)
+        .select(`
+          *,
+          professional_specialties(
+            specialty_id,
+            specialties(
+              id,
+              name
+            )
+          )
+        `)
         .eq('user_id', user.id);
 
       if (error) throw error;
 
-      const mappedData: ProfessionalWithCreatedAt[] = (data || []).map((pro: any) => ({
-        ...pro,
-        specialties: (pro.specialties || []).map((rel: any) => rel.specialties),
-        createdAt: pro.created_at ? new Date(pro.created_at) : new Date(),
-      }));
+      const mappedData: ProfessionalWithCreatedAt[] = (data || []).map((pro: any) => {
+        const specialties = (pro.professional_specialties || [])
+          .map((ps: any) => ps.specialties)
+          .filter((s: any) => s);
+        
+        return {
+          ...pro,
+          specialties: specialties,
+          createdAt: pro.created_at ? new Date(pro.created_at) : new Date(),
+        };
+      });
       setProfessionals(mappedData);
       setError(null);
     } catch (err: unknown) {
@@ -168,11 +183,21 @@ const ProfessionalsPage: React.FC = () => {
   if (!defaultCalendarId) {
     return (
       <DashboardLayout>
-        <div className="text-center text-gray-600">
-          <p className="mb-4">Por favor, crie um calendário antes de criar profissionais.</p>
-          <Button onClick={() => window.location.href = '/calendars'}>
-            Vá para Calendário
-          </Button>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Primeiro, crie um calendário</h3>
+            <p className="text-gray-500 mb-4">
+              Para criar profissionais, você precisa ter pelo menos um calendário configurado. 
+              Os profissionais são vinculados aos seus calendários.
+            </p>
+            <Button 
+              onClick={() => window.location.href = '/calendars'}
+              leftIcon={<Calendar size={16} />}
+            >
+              Criar calendário
+            </Button>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -303,18 +328,48 @@ const ProfessionalsPage: React.FC = () => {
           <div className="col-span-full">
             <Card>
               <CardContent className="p-12 flex flex-col items-center justify-center text-center">
-                <Users className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum profissional encontrado</h3>
-                <p className="text-gray-500 mb-4">Tente ajustar os filtros de busca</p>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setSearchTerm('');
-                    setSelectedSpecialty('');
-                  }}
-                >
-                  Limpar filtros
-                </Button>
+                {searchTerm || selectedSpecialty ? (
+                  <>
+                    <Search className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum profissional encontrado</h3>
+                    <p className="text-gray-500 mb-4">Tente ajustar os filtros de busca</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setSearchTerm('');
+                        setSelectedSpecialty('');
+                      }}
+                    >
+                      Limpar filtros
+                    </Button>
+                  </>
+                ) : specialties.length === 0 ? (
+                  <>
+                    <Tag className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Primeiro, crie especialidades</h3>
+                    <p className="text-gray-500 mb-4">
+                      Para criar profissionais, você precisa ter pelo menos uma especialidade configurada. 
+                      Os profissionais são vinculados às especialidades dos seus calendários.
+                    </p>
+                    <Button 
+                      onClick={() => window.location.href = '/specialties'}
+                      leftIcon={<Tag size={16} />}
+                    >
+                      Criar especialidade
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Users className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum profissional encontrado</h3>
+                    <p className="text-gray-500 mb-4">
+                      Comece criando seu primeiro profissional para gerenciar sua equipe
+                    </p>
+                    <Button onClick={() => setShowCreateModal(true)}>
+                      Criar profissional
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

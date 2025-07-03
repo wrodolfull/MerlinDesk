@@ -1,0 +1,6 @@
+port: 7880
+rtc:
+  udp_port: 7882
+  tcp_port: 7881
+keys:
+  mykey: 2735322afa5e8e471055360c84f6000bdd7305f68f66ea8a54e67321792759ee

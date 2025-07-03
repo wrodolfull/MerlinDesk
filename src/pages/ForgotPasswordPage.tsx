@@ -6,6 +6,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { resetPassword } from '../lib/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -28,28 +29,32 @@ const ForgotPasswordPage = () => {
     try {
       setIsLoading(true);
 
-      // Check if user exists
-      const { data: existingClient } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('email', data.email)
-        .maybeSingle();
-
-      if (!existingClient) {
-        toast.error(t('auth.emailNotFound'));
-        return;
+      console.log('🔍 ForgotPasswordPage: Tentando enviar email para:', data.email);
+      
+      try {
+        // Primeiro, tentar com a função do auth.ts
+        await resetPassword(data.email);
+        console.log('🔍 ForgotPasswordPage: Email enviado com sucesso usando auth.ts');
+      } catch (error) {
+        console.error('🔍 ForgotPasswordPage: Erro com auth.ts:', error);
+        
+        // Se falhar, tentar diretamente com o Supabase
+        const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(data.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        
+        if (supabaseError) {
+          console.error('🔍 ForgotPasswordPage: Erro com Supabase direto:', supabaseError);
+          throw supabaseError;
+        }
+        
+        console.log('🔍 ForgotPasswordPage: Email enviado com sucesso usando Supabase direto');
       }
-
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (error) throw error;
 
       setEmailSent(true);
       toast.success(t('auth.resetEmailSent'));
     } catch (error) {
-      console.error('Password reset error:', error);
+      console.error('🔍 ForgotPasswordPage: Erro completo:', error);
       toast.error(t('auth.resetPasswordError'));
     } finally {
       setIsLoading(false);

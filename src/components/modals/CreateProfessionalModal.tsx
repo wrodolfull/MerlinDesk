@@ -67,6 +67,7 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
         return;
       }
 
+      // Criar o profissional (sem specialty_id no modelo many-to-many)
       const { data: professional, error: insertError } = await supabase
         .from('professionals')
         .insert({
@@ -82,16 +83,26 @@ const CreateProfessionalModal: React.FC<CreateProfessionalModalProps> = ({
 
       if (insertError) throw insertError;
 
-      const specialtyRows = data.specialtyIds.map((specialtyId) => ({
-        professional_id: professional.id,
-        specialty_id: specialtyId,
-      }));
+      // Inserir as especialidades na tabela de junção
+      if (data.specialtyIds && data.specialtyIds.length > 0) {
+        const professionalSpecialties = data.specialtyIds.map(specialtyId => ({
+          professional_id: professional.id,
+          specialty_id: specialtyId,
+        }));
 
-      const { error: relationError } = await supabase
-        .from('professional_specialties')
-        .insert(specialtyRows);
+        const { error: specialtiesError } = await supabase
+          .from('professional_specialties')
+          .insert(professionalSpecialties);
 
-      if (relationError) throw relationError;
+        if (specialtiesError) {
+          // Se falhar ao inserir especialidades, deletar o profissional criado
+          await supabase
+            .from('professionals')
+            .delete()
+            .eq('id', professional.id);
+          throw specialtiesError;
+        }
+      }
 
       toast.success('Professional added successfully');
       reset();

@@ -41,8 +41,7 @@ export const useProfessionals = (calendarId?: string) => {
           phone,
           bio,
           calendar_id,
-          user_id,
-          professional_specialties:specialties(id, name)
+          user_id
         `)
         .eq('user_id', user.id);
 
@@ -55,15 +54,38 @@ export const useProfessionals = (calendarId?: string) => {
 
       console.log('🔍 useProfessionals: Dados brutos do Supabase:', data);
 
-      const mappedData: Professional[] = (data || []).map((pro) => ({
-        id: pro.id,
-        name: pro.name,
-        email: pro.email,
-        phone: pro.phone || undefined,
-        bio: pro.bio || undefined,
-        calendarId: pro.calendar_id,
-        specialties: pro.professional_specialties || [],
-        userId: pro.user_id
+      // Buscar especialidades separadamente para cada profissional
+      const mappedData: Professional[] = await Promise.all((data || []).map(async (pro: any) => {
+        const { data: specialtiesData, error: specError } = await supabase
+          .from('professional_specialties')
+          .select(`
+            specialty_id,
+            specialties(
+              id,
+              name
+            )
+          `)
+          .eq('professional_id', pro.id);
+
+        if (specError) {
+          console.error('Erro ao buscar especialidades para profissional:', pro.id, specError);
+        }
+
+        const specialties = (specialtiesData || []).map((ps: any) => ({
+          id: ps.specialties.id,
+          name: ps.specialties.name
+        }));
+
+        return {
+          id: pro.id,
+          name: pro.name,
+          email: pro.email,
+          phone: pro.phone || undefined,
+          bio: pro.bio || undefined,
+          calendarId: pro.calendar_id,
+          specialties: specialties,
+          userId: pro.user_id
+        };
       }));
 
       console.log('🔍 useProfessionals: Dados mapeados:', mappedData);

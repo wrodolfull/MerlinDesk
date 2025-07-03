@@ -64,38 +64,76 @@ const CalendarsPage = () => {
 
       const calendarIds = (calendarsData || []).map((c) => c.id);
 
-      const { data: specialtiesData, error: specialtiesError } = await supabase
-        .from('specialties')
-        .select('*')
-        .in('calendar_id', calendarIds)
-        .eq('user_id', user.id);
+      // Buscar especialidades - verificar se calendar_id existe primeiro
+      let specialtiesData = [];
+      if (calendarIds.length > 0) {
+        console.log('🔍 CalendarsPage: Buscando especialidades para calendários:', calendarIds);
+        
+        const { data: specialtiesResult, error: specialtiesError } = await supabase
+          .from('specialties')
+          .select('*')
+          .in('calendar_id', calendarIds)
+          .eq('user_id', user.id);
 
-        if (specialtiesError) throw specialtiesError;
-        setSpecialties(
-          (specialtiesData || []).map((s) => ({
-            ...s,
-            calendarId: s.calendar_id,
-          }))
-        );
+        if (specialtiesError) {
+          console.warn('Erro ao buscar especialidades:', specialtiesError);
+        } else {
+          specialtiesData = specialtiesResult || [];
+          console.log('🔍 CalendarsPage: Especialidades encontradas:', specialtiesData);
+        }
+      } else {
+        console.log('🔍 CalendarsPage: Nenhum calendar_id para buscar especialidades');
+      }
 
-        const { data: professionalsData, error: professionalsError } = await supabase
-        .from('professionals')
-        .select(`
-          *,
-          specialties:professional_specialties (
-            specialties(id, name)
-          )
-        `)
-        .in('calendar_id', calendarIds)
-        .eq('user_id', user.id);
-  
-      if (professionalsError) throw professionalsError;
-      const mappedProfessionals: Professional[] = (professionalsData || []).map((p: any) => ({
-        ...p,
-        calendarId: p.calendar_id,
-        avatar: p.avatar || null,
-        specialties: (p.specialties || []).map((rel: any) => rel.specialties),
-      }));
+      setSpecialties(
+        specialtiesData.map((s: any) => ({
+          ...s,
+          calendarId: s.calendar_id,
+        }))
+      );
+
+      // Buscar profissionais com especialidades - verificar se calendar_id existe primeiro
+      let professionalsData = [];
+      if (calendarIds.length > 0) {
+        console.log('🔍 CalendarsPage: Buscando profissionais para calendários:', calendarIds);
+        
+        const { data: professionalsResult, error: professionalsError } = await supabase
+          .from('professionals')
+          .select(`
+            *,
+            professional_specialties(
+              specialty_id,
+              specialties(
+                id,
+                name
+              )
+            )
+          `)
+          .in('calendar_id', calendarIds)
+          .eq('user_id', user.id);
+
+        if (professionalsError) {
+          console.warn('Erro ao buscar profissionais:', professionalsError);
+        } else {
+          professionalsData = professionalsResult || [];
+          console.log('🔍 CalendarsPage: Profissionais encontrados:', professionalsData);
+        }
+      } else {
+        console.log('🔍 CalendarsPage: Nenhum calendar_id para buscar profissionais');
+      }
+
+      const mappedProfessionals: Professional[] = professionalsData.map((p: any) => {
+        const specialties = (p.professional_specialties || [])
+          .map((ps: any) => ps.specialties)
+          .filter((s: any) => s);
+        
+        return {
+          ...p,
+          calendarId: p.calendar_id,
+          avatar: p.avatar || null,
+          specialties: specialties,
+        };
+      });
       setProfessionals(mappedProfessionals);
   
     } catch (err) {

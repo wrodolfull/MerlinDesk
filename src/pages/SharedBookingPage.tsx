@@ -26,24 +26,28 @@ const SharedBookingPage = () => {
           .from('calendars')
           .select(`
             *,
-            specialties (
+            specialties!specialties_calendar_id_fkey (
               id,
               name,
               duration,
               price,
               description
             ),
-            professionals (
+            professionals!professionals_calendar_id_fkey (
               id,
               name,
               email,
               phone,
               avatar,
               bio,
-              specialties:professional_specialties (
-                specialties (
+              professional_specialties(
+                specialty_id,
+                specialties(
                   id,
-                  name
+                  name,
+                  duration,
+                  price,
+                  description
                 )
               )
             )
@@ -54,14 +58,21 @@ const SharedBookingPage = () => {
         if (fetchError) throw fetchError;
         if (!data) throw new Error('Calendar not found');
 
-        const parsedProfessionals = (data.professionals || []).map((p: any) => ({
-          ...p,
-          specialties: (p.specialties || []).map((ps: any) => ps.specialties).filter(Boolean),
-        }));
+        // Mapear profissionais com suas especialidades (modelo many-to-many)
+        const professionalsWithSpecialties = (data.professionals || []).map((professional: any) => {
+          const specialties = (professional.professional_specialties || [])
+            .map((ps: any) => ps.specialties)
+            .filter((s: any) => s); // Remove null/undefined
+          
+          return {
+            ...professional,
+            specialties: specialties
+          };
+        });
 
         setCalendar({
           ...data,
-          professionals: parsedProfessionals,
+          professionals: professionalsWithSpecialties,
         });
       } catch (err) {
         console.error('Error fetching calendar:', err);

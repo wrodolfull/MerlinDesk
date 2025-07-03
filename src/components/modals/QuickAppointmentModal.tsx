@@ -99,18 +99,7 @@ const QuickAppointmentModal: React.FC<QuickAppointmentModalProps> = ({ onClose, 
         // Buscar profissionais
         const { data: professionals, error: professionalsError } = await supabase
           .from('professionals')
-          .select(`
-            id,
-            name,
-            calendar_id,
-            professional_specialties (
-              specialty_id,
-              specialties (
-                id,
-                name
-              )
-            )
-          `)
+          .select('*')
           .eq('user_id', user?.id);
 
         if (professionalsError) throw professionalsError;

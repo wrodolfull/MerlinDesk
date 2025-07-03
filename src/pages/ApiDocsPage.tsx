@@ -60,6 +60,7 @@ const ApiDocsPage = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ApiData | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
@@ -85,51 +86,142 @@ const ApiDocsPage = () => {
 
   const fetchApiData = async () => {
     try {
+      console.log('🚀 Iniciando fetchApiData...');
+      console.log('👤 User ID:', user?.id);
+      
       setLoading(true);
 
+      // 1. Verificar se temos o usuário
+      if (!user?.id) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // 2. Buscar API Key com logs detalhados
+      console.log('🔍 Buscando API Key...');
       const { data: apiKeyData, error: apiKeyError } = await supabase
         .from('api_keys')
         .select('user_id, client_secret')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .maybeSingle();
 
-      if (apiKeyError || !apiKeyData) {
+      console.log('🔑 Resultado da busca API Key:', {
+        data: apiKeyData ? 'Encontrada' : 'Não encontrada',
+        error: apiKeyError?.message || 'Nenhum erro',
+        userId: apiKeyData?.user_id,
+        hasSecret: !!apiKeyData?.client_secret
+      });
+
+      if (apiKeyError) {
+        console.error('❌ Erro ao buscar API Key:', apiKeyError);
+        throw new Error(`Erro ao buscar API Key: ${apiKeyError.message}`);
+      }
+
+      if (!apiKeyData) {
         throw new Error('API Key não encontrada. Configure suas credenciais primeiro.');
       }
 
+      // 3. Criar credenciais com validação
       const credentials = btoa(`${apiKeyData.user_id}:${apiKeyData.client_secret}`);
-      
-      const response = await fetch('https://zqtrmtkbkdzyapdtapss.supabase.co/functions/v1/appointments?route=list-ids', {
+      console.log('🔐 Credenciais criadas:', {
+        userId: apiKeyData.user_id,
+        secretLength: apiKeyData.client_secret?.length || 0,
+        credentialsLength: credentials.length,
+        credentialsPreview: credentials.substring(0, 20) + '...'
+      });
+
+      // 4. Preparar requisição
+      const url = 'https://zqtrmtkbkdzyapdtapss.supabase.co/functions/v1/appointments?route=list-ids';
+      const headers = {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+        'x-timezone': 'America/Sao_Paulo'
+      };
+
+      console.log('📋 Headers preparados:', {
+        hasAuthorization: !!headers.Authorization,
+        authorizationLength: headers.Authorization?.length || 0,
+        authorizationPreview: headers.Authorization?.substring(0, 30) + '...',
+        contentType: headers['Content-Type'],
+        timezone: headers['x-timezone']
+      });
+
+      // 5. Fazer requisição
+      console.log('📤 Enviando requisição para:', url);
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'Content-Type': 'application/json',
-        },
+        headers
+      });
+
+      console.log('📊 Response recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao buscar dados');
+        const errorText = await response.text();
+        console.error('❌ Erro da API:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const apiData = await response.json();
+      console.log('✅ Dados recebidos com sucesso:', apiData);
       setData(apiData);
+
     } catch (error) {
-      console.error('Erro ao buscar dados da API:', error);
-      toast.error('Erro ao carregar dados da API');
+      console.error('💥 Erro completo:', error);
+      toast.error(`Erro: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user && activeTab === 'ids') {
+    const checkReadiness = async () => {
+      if (user?.id) {
+        console.log('🔍 Verificando se API Key existe...');
+        const { data, error } = await supabase
+          .from('api_keys')
+          .select('id, is_active')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        console.log('🔑 Status da API Key:', {
+          exists: !!data,
+          isActive: data?.is_active,
+          error: error?.message
+        });
+        
+        setIsReady(!!data);
+      }
+    };
+
+    checkReadiness();
+  }, [user]);
+
+  useEffect(() => {
+    if (user && activeTab === 'ids' && isReady) {
       fetchApiData();
     }
-  }, [user, activeTab]);
+  }, [user, activeTab, isReady]);
 
   const baseUrl = 'https://zqtrmtkbkdzyapdtapss.supabase.co/functions/v1/appointments';
+
+  const handleFetchData = () => {
+    if (!isReady) {
+      toast.error('API Key não configurada. Acesse Configurações do Perfil para criar uma.');
+      return;
+    }
+    
+    if (!user?.id) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+    
+    fetchApiData();
+  };
 
   const endpoints = [
     {
@@ -138,9 +230,9 @@ const ApiDocsPage = () => {
       title: 'Listar Todos os IDs',
       description: 'Retorna todos os IDs de calendários, profissionais, especialidades e clientes vinculados ao usuário.',
       example: {
-        curl: `curl -X GET "${baseUrl}/list-ids" \\
+        curl: `curl -X GET "${baseUrl}?route=list-ids" \\
   -H "Authorization: Basic <seu-token-base64>"`,
-        javascript: `const response = await fetch('${baseUrl}/list-ids', {
+        javascript: `const response = await fetch('${baseUrl}?route=list-ids', {
   method: 'GET',
   headers: {
     'Authorization': 'Basic <seu-token-base64>',
@@ -152,7 +244,7 @@ const data = await response.json();
 console.log(data);`,
         python: `import requests
 
-url = "${baseUrl}/list-ids"
+url = "${baseUrl}?route=list-ids"
 headers = {
     "Authorization": "Basic <seu-token-base64>",
     "Content-Type": "application/json"
@@ -164,6 +256,7 @@ print(data)`
       },
       response: `{
   "user_id": "user-uuid",
+  "timezone": "America/Sao_Paulo",
   "calendars": [
     {
       "calendar": {
@@ -202,6 +295,10 @@ print(data)`
     "total_professionals": 1,
     "total_specialties": 1,
     "total_clients": 1
+  },
+  "timezone_info": {
+    "current_timezone": "America/Sao_Paulo",
+    "note": "Todos os horários serão convertidos automaticamente entre UTC (banco) e fuso local (exibição)"
   }
 }`
     },
@@ -209,19 +306,14 @@ print(data)`
       method: 'GET',
       path: '/available-slots',
       title: 'Buscar Horários Disponíveis',
-      description: 'Retorna os horários disponíveis para agendamento de um profissional em uma data específica.',
-      params: [
-        { name: 'professionalId', type: 'string', required: true, description: 'ID do profissional' },
-        { name: 'date', type: 'string', required: true, description: 'Data no formato YYYY-MM-DD' },
-        { name: 'specialtyId', type: 'string', required: true, description: 'ID da especialidade' },
-      ],
+      description: 'Retorna os horários disponíveis para um profissional em uma data específica.',
       example: {
-        curl: `curl -X GET "${baseUrl}/available-slots?professionalId=123&date=2025-06-10&specialtyId=456" \\
-  -H "Authorization: Basic <seu-token-base64>"`,
-        javascript: `const response = await fetch('${baseUrl}/available-slots?professionalId=123&date=2025-06-10&specialtyId=456', {
+        curl: `curl -X GET "${baseUrl}?route=available-slots&professionalId=<id>&date=2025-01-20&specialtyId=<id>" \\
+  -H "x-timezone: America/Sao_Paulo"`,
+        javascript: `const response = await fetch('${baseUrl}?route=available-slots&professionalId=<id>&date=2025-01-20&specialtyId=<id>', {
   method: 'GET',
   headers: {
-    'Authorization': 'Basic <seu-token-base64>',
+    'x-timezone': 'America/Sao_Paulo',
     'Content-Type': 'application/json'
   }
 });
@@ -230,14 +322,14 @@ const data = await response.json();
 console.log(data);`,
         python: `import requests
 
-url = "${baseUrl}/available-slots"
+url = "${baseUrl}?route=available-slots"
 params = {
-    "professionalId": "123",
-    "date": "2025-06-10", 
-    "specialtyId": "456"
+    "professionalId": "<id>",
+    "date": "2025-01-20",
+    "specialtyId": "<id>"
 }
 headers = {
-    "Authorization": "Basic <seu-token-base64>",
+    "x-timezone": "America/Sao_Paulo",
     "Content-Type": "application/json"
 }
 
@@ -248,73 +340,111 @@ print(data)`
       response: `{
   "slots": [
     {
-      "start": "2025-06-10T09:00:00.000Z",
-      "end": "2025-06-10T09:30:00.000Z"
+      "start": "2025-01-20T09:00:00",
+      "end": "2025-01-20T09:30:00",
+      "timezone": "America/Sao_Paulo"
     },
     {
-      "start": "2025-06-10T09:30:00.000Z", 
-      "end": "2025-06-10T10:00:00.000Z"
-    },
-    {
-      "start": "2025-06-10T10:00:00.000Z",
-      "end": "2025-06-10T10:30:00.000Z"
+      "start": "2025-01-20T09:30:00",
+      "end": "2025-01-20T10:00:00",
+      "timezone": "America/Sao_Paulo"
     }
-  ]
+  ],
+  "timezone": "America/Sao_Paulo",
+  "date": "2025-01-20"
 }`
     },
     {
-      method: 'GET',
-      path: '/details',
-      title: 'Detalhes do Agendamento',
-      description: 'Retorna informações detalhadas de um agendamento específico.',
-      params: [
-        { name: 'id', type: 'string', required: true, description: 'ID do agendamento' },
-      ],
+      method: 'POST',
+      path: '/book',
+      title: 'Criar Agendamento',
+      description: 'Cria um novo agendamento. Pode criar um cliente automaticamente se clientData for fornecido.',
       example: {
-        curl: `curl -X GET "${baseUrl}/details?id=appointment-uuid" \\
-  -H "Authorization: Basic <seu-token-base64>"`,
-        javascript: `const response = await fetch('${baseUrl}/details?id=appointment-uuid', {
-  method: 'GET',
+        curl: `curl -X POST "${baseUrl}?route=book" \\
+  -H "Content-Type: application/json" \\
+  -H "x-timezone: America/Sao_Paulo" \\
+  -d '{
+    "professionalId": "<id>",
+    "clientId": "<id>",
+    "specialtyId": "<id>",
+    "calendarId": "<id>",
+    "startTime": "2025-01-20T09:00:00",
+    "endTime": "2025-01-20T09:30:00",
+    "notes": "Consulta de rotina"
+  }'`,
+        javascript: `const response = await fetch('${baseUrl}?route=book', {
+  method: 'POST',
   headers: {
-    'Authorization': 'Basic <seu-token-base64>',
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+    'x-timezone': 'America/Sao_Paulo'
+  },
+  body: JSON.stringify({
+    professionalId: '<id>',
+    clientId: '<id>',
+    specialtyId: '<id>',
+    calendarId: '<id>',
+    startTime: '2025-01-20T09:00:00',
+    endTime: '2025-01-20T09:30:00',
+    notes: 'Consulta de rotina'
+  })
 });
 
-const appointment = await response.json();
-console.log(appointment);`,
+const data = await response.json();
+console.log(data);`,
         python: `import requests
+import json
 
-url = "${baseUrl}/details"
-params = {"id": "appointment-uuid"}
+url = "${baseUrl}?route=book"
 headers = {
-    "Authorization": "Basic <seu-token-base64>",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "x-timezone": "America/Sao_Paulo"
+}
+data = {
+    "professionalId": "<id>",
+    "clientId": "<id>",
+    "specialtyId": "<id>",
+    "calendarId": "<id>",
+    "startTime": "2025-01-20T09:00:00",
+    "endTime": "2025-01-20T09:30:00",
+    "notes": "Consulta de rotina"
 }
 
-response = requests.get(url, params=params, headers=headers)
-appointment = response.json()
-print(appointment)`
+response = requests.post(url, headers=headers, json=data)
+result = response.json()
+print(result)`
       },
       response: `{
-  "id": "appointment-uuid",
-  "professional_id": "prof-123",
-  "client_id": "client-456", 
-  "specialty_id": "spec-789",
-  "calendar_id": "cal-101",
-  "user_id": "user-202",
-  "start_time": "2025-06-10T09:00:00.000Z",
-  "end_time": "2025-06-10T09:30:00.000Z",
-  "notes": "Consulta de rotina",
+  "id": "apt-123",
+  "professional_id": "<id>",
+  "client_id": "<id>",
+  "specialty_id": "<id>",
+  "calendar_id": "<id>",
+  "start_time": "2025-01-20T12:00:00Z",
+  "end_time": "2025-01-20T12:30:00Z",
   "status": "confirmed",
+  "notes": "Consulta de rotina",
+  "start_time_local": "2025-01-20T09:00:00",
+  "end_time_local": "2025-01-20T09:30:00",
+  "client_created": false,
+  "timezone_info": {
+    "timezone": "America/Sao_Paulo",
+    "utc_time": {
+      "start": "2025-01-20T12:00:00Z",
+      "end": "2025-01-20T12:30:00Z"
+    },
+    "local_time": {
+      "start": "2025-01-20T09:00:00",
+      "end": "2025-01-20T09:30:00"
+    }
+  },
   "client": {
-    "name": "João Silva",
-    "email": "joao@email.com",
+    "name": "Maria Santos",
+    "email": "maria@email.com",
     "phone": "(11) 99999-9999"
   },
   "professional": {
-    "name": "Dr. Maria Santos",
-    "email": "maria@clinica.com"
+    "name": "Dr. João Silva",
+    "email": "joao@clinica.com"
   },
   "specialty": {
     "name": "Consulta Geral",
@@ -324,152 +454,63 @@ print(appointment)`
 }`
     },
     {
-      method: 'POST',
-      path: '/book',
-      title: 'Criar Agendamento',
-      description: 'Cria um novo agendamento no sistema.',
-      body: `{
-  "professionalId": "prof-123",
-  "clientId": "client-456",
-  "specialtyId": "spec-789", 
-  "calendarId": "cal-101",
-  "startTime": "2025-06-10T09:00:00.000Z",
-  "endTime": "2025-06-10T09:30:00.000Z",
-  "notes": "Consulta de rotina"
-}`,
-      example: {
-        curl: `curl -X POST "${baseUrl}/book" \\
-  -H "Authorization: Basic <seu-token-base64>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "professionalId": "prof-123",
-    "clientId": "client-456", 
-    "specialtyId": "spec-789",
-    "calendarId": "cal-101",
-    "startTime": "2025-06-10T09:00:00.000Z",
-    "endTime": "2025-06-10T09:30:00.000Z",
-    "notes": "Consulta de rotina"
-  }'`,
-        javascript: `const appointmentData = {
-  professionalId: "prof-123",
-  clientId: "client-456",
-  specialtyId: "spec-789", 
-  calendarId: "cal-101",
-  startTime: "2025-06-10T09:00:00.000Z",
-  endTime: "2025-06-10T09:30:00.000Z",
-  notes: "Consulta de rotina"
-};
-
-const response = await fetch('${baseUrl}/book', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Basic <seu-token-base64>',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(appointmentData)
-});
-
-const newAppointment = await response.json();
-console.log(newAppointment);`,
-        python: `import requests
-import json
-
-url = "${baseUrl}/book"
-data = {
-    "professionalId": "prof-123",
-    "clientId": "client-456",
-    "specialtyId": "spec-789",
-    "calendarId": "cal-101", 
-    "startTime": "2025-06-10T09:00:00.000Z",
-    "endTime": "2025-06-10T09:30:00.000Z",
-    "notes": "Consulta de rotina"
-}
-headers = {
-    "Authorization": "Basic <seu-token-base64>",
-    "Content-Type": "application/json"
-}
-
-response = requests.post(url, data=json.dumps(data), headers=headers)
-new_appointment = response.json()
-print(new_appointment)`
-      },
-      response: `{
-  "id": "new-appointment-uuid",
-  "professional_id": "prof-123",
-  "client_id": "client-456",
-  "specialty_id": "spec-789",
-  "calendar_id": "cal-101",
-  "user_id": "user-202", 
-  "start_time": "2025-06-10T09:00:00.000Z",
-  "end_time": "2025-06-10T09:30:00.000Z",
-  "notes": "Consulta de rotina",
-  "status": "confirmed",
-  "created_at": "2025-06-09T22:06:00.000Z"
-}`
-    },
-    {
       method: 'PUT',
       path: '/reschedule',
-      title: 'Reagendar Consulta',
-      description: 'Altera o horário de um agendamento existente.',
-      body: `{
-  "id": "appointment-uuid",
-  "startTime": "2025-06-10T10:00:00.000Z",
-  "endTime": "2025-06-10T10:30:00.000Z"
-}`,
+      title: 'Reagendar Agendamento',
+      description: 'Altera os horários de um agendamento existente.',
       example: {
-        curl: `curl -X PUT "${baseUrl}/reschedule" \\
-  -H "Authorization: Basic <seu-token-base64>" \\
+        curl: `curl -X PUT "${baseUrl}?route=reschedule" \\
   -H "Content-Type: application/json" \\
+  -H "x-timezone: America/Sao_Paulo" \\
   -d '{
-    "id": "appointment-uuid",
-    "startTime": "2025-06-10T10:00:00.000Z",
-    "endTime": "2025-06-10T10:30:00.000Z"
+    "id": "<appointment-id>",
+    "startTime": "2025-01-20T10:00:00",
+    "endTime": "2025-01-20T10:30:00"
   }'`,
-        javascript: `const rescheduleData = {
-  id: "appointment-uuid",
-  startTime: "2025-06-10T10:00:00.000Z",
-  endTime: "2025-06-10T10:30:00.000Z"
-};
-
-const response = await fetch('${baseUrl}/reschedule', {
+        javascript: `const response = await fetch('${baseUrl}?route=reschedule', {
   method: 'PUT',
   headers: {
-    'Authorization': 'Basic <seu-token-base64>',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'x-timezone': 'America/Sao_Paulo'
   },
-  body: JSON.stringify(rescheduleData)
+  body: JSON.stringify({
+    id: '<appointment-id>',
+    startTime: '2025-01-20T10:00:00',
+    endTime: '2025-01-20T10:30:00'
+  })
 });
 
-const updatedAppointment = await response.json();
-console.log(updatedAppointment);`,
+const data = await response.json();
+console.log(data);`,
         python: `import requests
 import json
 
-url = "${baseUrl}/reschedule"
-data = {
-    "id": "appointment-uuid",
-    "startTime": "2025-06-10T10:00:00.000Z",
-    "endTime": "2025-06-10T10:30:00.000Z"
-}
+url = "${baseUrl}?route=reschedule"
 headers = {
-    "Authorization": "Basic <seu-token-base64>",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "x-timezone": "America/Sao_Paulo"
+}
+data = {
+    "id": "<appointment-id>",
+    "startTime": "2025-01-20T10:00:00",
+    "endTime": "2025-01-20T10:30:00"
 }
 
-response = requests.put(url, data=json.dumps(data), headers=headers)
-updated_appointment = response.json()
-print(updated_appointment)`
+response = requests.put(url, headers=headers, json=data)
+result = response.json()
+print(result)`
       },
       response: `{
-  "id": "appointment-uuid",
-  "professional_id": "prof-123",
-  "client_id": "client-456",
-  "specialty_id": "spec-789",
-  "start_time": "2025-06-10T10:00:00.000Z",
-  "end_time": "2025-06-10T10:30:00.000Z",
+  "id": "apt-123",
+  "professional_id": "<id>",
+  "client_id": "<id>",
+  "specialty_id": "<id>",
+  "start_time": "2025-01-20T13:00:00Z",
+  "end_time": "2025-01-20T13:30:00Z",
   "status": "confirmed",
-  "updated_at": "2025-06-09T22:06:00.000Z"
+  "start_time_local": "2025-01-20T10:00:00",
+  "end_time_local": "2025-01-20T10:30:00",
+  "timezone": "America/Sao_Paulo"
 }`
     },
     {
@@ -477,55 +518,141 @@ print(updated_appointment)`
       path: '/cancel',
       title: 'Cancelar Agendamento',
       description: 'Cancela um agendamento existente.',
-      body: `{
-  "id": "appointment-uuid"
-}`,
       example: {
-        curl: `curl -X PUT "${baseUrl}/cancel" \\
-  -H "Authorization: Basic <seu-token-base64>" \\
+        curl: `curl -X PUT "${baseUrl}?route=cancel" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "id": "appointment-uuid"
+    "id": "<appointment-id>"
   }'`,
-        javascript: `const cancelData = {
-  id: "appointment-uuid"
-};
-
-const response = await fetch('${baseUrl}/cancel', {
+        javascript: `const response = await fetch('${baseUrl}?route=cancel', {
   method: 'PUT',
   headers: {
-    'Authorization': 'Basic <seu-token-base64>',
     'Content-Type': 'application/json'
   },
-  body: JSON.stringify(cancelData)
+  body: JSON.stringify({
+    id: '<appointment-id>'
+  })
 });
 
-const cancelledAppointment = await response.json();
-console.log(cancelledAppointment);`,
+const data = await response.json();
+console.log(data);`,
         python: `import requests
 import json
 
-url = "${baseUrl}/cancel"
-data = {"id": "appointment-uuid"}
+url = "${baseUrl}?route=cancel"
 headers = {
-    "Authorization": "Basic <seu-token-base64>",
+    "Content-Type": "application/json"
+}
+data = {
+    "id": "<appointment-id>"
+}
+
+response = requests.put(url, headers=headers, json=data)
+result = response.json()
+print(result)`
+      },
+      response: `{
+  "id": "apt-123",
+  "professional_id": "<id>",
+  "client_id": "<id>",
+  "specialty_id": "<id>",
+  "start_time": "2025-01-20T12:00:00Z",
+  "end_time": "2025-01-20T12:30:00Z",
+  "status": "canceled"
+}`
+    },
+    {
+      method: 'GET',
+      path: '/details',
+      title: 'Detalhes do Agendamento',
+      description: 'Retorna os detalhes completos de um agendamento específico.',
+      example: {
+        curl: `curl -X GET "${baseUrl}?route=details&id=<appointment-id>" \\
+  -H "x-timezone: America/Sao_Paulo"`,
+        javascript: `const response = await fetch('${baseUrl}?route=details&id=<appointment-id>', {
+  method: 'GET',
+  headers: {
+    'x-timezone': 'America/Sao_Paulo',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log(data);`,
+        python: `import requests
+
+url = "${baseUrl}?route=details"
+params = {
+    "id": "<appointment-id>"
+}
+headers = {
+    "x-timezone": "America/Sao_Paulo",
     "Content-Type": "application/json"
 }
 
-response = requests.put(url, data=json.dumps(data), headers=headers)
-cancelled_appointment = response.json()
-print(cancelled_appointment)`
+response = requests.get(url, params=params, headers=headers)
+data = response.json()
+print(data)`
       },
       response: `{
-  "id": "appointment-uuid",
-  "professional_id": "prof-123",
-  "client_id": "client-456",
-  "specialty_id": "spec-789",
-  "status": "canceled",
-  "updated_at": "2025-06-09T22:06:00.000Z"
+  "id": "apt-123",
+  "professional_id": "<id>",
+  "client_id": "<id>",
+  "specialty_id": "<id>",
+  "start_time": "2025-01-20T12:00:00Z",
+  "end_time": "2025-01-20T12:30:00Z",
+  "status": "confirmed",
+  "start_time_local": "2025-01-20T09:00:00",
+  "end_time_local": "2025-01-20T09:30:00",
+  "timezone": "America/Sao_Paulo",
+  "client": {
+    "name": "Maria Santos",
+    "email": "maria@email.com",
+    "phone": "(11) 99999-9999"
+  },
+  "professional": {
+    "name": "Dr. João Silva",
+    "email": "joao@clinica.com"
+  },
+  "specialty": {
+    "name": "Consulta Geral",
+    "duration": 30,
+    "price": 150.00
+  }
 }`
     }
   ];
+
+  // Adicionar seção de informações sobre timezone
+  const timezoneInfo = {
+    title: 'Informações sobre Fuso Horário',
+    description: 'A API suporta conversão automática de fuso horário. Use o header x-timezone para especificar o fuso desejado.',
+    examples: {
+      curl: `curl -X GET "${baseUrl}?route=available-slots&professionalId=<id>&date=2025-01-20&specialtyId=<id>" \\
+  -H "x-timezone: America/Sao_Paulo"`,
+      javascript: `const response = await fetch('${baseUrl}?route=available-slots&professionalId=<id>&date=2025-01-20&specialtyId=<id>', {
+  method: 'GET',
+  headers: {
+    'x-timezone': 'America/Sao_Paulo',
+    'Content-Type': 'application/json'
+  }
+});`,
+      python: `import requests
+
+url = "${baseUrl}?route=available-slots"
+params = {
+    "professionalId": "<id>",
+    "date": "2025-01-20",
+    "specialtyId": "<id>"
+}
+headers = {
+    "x-timezone": "America/Sao_Paulo",
+    "Content-Type": "application/json"
+}
+
+response = requests.get(url, params=params, headers=headers)`
+    }
+  };
 
   const CodeBlock = ({ code, language, id }: { code: string; language: string; id: string }) => (
     <div className="relative">
@@ -738,6 +865,36 @@ Content-Type: application/json`}
         </Card>
       ))}
 
+      {/* Informações sobre Timezone */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5 text-blue-500" />
+            <span>Informações sobre Fuso Horário</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-gray-700">
+            A API suporta conversão automática de fuso horário. Use o header <code className="bg-gray-100 px-1 rounded">x-timezone</code> para especificar o fuso desejado.
+          </p>
+          
+          <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+            <h4 className="font-medium text-blue-800 mb-2">🌍 Timezone Suportado</h4>
+            <p className="text-sm text-blue-700 mb-2">
+              <strong>Padrão:</strong> America/Sao_Paulo (GMT-3)
+            </p>
+            <p className="text-sm text-blue-700">
+              <strong>Conversão:</strong> Todos os horários são automaticamente convertidos entre UTC (banco de dados) e o fuso local especificado.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-medium mb-3">Exemplo de Uso</h4>
+            <LanguageButtons examples={timezoneInfo.examples} endpointIndex={-1} />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Códigos de Erro */}
       <Card>
         <CardHeader>
@@ -792,15 +949,23 @@ Content-Type: application/json`}
           <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
             <h4 className="font-medium text-blue-800 mb-2">📅 Formato de Datas</h4>
             <p className="text-sm text-blue-700">
-              Todas as datas devem estar no formato ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ) em UTC.
+              Use o formato ISO 8601 (YYYY-MM-DDTHH:mm:ss) para horários locais. A API converte automaticamente para UTC.
             </p>
           </div>
 
           <div className="bg-green-50 p-4 rounded-md border border-green-200">
-            <h4 className="font-medium text-green-800 mb-2">🔒 Segurança</h4>
+            <h4 className="font-medium text-green-800 mb-2">🔒 Autenticação</h4>
             <p className="text-sm text-green-700">
-              Todos os endpoints filtram automaticamente os dados pelo usuário autenticado. 
-              Você só pode acessar seus próprios agendamentos.
+              Use autenticação Basic com seu user_id e client_secret codificados em Base64. 
+              Exemplo: <code className="bg-green-100 px-1 rounded">Authorization: Basic dXNlcjEyMzphYmNkZWY=</code>
+            </p>
+          </div>
+
+          <div className="bg-purple-50 p-4 rounded-md border border-purple-200">
+            <h4 className="font-medium text-purple-800 mb-2">👤 Criação de Clientes</h4>
+            <p className="text-sm text-purple-700">
+              No endpoint /book, você pode criar clientes automaticamente fornecendo clientData em vez de clientId.
+              Nome e telefone são obrigatórios.
             </p>
           </div>
 
@@ -835,7 +1000,7 @@ Content-Type: application/json`}
           <p className="text-gray-600 mb-4">
             Não foi possível carregar os dados da API. Verifique se você tem uma API Key configurada.
           </p>
-          <Button onClick={fetchApiData}>
+          <Button onClick={handleFetchData}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Tentar Novamente
           </Button>
@@ -845,6 +1010,23 @@ Content-Type: application/json`}
 
     return (
       <div className="space-y-6">
+        {/* Indicador de Status da API Key */}
+        {!isReady && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 text-yellow-400 mr-2" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">
+                  API Key não configurada
+                </h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Configure uma API Key nas Configurações do Perfil para usar esta funcionalidade.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>

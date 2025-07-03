@@ -14,6 +14,14 @@ interface WorkingHour {
   professional_id: string;
 }
 
+interface WorkingHourInterval {
+  id?: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  professional_id: string;
+}
+
 interface WorkingHoursModalProps {
   professionalId: string;
   professionalName: string;
@@ -40,134 +48,98 @@ const WorkingHoursModal: React.FC<WorkingHoursModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(true);
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
+  const [intervalsByDay, setIntervalsByDay] = useState<{ [day: number]: WorkingHourInterval[] }>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const fetchWorkingHours = async () => {
+    const fetchIntervals = async () => {
       try {
         const { data, error } = await supabase
-          .from('working_hours')
+          .from('working_hour_intervals')
           .select('*')
-          .eq('professional_id', professionalId)
-          .order('day_of_week');
-
+          .eq('professional_id', professionalId);
         if (error) throw error;
-
-        console.log('🔍 Dados do banco:', data);
-
-        // Criar array ordenado por day_of_week (0-6)
-        const orderedHours = Array(7).fill(null).map((_, dayOfWeek) => {
-          const existingData = data?.find(d => d.day_of_week === dayOfWeek);
-          
-          const dayData = {
-            day_of_week: dayOfWeek,
-            start_time: existingData?.start_time ?? null,
-            end_time: existingData?.end_time ?? null,
-            is_working_day: existingData?.is_working_day ?? false,
-            professional_id: professionalId,
-            id: existingData?.id,
-          };
-
-          console.log(`📅 ${DAYS[dayOfWeek]} (${dayOfWeek}):`, dayData);
-          return dayData;
+        // Agrupar por dia
+        const grouped: { [day: number]: WorkingHourInterval[] } = {};
+        for (let i = 0; i < 7; i++) grouped[i] = [];
+        (data || []).forEach((interval: any) => {
+          if (interval.start_time && interval.end_time) {
+            grouped[interval.day_of_week].push({
+              id: interval.id,
+              day_of_week: interval.day_of_week,
+              start_time: interval.start_time,
+              end_time: interval.end_time,
+              professional_id: interval.professional_id,
+            });
+          }
         });
-
-        setWorkingHours(orderedHours);
+        setIntervalsByDay(grouped);
       } catch (error) {
-        console.error('Error loading working hours:', error);
-        toast.error('Erro ao carregar horários de trabalho');
+        toast.error('Erro ao carregar intervalos');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchWorkingHours();
+    fetchIntervals();
   }, [professionalId]);
 
-const handleToggleDay = async (dayOfWeek: number) => {
-  try {
+  const handleAddInterval = (day: number) => {
+    setIntervalsByDay(prev => ({
+      ...prev,
+      [day]: [
+        ...prev[day],
+        {
+          day_of_week: day,
+          start_time: '09:00',
+          end_time: '17:00',
+          professional_id: professionalId,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveInterval = (day: number, idx: number) => {
+    setIntervalsByDay(prev => ({
+      ...prev,
+      [day]: prev[day].filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleIntervalChange = (day: number, idx: number, field: 'start_time' | 'end_time', value: string) => {
+    setIntervalsByDay(prev => ({
+      ...prev,
+      [day]: prev[day].map((interval, i) =>
+        i === idx ? { ...interval, [field]: value } : interval
+      ),
+    }));
+  };
+
+  const handleSetUnavailable = (day: number) => {
+    setIntervalsByDay(prev => ({
+      ...prev,
+      [day]: [],
+    }));
+  };
+
+  const handleSave = async () => {
     setSaving(true);
-    
-    const currentDay = workingHours.find(wh => wh.day_of_week === dayOfWeek);
-    if (!currentDay) return;
-
-    const newIsWorkingDay = !currentDay.is_working_day;
-    
-    // ⚠️ CORREÇÃO: Fazer UPDATE direto em vez de UPSERT
-    const { error } = await supabase
-      .from('working_hours')
-      .update({ 
-        is_working_day: newIsWorkingDay,
-        start_time: newIsWorkingDay ? (currentDay.start_time || '08:00:00') : null,
-        end_time: newIsWorkingDay ? (currentDay.end_time || '17:00:00') : null
-      })
-      .eq('professional_id', professionalId)
-      .eq('day_of_week', dayOfWeek);
-
-    if (error) throw error;
-
-    // Atualizar estado local
-    setWorkingHours(prev =>
-      prev.map(wh => (wh.day_of_week === dayOfWeek ? 
-        { ...wh, is_working_day: newIsWorkingDay } : wh))
-    );
-    
-    toast.success(`${DAYS[dayOfWeek]} ${newIsWorkingDay ? 'habilitado' : 'desabilitado'}`);
-  } catch (error: any) {
-    console.error('Error updating day:', error);
-    toast.error('Erro ao atualizar dia');
-  } finally {
-    setSaving(false);
-  }
-};
-  
-  const handleTimeChange = async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
     try {
-      setSaving(true);
-      
-      // Atualizar estado local primeiro
-      const updatedHours = workingHours.map(wh => 
-        wh.day_of_week === dayOfWeek ? { ...wh, [field]: value } : wh
-      );
-      setWorkingHours(updatedHours);
-
-      const day = updatedHours.find(wh => wh.day_of_week === dayOfWeek);
-      if (!day?.is_working_day) return;
-
-      // Validar horários antes de salvar
-      if (field === 'end_time' && day.start_time) {
-        if (!validateTimeRange(day.start_time, value)) {
-          toast.error('Horário de fim deve ser posterior ao horário de início');
-          return;
-        }
+      // Deleta todos os intervalos antigos do profissional
+      await supabase.from('working_hour_intervals').delete().eq('professional_id', professionalId);
+      // Insere todos os intervalos atuais
+      const allIntervals = Object.values(intervalsByDay).flat();
+      if (allIntervals.length > 0) {
+        const { error } = await supabase.from('working_hour_intervals').insert(allIntervals.map(({ id, ...rest }) => rest));
+        if (error) throw error;
       }
-      if (field === 'start_time' && day.end_time) {
-        if (!validateTimeRange(value, day.end_time)) {
-          toast.error('Horário de início deve ser anterior ao horário de fim');
-          return;
-        }
-      }
-
-      const { error } = await supabase
-        .from('working_hours')
-        .update({ [field]: value })
-        .eq('professional_id', professionalId)
-        .eq('day_of_week', dayOfWeek);
-
-      if (error) throw error;
-      toast.success(`Horários de ${DAYS[dayOfWeek]} atualizados`);
+      toast.success('Horários salvos com sucesso!');
+      onSuccess();
+      onClose();
     } catch (error) {
-      console.error('Error updating time:', error);
-      toast.error('Erro ao atualizar horários');
+      toast.error('Erro ao salvar horários');
     } finally {
       setSaving(false);
     }
-  };
-
-  const validateTimeRange = (start: string, end: string) => {
-    const [startHour, startMinute] = start.split(':').map(Number);
-    const [endHour, endMinute] = end.split(':').map(Number);
-    return endHour > startHour || (endHour === startHour && endMinute > startMinute);
   };
 
   if (loading) {
@@ -185,81 +157,85 @@ const handleToggleDay = async (dayOfWeek: number) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Toaster />
-      <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <Card className="w-full max-w-lg max-h-[90vh] flex flex-col">
         <CardHeader className="flex-shrink-0">
           <CardTitle>
             Horários de Trabalho - {professionalName}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
-          <div className="space-y-4">
-          {workingHours.map((dayData) => {
-            const dayOfWeek = dayData.day_of_week;
-            const dayName = DAYS[dayOfWeek];
-
-            const isValid = dayData.is_working_day 
-              ? validateTimeRange(dayData.start_time || '', dayData.end_time || '')
-              : true;
-
-            return (
-              <div
-                key={`day-${dayOfWeek}`}
-                className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-2 border rounded-lg"
-              >
-                <div className="flex items-center w-40">
-                  <input
-                    type="checkbox"
-                    checked={dayData.is_working_day}
-                    onChange={() => handleToggleDay(dayOfWeek)}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-2"
-                    disabled={saving}
-                  />
-                  <span className={dayData.is_working_day ? 'font-medium' : 'text-gray-400'}>
-                    {dayName}
-                  </span>
-                  <span className="text-xs text-gray-400 ml-1">({dayOfWeek})</span>
-                </div>
-
-                {dayData.is_working_day && (
-                  <div className="flex flex-1 items-center gap-2">
-                    <Input
-                      type="time"
-                      value={dayData.start_time || ''}
-                      onChange={(e) => handleTimeChange(dayOfWeek, 'start_time', e.target.value)}
-                      className="w-32"
-                      disabled={saving}
+          <div className="space-y-2">
+            {DAYS.map((dayName, dayIdx) => {
+              const isAvailable = intervalsByDay[dayIdx] && intervalsByDay[dayIdx].length > 0;
+              return (
+                <React.Fragment key={dayIdx}>
+                  <div className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      checked={isAvailable}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          handleAddInterval(dayIdx);
+                        } else {
+                          handleSetUnavailable(dayIdx);
+                        }
+                      }}
+                      className="mr-2"
                     />
-                    <span className="text-gray-500">até</span>
-                    <Input
-                      type="time"
-                      value={dayData.end_time || ''}
-                      onChange={(e) => handleTimeChange(dayOfWeek, 'end_time', e.target.value)}
-                      className="w-32"
-                      disabled={saving}
-                      error={!isValid ? 'Horário de fim deve ser posterior ao de início' : undefined}
-                    />
+                    <span className="w-32 font-medium mr-2">{dayName}</span>
+                    {isAvailable ? (
+                      <div className="flex-1 flex flex-row flex-wrap gap-2">
+                        {intervalsByDay[dayIdx].map((interval, idx) => (
+                          <div key={idx} className="flex items-center gap-3 mb-1">
+                            <Input
+                              type="time"
+                              value={interval.start_time}
+                              onChange={e => handleIntervalChange(dayIdx, idx, 'start_time', e.target.value)}
+                              className="w-32"
+                            />
+                            <Input
+                              type="time"
+                              value={interval.end_time}
+                              onChange={e => handleIntervalChange(dayIdx, idx, 'end_time', e.target.value)}
+                              className="w-32"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveInterval(dayIdx, idx)}
+                              type="button"
+                              title="Remover intervalo"
+                            >
+                              ×
+                            </Button>
+                            {idx === intervalsByDay[dayIdx].length - 1 && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleAddInterval(dayIdx)}
+                                type="button"
+                                title="Adicionar intervalo"
+                              >
+                                +
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-500 ml-2">Indisponível</span>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="flex justify-end mt-6 gap-2">
-            <Button 
-              onClick={() => {
-                // Disparar evento para atualizar calendar
-                window.dispatchEvent(new CustomEvent('workingHoursChanged', {
-                  detail: { professionalId }
-                }));
-                onSuccess();
-              }} 
-              disabled={saving}
-            >
-              {saving ? 'Salvando...' : 'Concluído'}
-            </Button>
+                  {/* Linha divisória sutil entre os dias */}
+                  {dayIdx < DAYS.length - 1 && (
+                    <div className="border-t border-gray-200 my-2" />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
-        </div>
         </CardContent>
+        <Button onClick={handleSave} disabled={saving} className="mt-4">Salvar</Button>
       </Card>
     </div>
   );
