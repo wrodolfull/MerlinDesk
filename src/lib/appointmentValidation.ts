@@ -15,6 +15,12 @@ export const checkTimeConflict = async (
   excludeAppointmentId?: string
 ): Promise<{ hasConflict: boolean; conflictingAppointments?: any[] }> => {
   try {
+    // Definir início e fim do dia do agendamento
+    const startOfDay = new Date(startTime);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startTime);
+    endOfDay.setHours(23, 59, 59, 999);
+
     let query = supabase
       .from('appointments')
       .select(`
@@ -26,6 +32,8 @@ export const checkTimeConflict = async (
       `)
       .eq('professional_id', professionalId)
       .neq('status', 'canceled')
+      .gte('start_time', startOfDay.toISOString())
+      .lte('start_time', endOfDay.toISOString())
       .or(`start_time.lt.${endTime.toISOString()},end_time.gt.${startTime.toISOString()}`);
 
     if (excludeAppointmentId) {

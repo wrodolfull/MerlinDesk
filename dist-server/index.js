@@ -9,6 +9,7 @@ const google_1 = __importDefault(require("./google"));
 const google_calendar_1 = __importDefault(require("./google-calendar"));
 const assinatura_1 = __importDefault(require("./mercadoPago/assinatura"));
 const webhook_1 = __importDefault(require("./mercadoPago/webhook"));
+const whatsapp_1 = __importDefault(require("./whatsapp"));
 console.log('🚀 Iniciando servidor...');
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,8 @@ app.use(express_1.default.json());
 app.use('/google', google_1.default);
 app.use('/google', google_calendar_1.default);
 app.use('/mercado-pago', assinatura_1.default);
+// ✅ WhatsApp
+app.use('/whatsapp', whatsapp_1.default);
 // ✅ Rota de teste
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });

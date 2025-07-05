@@ -4,6 +4,7 @@ import googleRoutes from './google';
 import googleCalendarRoutes from './google-calendar';
 import mercadoPagoAssinatura from './mercadoPago/assinatura';
 import mercadoPagoWebhook from './mercadoPago/webhook';
+import whatsappRoutes from './whatsapp';
 
 console.log('🚀 Iniciando servidor...');
 
@@ -29,6 +30,9 @@ app.use(express.json());
 app.use('/google', googleRoutes);
 app.use('/google', googleCalendarRoutes);
 app.use('/mercado-pago', mercadoPagoAssinatura);
+
+// ✅ WhatsApp
+app.use('/whatsapp', whatsappRoutes);
 
 // ✅ Rota de teste
 app.get('/health', (req, res) => {

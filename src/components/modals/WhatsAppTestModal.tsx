@@ -4,7 +4,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { sendCustomMessage, checkWhatsAppStatus, AppointmentNotification, sendAppointmentConfirmation } from '../../lib/whatsapp';
 import toast, { Toaster } from 'react-hot-toast';
-
+ 
 interface WhatsAppTestModalProps {
   open: boolean;
   onClose: () => void;

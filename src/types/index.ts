@@ -62,6 +62,8 @@ export interface Appointment {
   google_event_id?: string;
   video_conference_link?: string;
   guests?: string[];
+  sync_source?: 'merlin' | 'google' | 'manual';
+  last_sync_at?: Date;
   client?: Pick<Client, 'id' | 'name' | 'email' | 'phone'>;
   professional?: Pick<Professional, 'id' | 'name' | 'avatar'>;
   specialty?: Pick<Specialty, 'id' | 'name' | 'duration'>;
